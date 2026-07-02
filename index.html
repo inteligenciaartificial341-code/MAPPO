@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#185266">
 <title>MAPPO — Gestão de Equipes em Campo</title>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%23185266'/%3E%3Cg fill='none' stroke='white' stroke-width='3'%3E%3Cpath d='M30 35 L42 30 L58 35 L70 30 L70 65 L58 70 L42 65 L30 70 Z'/%3E%3Cpath d='M42 30 L42 65 M58 35 L58 70'/%3E%3C/g%3E%3Ccircle cx='62' cy='28' r='10' fill='white'/%3E%3Ccircle cx='62' cy='27' r='4' fill='%23185266'/%3E%3C/svg%3E">
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
     /* MAPPO petróleo (extraído da logo) */
@@ -39,7 +39,7 @@
   .splash-tagline{font-size:12px;font-weight:400;color:rgba(255,255,255,.72);letter-spacing:4px;margin-top:10px;text-transform:uppercase;}
 
   .login-box{background:rgba(255,255,255,.07);backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.14);border-radius:var(--radius-lg);padding:32px 28px;width:100%;max-width:360px;animation:fadeUp .8s ease .15s both;}
-  .login-box h2{font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:600;color:#fff;margin-bottom:22px;text-align:center;}
+  .login-box h2{font-family:'Inter',sans-serif;letter-spacing:-.02em;font-size:24px;font-weight:600;color:#fff;margin-bottom:22px;text-align:center;}
   .login-field{margin-bottom:16px;}
   .login-field label{display:block;font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,.6);margin-bottom:7px;}
   .login-field input,.login-field select{width:100%;padding:13px 15px;border:1.5px solid rgba(255,255,255,.18);border-radius:var(--radius-sm);background:rgba(255,255,255,.09);color:#fff;font-size:15px;outline:none;transition:border-color .15s;}
@@ -90,7 +90,7 @@
   .topbar{height:64px;background:var(--white);border-bottom:1px solid var(--gray-200);display:flex;align-items:center;justify-content:space-between;padding:0 28px;position:sticky;top:0;z-index:50;}
   .topbar-left{display:flex;align-items:center;gap:14px;}
   .btn-hamburger{display:none;background:none;border:none;font-size:22px;color:var(--petrol);padding:4px;}
-  .topbar-title{font-family:'Cormorant Garamond',serif;font-size:23px;font-weight:600;color:var(--gray-800);}
+  .topbar-title{font-family:'Inter',sans-serif;letter-spacing:-.02em;font-size:23px;font-weight:600;color:var(--gray-800);}
   .topbar-sub{font-size:12px;color:var(--gray-400);margin-top:-2px;}
   .topbar-right{display:flex;align-items:center;gap:12px;}
   .topbar-date{font-size:13px;color:var(--gray-500);font-weight:400;}
@@ -114,7 +114,7 @@
 
   /* ═══════════ COMPONENTES ═══════════ */
   .page-head{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px;gap:16px;flex-wrap:wrap;}
-  .page-title{font-family:'Cormorant Garamond',serif;font-size:30px;font-weight:600;color:var(--gray-800);line-height:1.1;}
+  .page-title{font-family:'Inter',sans-serif;letter-spacing:-.02em;font-size:30px;font-weight:600;color:var(--gray-800);line-height:1.1;}
   .page-desc{font-size:14px;color:var(--gray-500);margin-top:4px;}
 
   .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 20px;border-radius:var(--radius-sm);font-size:14px;font-weight:600;border:none;transition:all .15s;white-space:nowrap;}
@@ -138,7 +138,7 @@
   .stat.s-prog{border-color:var(--blue);}
   .stat.s-done{border-color:var(--green);}
   .stat-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--gray-400);margin-bottom:8px;}
-  .stat-num{font-family:'Cormorant Garamond',serif;font-size:40px;font-weight:700;line-height:1;color:var(--gray-800);}
+  .stat-num{font-family:'Inter',sans-serif;letter-spacing:-.02em;font-size:40px;font-weight:700;line-height:1;color:var(--gray-800);}
   .stat.s-total .stat-num{color:var(--petrol);}.stat.s-pend .stat-num{color:var(--yellow);}.stat.s-prog .stat-num{color:var(--blue);}.stat.s-done .stat-num{color:var(--green);}
 
   .two-col{display:grid;grid-template-columns:1fr 340px;gap:22px;align-items:start;}
@@ -146,7 +146,7 @@
   .card{background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow-sm);overflow:hidden;}
   .card-pad{padding:22px;}
   .card-head{display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid var(--gray-100);}
-  .card-head h3{font-family:'Cormorant Garamond',serif;font-size:19px;font-weight:600;color:var(--gray-800);}
+  .card-head h3{font-family:'Inter',sans-serif;letter-spacing:-.02em;font-size:19px;font-weight:600;color:var(--gray-800);}
 
   /* FILTERS */
   .filters{display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap;}
@@ -163,8 +163,9 @@
   .os-card.st-atrasada{border-color:var(--red);}
   .os-card.st-revisao{border-color:var(--gold);}
   .os-card-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;}
-  .os-client{font-family:'Cormorant Garamond',serif;font-size:19px;font-weight:600;color:var(--gray-800);margin-bottom:2px;}
-  .os-addr{font-size:13px;color:var(--gray-400);}
+  .os-client{font-family:'Inter',sans-serif;letter-spacing:-.02em;font-size:19px;font-weight:600;color:var(--gray-800);margin-bottom:2px;}
+  .os-addr{font-size:13px;color:var(--gray-400);display:flex;align-items:center;gap:5px;}
+  .os-addr .ico,.os-meta-i .ico{color:var(--gray-400);stroke-width:2;}
   .badge{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:20px;font-size:11.5px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;flex-shrink:0;}
   .badge .dot{width:7px;height:7px;border-radius:50%;background:currentColor;}
   .b-pendente{background:var(--yellow-bg);color:#92600e;}
@@ -214,7 +215,7 @@
   .modal{background:var(--white);border-radius:var(--radius-lg);width:100%;max-width:540px;max-height:90vh;overflow-y:auto;box-shadow:var(--shadow-lg);transform:translateY(16px);transition:transform .2s;}
   .overlay.open .modal{transform:translateY(0);}
   .modal-head{padding:24px 26px 0;}
-  .modal-head h2{font-family:'Cormorant Garamond',serif;font-size:24px;font-weight:600;color:var(--gray-800);display:flex;align-items:center;gap:10px;}
+  .modal-head h2{font-family:'Inter',sans-serif;letter-spacing:-.02em;font-size:24px;font-weight:600;color:var(--gray-800);display:flex;align-items:center;gap:10px;}
   .modal-body{padding:20px 26px;}
   .modal-foot{display:flex;gap:10px;justify-content:flex-end;padding:18px 26px;border-top:1px solid var(--gray-100);position:sticky;bottom:0;background:var(--white);}
 
@@ -237,7 +238,7 @@
   /* PLACEHOLDER VRF */
   .vrf-placeholder{text-align:center;padding:80px 24px;}
   .vrf-placeholder .ico{font-size:64px;margin-bottom:20px;}
-  .vrf-placeholder h2{font-family:'Cormorant Garamond',serif;font-size:28px;color:var(--gray-800);margin-bottom:10px;}
+  .vrf-placeholder h2{font-family:'Inter',sans-serif;letter-spacing:-.02em;font-size:28px;color:var(--gray-800);margin-bottom:10px;}
   .vrf-placeholder p{font-size:15px;color:var(--gray-500);max-width:440px;margin:0 auto 8px;line-height:1.6;}
 
   /* SETTINGS list */
@@ -252,7 +253,53 @@
   .switch input:checked+.slider{background:var(--green);}
   .switch input:checked+.slider:before{transform:translateX(21px);}
 
-  /* backdrop mobile */
+  /* ═══════════ ÍCONES SVG (Feather-style, contorno) ═══════════ */
+  .ico{width:20px;height:20px;flex-shrink:0;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;display:inline-block;vertical-align:middle;}
+  .ico-sm{width:16px;height:16px;}
+  .ico-lg{width:24px;height:24px;}
+
+  /* ═══════════ BARRA DE NAVEGAÇÃO (bottom mobile / rail desktop) ═══════════ */
+  .navbar{position:fixed;z-index:70;background:var(--white);display:flex;transition:all .25s;}
+  /* desktop = rail vertical à esquerda, colado na sidebar de config */
+  .navbar{left:0;top:0;bottom:0;width:82px;flex-direction:column;align-items:center;padding:18px 0;gap:6px;border-right:1px solid var(--gray-200);box-shadow:2px 0 12px rgba(15,58,73,.04);}
+  .navbar-logo{width:44px;height:44px;border-radius:12px;background:linear-gradient(140deg,var(--petrol),var(--petrol-dark));display:flex;align-items:center;justify-content:center;margin-bottom:14px;flex-shrink:0;}
+  .navbar-logo svg{width:26px;height:26px;stroke:#fff;}
+  .navbtn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;width:64px;padding:10px 0;border:none;background:none;border-radius:12px;color:var(--gray-500);cursor:pointer;transition:all .15s;position:relative;}
+  .navbtn:hover{background:var(--petrol-bg);color:var(--petrol);}
+  .navbtn.active{background:var(--petrol-bg);color:var(--petrol);}
+  .navbtn.active::before{content:'';position:absolute;left:-18px;top:50%;transform:translateY(-50%);width:4px;height:26px;background:var(--petrol);border-radius:0 4px 4px 0;}
+  .navbtn .ico{width:22px;height:22px;}
+  .navbtn-lbl{font-size:10px;font-weight:600;letter-spacing:.2px;}
+  .navbtn-badge{position:absolute;top:6px;right:12px;background:var(--gold);color:var(--petrol-dark);font-size:9px;font-weight:700;min-width:16px;height:16px;padding:0 4px;border-radius:10px;display:flex;align-items:center;justify-content:center;}
+  .navbar-spacer{flex:1;}
+  .navbtn.navbtn-menu{color:var(--petrol);}
+
+  /* quando navbar rail está ativa, empurra o conteúdo */
+  body.has-rail .main{margin-left:82px;}
+  body.has-rail .sidebar{left:82px;}
+
+  @media(max-width:1024px){
+    /* mobile = barra inferior */
+    .navbar{left:0;right:0;bottom:0;top:auto;width:auto;height:64px;flex-direction:row;padding:0 4px;border-right:none;border-top:1px solid var(--gray-200);box-shadow:0 -2px 16px rgba(15,58,73,.08);justify-content:space-around;}
+    .navbar-logo{display:none;}
+    .navbar-spacer{display:none;}
+    .navbtn{flex:1;width:auto;max-width:74px;padding:8px 0;border-radius:10px;}
+    .navbtn.active::before{left:50%;top:auto;bottom:-8px;transform:translateX(-50%);width:24px;height:3px;border-radius:4px 4px 0 0;}
+    .navbtn .ico{width:21px;height:21px;}
+    .navbtn-badge{top:2px;right:50%;margin-right:-20px;}
+    body.has-rail .main{margin-left:0;}
+    body.has-rail .sidebar{left:0;}
+    .main{padding-bottom:64px;}
+    /* FAB flutuante acima da barra */
+    .fab{position:fixed;right:18px;bottom:80px;width:56px;height:56px;border-radius:50%;background:var(--gold);color:var(--petrol-dark);border:none;box-shadow:0 6px 20px rgba(201,168,76,.5);z-index:71;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .15s;}
+    .fab:active{transform:scale(.92);}
+    .fab svg{width:26px;height:26px;stroke:var(--petrol-dark);stroke-width:2.5;}
+  }
+  @media(min-width:1025px){
+    .fab{display:none;}
+  }
+
+
   .backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:80;}
   .backdrop.show{display:block;}
 
@@ -326,6 +373,26 @@
 <div id="app">
   <div class="backdrop" id="backdrop" onclick="closeSidebar()"></div>
 
+  <!-- BARRA DE NAVEGAÇÃO PRINCIPAL (inferior no mobile, rail no desktop) -->
+  <nav class="navbar" id="navbar">
+    <div class="navbar-logo" onclick="openSidebar()" title="Menu / Sistemas">
+      <svg viewBox="0 0 100 100" fill="none">
+        <path d="M28 34 L42 28 L58 34 L72 28 L72 68 L58 74 L42 68 L28 74 Z" stroke-width="4" stroke-linejoin="round"/>
+        <path d="M42 28 L42 68 M58 34 L58 74" stroke-width="4"/>
+      </svg>
+    </div>
+    <div id="navbarBtns"></div>
+    <div class="navbar-spacer"></div>
+    <button class="navbtn navbtn-menu" onclick="openSidebar()">
+      <span class="nav-ico-slot" data-ico="menu"></span>
+      <span class="navbtn-lbl">Menu</span>
+    </button>
+  </nav>
+
+  <button class="fab" id="fabNovo" onclick="openModalOS()" title="Nova OS">
+    <svg viewBox="0 0 24 24" fill="none"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+  </button>
+
   <!-- SIDEBAR -->
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
@@ -344,36 +411,17 @@
     </div>
 
     <nav class="sidebar-nav">
-      <div class="nav-section-label">Operação</div>
-      <button class="nav-item active" data-view="dashboard" onclick="nav('dashboard')">
-        <span class="nav-ico">📊</span> Painel
-      </button>
-      <button class="nav-item" data-view="ordens" onclick="nav('ordens')">
-        <span class="nav-ico">📋</span> Ordens de Serviço
-        <span class="nav-badge" id="badgeOS" style="display:none">0</span>
-      </button>
-      <button class="nav-item" data-view="mapa" onclick="nav('mapa')">
-        <span class="nav-ico">🗺️</span> Mapa ao Vivo
-      </button>
-      <button class="nav-item" data-view="manutencoes" onclick="nav('manutencoes')">
-        <span class="nav-ico">🔄</span> Manutenções
-        <span class="nav-badge" id="badgeManut" style="display:none">0</span>
-      </button>
-      <button class="nav-item" data-view="clientes" onclick="nav('clientes')">
-        <span class="nav-ico">🏢</span> Clientes
-      </button>
-
       <div class="nav-section-label">Sistemas Elite Ar</div>
       <button class="nav-item" data-view="splits" onclick="nav('splits')">
-        <span class="nav-ico">❄️</span> Sistema Split
+        <span class="nav-ico" id="navico-splits"></span> Sistema Split
       </button>
       <button class="nav-item" data-view="vrf" onclick="nav('vrf')">
-        <span class="nav-ico">🌡️</span> Sistema VRF
+        <span class="nav-ico" id="navico-vrf"></span> Sistema VRF
       </button>
 
       <div class="nav-section-label">Conta</div>
       <button class="nav-item" data-view="config" onclick="nav('config')">
-        <span class="nav-ico">⚙️</span> Configurações
+        <span class="nav-ico" id="navico-config"></span> Configurações
       </button>
     </nav>
 
@@ -444,6 +492,47 @@ if(!tecnicos||!tecnicos.length){
 function saveTecnicos(){localStorage.setItem('mappo_tecnicos',JSON.stringify(tecnicos));}
 function nomesTecnicos(){return tecnicos.filter(t=>t.ativo!==false).map(t=>t.nome);}
 function getTecnico(nome){return tecnicos.find(t=>t.nome===nome);}
+
+/* ── ÍCONES SVG (Feather-style, contorno) ── */
+const ICONS={
+  dashboard:'<path d="M3 3h7v9H3z"/><path d="M14 3h7v5h-7z"/><path d="M14 12h7v9h-7z"/><path d="M3 16h7v5H3z"/>',
+  ordens:'<path d="M9 2h6a2 2 0 0 1 2 2v0h1a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h1"/><rect x="9" y="2" width="6" height="4" rx="1"/><path d="M9 12l2 2 4-4"/>',
+  mapa:'<polygon points="1 6 8 3 16 6 23 3 23 18 16 21 8 18 1 21"/><line x1="8" y1="3" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="21"/>',
+  manutencoes:'<path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>',
+  clientes:'<path d="M3 21V7l9-4 9 4v14"/><path d="M9 21v-6h6v6"/><line x1="9" y1="9" x2="9" y2="9.01"/><line x1="15" y1="9" x2="15" y2="9.01"/>',
+  splits:'<path d="M2 12h20"/><path d="M4 12V7a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v5"/><path d="M6 16v1M10 16v1M14 16v1M18 16v1"/>',
+  vrf:'<path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0z"/>',
+  config:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+  menu:'<line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/>',
+  plus:'<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+  refresh:'<path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>',
+  logout:'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>',
+  desktop:'<rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>',
+  mobile:'<rect x="5" y="2" width="14" height="20" rx="2"/><line x1="12" y1="18" x2="12" y2="18.01"/>',
+  gps:'<polygon points="3 11 22 2 13 21 11 13 3 11"/>',
+  check:'<polyline points="20 6 9 17 4 12"/>',
+  camera:'<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
+  edit:'<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/>',
+  trash:'<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+  clock:'<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+  pin:'<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>',
+  user:'<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+  calendar:'<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
+  back:'<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>',
+  bell:'<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
+  power:'<path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/>',
+};
+function svgIco(name,cls){return `<svg class="ico ${cls||''}" viewBox="0 0 24 24">${ICONS[name]||''}</svg>`;}
+function ico(name,cls){return svgIco(name,cls);} // alias
+
+/* módulos da barra de navegação principal */
+const NAV_ITEMS=[
+  {view:'dashboard',icon:'dashboard',label:'Painel'},
+  {view:'ordens',icon:'ordens',label:'Ordens',badge:'badgeOS'},
+  {view:'manutencoes',icon:'manutencoes',label:'Manut.',badge:'badgeManut'},
+  {view:'clientes',icon:'clientes',label:'Clientes'},
+  {view:'mapa',icon:'mapa',label:'Mapa'},
+];
 
 const CHECKLIST_BASE = [
   {id:'nivel_evap',label:'Suporte da evaporadora no nível',critico:true},
@@ -516,11 +605,16 @@ function fazerLogin(){
 function entrarApp(){
   document.getElementById('loginScreen').classList.add('hidden');
   document.getElementById('app').classList.add('active');
+  document.body.classList.add('has-rail');
   // avatar + nome
   const iniciais=session.nome.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
   document.getElementById('userAvatar').textContent=iniciais;
   document.getElementById('userName').textContent=session.nome;
   document.getElementById('userRole').textContent=session.role;
+  // injeta ícones da sidebar e topbar
+  injetarIcones();
+  // monta a barra de navegação principal conforme perfil/módulos
+  montarNavbar();
   // técnico vê só os módulos que o gestor liberou
   if(session.perfil==='tecnico'){
     aplicarMenuTecnico();
@@ -535,9 +629,43 @@ function entrarApp(){
   startNotifChecker();
 }
 
+/* injeta ícones SVG nos slots fixos (sidebar, topbar, footer) */
+function injetarIcones(){
+  const map={'navico-splits':'splits','navico-vrf':'vrf','navico-config':'config'};
+  Object.entries(map).forEach(([id,name])=>{const el=document.getElementById(id);if(el)el.innerHTML=svgIco(name);});
+  document.querySelectorAll('.nav-ico-slot').forEach(el=>{el.innerHTML=svgIco(el.dataset.ico);});
+  const tgD=document.getElementById('tgDesktop'),tgM=document.getElementById('tgMobile');
+  if(tgD)tgD.innerHTML=svgIco('desktop','ico-sm')+' Desktop';
+  if(tgM)tgM.innerHTML=svgIco('mobile','ico-sm')+' Mobile';
+  const bs=document.querySelector('.btn-sair');if(bs)bs.innerHTML=svgIco('power');
+}
+
+/* monta a barra de navegação (bottom mobile / rail desktop) */
+function montarNavbar(){
+  let items=NAV_ITEMS;
+  if(session.perfil==='tecnico'){
+    const tec=getTecnico(session.nome)||{modulos:{split:true,vrf:false}};
+    const m=tec.modulos||{split:true,vrf:false};
+    // técnico: painel só se tiver split (fluxo de ordens). VRF entra como item próprio.
+    items=[];
+    if(m.split){items.push({view:'ordens',icon:'ordens',label:'Ordens',badge:'badgeOS'});}
+    if(m.vrf){items.push({view:'vrf',icon:'vrf',label:'VRF'});}
+    // FAB e criação de OS são do gestor; esconde
+    document.getElementById('fabNovo').style.display='none';
+  }
+  const cont=document.getElementById('navbarBtns');
+  cont.innerHTML=items.map(it=>`
+    <button class="navbtn" data-nav="${it.view}" onclick="nav('${it.view}')">
+      ${svgIco(it.icon)}
+      <span class="navbtn-lbl">${it.label}</span>
+      ${it.badge?`<span class="navbtn-badge" id="nb-${it.badge}" style="display:none">0</span>`:''}
+    </button>`).join('');
+}
+
 function logout(){
   if(!confirm('Deseja sair do MAPPO?'))return;
   session=null;localStorage.removeItem('mappo_session');
+  document.body.classList.remove('has-rail');
   document.getElementById('app').classList.remove('active');
   document.getElementById('loginScreen').classList.remove('hidden');
   const sen=document.getElementById('loginTecSenha');if(sen)sen.value='';
@@ -559,6 +687,7 @@ const VIEW_META={
 function nav(view){
   currentView=view;
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active',n.dataset.view===view));
+  document.querySelectorAll('.navbtn[data-nav]').forEach(n=>n.classList.toggle('active',n.dataset.nav===view));
   const meta=VIEW_META[view]||['',''];
   document.getElementById('topTitle').textContent=meta[0];
   document.getElementById('topSub').textContent=meta[1];
@@ -643,6 +772,11 @@ function atualizarBadges(){
   const proximas=manutencoes.filter(m=>!m.concluida&&diasAte(m.dataAgendada)<=7).length;
   const bM=document.getElementById('badgeManut');
   if(bM){bM.style.display=proximas?'inline-block':'none';bM.textContent=proximas;}
+  // badges da navbar
+  const nbOS=document.getElementById('nb-badgeOS');
+  if(nbOS){nbOS.style.display=ativas?'flex':'none';nbOS.textContent=ativas;}
+  const nbM=document.getElementById('nb-badgeManut');
+  if(nbM){nbM.style.display=proximas?'flex':'none';nbM.textContent=proximas;}
 }
 
 /* ═══════════ DASHBOARD ═══════════ */
@@ -657,7 +791,7 @@ function renderDashboard(){
   <div class="page-head">
     <div><div class="page-title">Bom trabalho, ${session.nome.split(' ')[0]}</div>
     <div class="page-desc">Aqui está o resumo da operação de hoje.</div></div>
-    <button class="btn btn-primary" onclick="openModalOS()">＋ Nova OS</button>
+    <button class="btn btn-primary" onclick="openModalOS()">${svgIco('plus','ico-sm')} Nova OS</button>
   </div>
 
   <div class="stats-grid">
@@ -678,7 +812,7 @@ function renderDashboard(){
       <div class="card">
         <div class="card-head"><h3>Ordens recentes</h3><button class="btn btn-ghost btn-sm" onclick="nav('ordens')">Ver todas</button></div>
         <div class="card-pad">
-          ${osList.length?`<div class="os-grid">${osList.slice(0,4).map(osCardHTML).join('')}</div>`:emptyState('📋','Nenhuma OS ainda','Crie sua primeira ordem de serviço.')}
+          ${osList.length?`<div class="os-grid">${osList.slice(0,4).map(osCardHTML).join('')}</div>`:emptyState('ordens','Nenhuma OS ainda','Crie sua primeira ordem de serviço.')}
         </div>
       </div>
     </div>
@@ -726,7 +860,7 @@ function renderOrdens(){
   return `
   <div class="page-head">
     <div><div class="page-title">Ordens de Serviço</div><div class="page-desc">${osList.length} ordens no total</div></div>
-    <button class="btn btn-primary" onclick="openModalOS()">＋ Nova OS</button>
+    <button class="btn btn-primary" onclick="openModalOS()">${svgIco('plus','ico-sm')} Nova OS</button>
   </div>
   <div class="filters">
     ${['todas|Todas','pendente|🟡 Pendentes','andamento|🔵 Em andamento','revisao|🟠 Em revisão','concluida|🟢 Concluídas','atrasada|🔴 Atrasadas'].map(f=>{const[k,l]=f.split('|');return `<button class="fbtn ${currentFilter===k?'active':''}" onclick="setFilter('${k}')">${l}</button>`}).join('')}
@@ -739,7 +873,7 @@ function setFilter(f){currentFilter=f;const el=document.getElementById('osGridCo
 function renderOSGrid(){
   let list=[...osList];
   if(currentFilter!=='todas')list=list.filter(o=>statusReal(o)===currentFilter);
-  if(!list.length)return emptyState('📋','Nenhuma OS neste filtro','Ajuste os filtros ou crie uma nova ordem.');
+  if(!list.length)return emptyState('ordens','Nenhuma OS neste filtro','Ajuste os filtros ou crie uma nova ordem.');
   list.sort((a,b)=>{
     const sa=statusReal(a),sb=statusReal(b);
     if(sa==='atrasada'&&sb!=='atrasada')return -1;
@@ -763,14 +897,14 @@ function osCardHTML(os){
 
   return `<div class="os-card st-${s}" onclick="openDetalhe('${os.id}')">
     <div class="os-card-top">
-      <div><div class="os-client">${os.cliente}</div><div class="os-addr">📍 ${os.endereco}</div></div>
+      <div><div class="os-client">${os.cliente}</div><div class="os-addr">${svgIco('pin','ico-sm')} ${os.endereco}</div></div>
       <span class="badge b-${s}"><span class="dot"></span>${lbl[s]}</span>
     </div>
     <div class="os-meta">
-      <div class="os-meta-i"><span>🔧</span>${os.tipo}</div>
-      <div class="os-meta-i"><span>👷</span>${os.tecnico}</div>
-      <div class="os-meta-i"><span>📅</span>${fmtDate(os.data)} ${os.hora||''}</div>
-      <div class="os-meta-i"><span>❄️</span>${splits} split${splits>1?'s':''}</div>
+      <div class="os-meta-i">${svgIco('config','ico-sm')} ${os.tipo}</div>
+      <div class="os-meta-i">${svgIco('user','ico-sm')} ${os.tecnico}</div>
+      <div class="os-meta-i">${svgIco('calendar','ico-sm')} ${fmtDate(os.data)} ${os.hora||''}</div>
+      <div class="os-meta-i">${svgIco('splits','ico-sm')} ${splits} split${splits>1?'s':''}</div>
     </div>
     ${etapasHTML}
   </div>`;
@@ -790,7 +924,7 @@ function renderClientes(){
   return `
   <div class="page-head">
     <div><div class="page-title">Clientes</div><div class="page-desc">${lista.length} clientes · histórico completo por local</div></div>
-    <button class="btn btn-primary" onclick="openModalCliente()">＋ Novo cliente</button>
+    <button class="btn btn-primary" onclick="openModalCliente()">${svgIco('plus','ico-sm')} Novo cliente</button>
   </div>
   ${lista.length?`<div class="os-grid">${lista.map(c=>{
     const total=c.visitas.length;
@@ -805,7 +939,7 @@ function renderClientes(){
         <div class="os-meta-i"><span>🔄</span>${c.visitas.filter(v=>v.status!=='concluida').length} em aberto</div>
       </div>
     </div>`;
-  }).join('')}</div>`:emptyState('🏢','Nenhum cliente ainda','Os clientes aparecem aqui conforme você cria ordens de serviço.')}`;
+  }).join('')}</div>`:emptyState('clientes','Nenhum cliente ainda','Os clientes aparecem aqui conforme você cria ordens de serviço.')}`;
 }
 
 /* ═══════════ MANUTENÇÕES ═══════════ */
@@ -815,10 +949,10 @@ function renderManutencoes(){
   return `
   <div class="page-head">
     <div><div class="page-title">Manutenções programadas</div><div class="page-desc">Recorrências e agendamentos futuros</div></div>
-    <button class="btn btn-primary" onclick="openModalManut()">＋ Agendar manutenção</button>
+    <button class="btn btn-primary" onclick="openModalManut()">${svgIco('plus','ico-sm')} Agendar manutenção</button>
   </div>
-  ${ativas.length?`<div class="os-grid">${ativas.map(manutCardHTML).join('')}</div>`:emptyState('🔄','Nenhuma manutenção agendada','Agende manutenções preventivas e receba avisos antes do prazo.')}
-  ${feitas.length?`<h3 style="font-family:'Cormorant Garamond',serif;font-size:20px;margin:28px 0 14px;color:var(--gray-600)">Concluídas</h3><div class="os-grid" style="opacity:.7">${feitas.map(manutCardHTML).join('')}</div>`:''}`;
+  ${ativas.length?`<div class="os-grid">${ativas.map(manutCardHTML).join('')}</div>`:emptyState('manutencoes','Nenhuma manutenção agendada','Agende manutenções preventivas e receba avisos antes do prazo.')}
+  ${feitas.length?`<h3 style="font-family:'Inter',sans-serif;letter-spacing:-.02em;font-size:20px;margin:28px 0 14px;color:var(--gray-600)">Concluídas</h3><div class="os-grid" style="opacity:.7">${feitas.map(manutCardHTML).join('')}</div>`:''}`;
 }
 
 function manutCardHTML(m){
@@ -846,7 +980,7 @@ function renderMapa(){
   return `
   <div class="page-head">
     <div><div class="page-title">Mapa ao vivo</div><div class="page-desc">${online?online+' técnico'+(online>1?'s':'')+' online agora':'Nenhum técnico compartilhando localização'}</div></div>
-    <button class="btn btn-ghost btn-sm" onclick="renderView('mapa')">🔄 Atualizar</button>
+    <button class="btn btn-ghost btn-sm" onclick="renderView('mapa')">${svgIco('refresh','ico-sm')} Atualizar</button>
   </div>
   ${!online?`<div style="background:var(--blue-bg);border-left:4px solid var(--blue);border-radius:var(--radius-sm);padding:14px 18px;margin-bottom:18px;font-size:13.5px;color:#2c5282;line-height:1.55">
     ℹ️ <strong>Como funciona hoje:</strong> o técnico precisa tocar em "📍 Ativar GPS" no app dele. Sem servidor, a posição só aparece aqui se ele usar <strong>este mesmo aparelho/navegador</strong>. Para rastrear os celulares da equipe em tempo real de qualquer lugar, o próximo passo é conectar um banco em nuvem (Firebase) — já está no nosso roadmap.
@@ -863,8 +997,8 @@ function renderSplits(){
   const splitOS=osList.filter(o=>o.tipo&&o.tipo.toLowerCase().includes('split'));
   return `
   <div class="page-head">
-    <div><div class="page-title">❄️ Sistema Split</div><div class="page-desc">Instalação e serviço de aparelhos split</div></div>
-    <button class="btn btn-primary" onclick="openModalOS()">＋ Nova instalação</button>
+    <div><div class="page-title">Sistema Split</div><div class="page-desc">Instalação e serviço de aparelhos split</div></div>
+    <button class="btn btn-primary" onclick="openModalOS()">${svgIco('plus','ico-sm')} Nova instalação</button>
   </div>
   <div class="stats-grid">
     <div class="stat s-total"><div class="stat-label">Instalações</div><div class="stat-num">${splitOS.length}</div></div>
@@ -874,7 +1008,7 @@ function renderSplits(){
   </div>
   <div class="card">
     <div class="card-head"><h3>Ordens de instalação split</h3></div>
-    <div class="card-pad">${splitOS.length?`<div class="os-grid">${splitOS.map(osCardHTML).join('')}</div>`:emptyState('❄️','Nenhuma instalação split','Crie uma OS do tipo Instalação Split.')}</div>
+    <div class="card-pad">${splitOS.length?`<div class="os-grid">${splitOS.map(osCardHTML).join('')}</div>`:emptyState('splits','Nenhuma instalação split','Crie uma OS do tipo Instalação Split.')}</div>
   </div>`;
 }
 
@@ -883,7 +1017,7 @@ function renderVRF(){
   const salvo=localStorage.getItem('mappo_vrf_html');
   if(salvo){return `<iframe srcdoc="${salvo.replace(/"/g,'&quot;')}" style="width:100%;height:calc(100vh - 130px);border:none;border-radius:var(--radius)"></iframe>`;}
   return `
-  <div class="page-head"><div><div class="page-title">🌡️ Sistema VRF</div><div class="page-desc">Gestão de obras VRF — integração</div></div></div>
+  <div class="page-head"><div><div class="page-title">Sistema VRF</div><div class="page-desc">Gestão de obras VRF — integração</div></div></div>
   <div class="card"><div class="vrf-placeholder">
     <div class="ico">🌡️</div>
     <h2>Integre seu Painel VRF aqui</h2>
@@ -918,7 +1052,7 @@ function renderConfig(){
   <div class="page-head"><div><div class="page-title">Configurações</div><div class="page-desc">Equipe, notificações e preferências</div></div></div>
 
   <div class="card" style="margin-bottom:22px">
-    <div class="card-head"><h3>👥 Equipe — técnicos</h3><button class="btn btn-primary btn-sm" onclick="openModalTecnico()">＋ Adicionar técnico</button></div>
+    <div class="card-head"><h3>👥 Equipe — técnicos</h3><button class="btn btn-primary btn-sm" onclick="openModalTecnico()">${svgIco('plus','ico-sm')} Adicionar técnico</button></div>
     <div class="card-pad" style="padding-top:6px">${renderEquipeConfig()}</div>
   </div>
 
@@ -1052,7 +1186,7 @@ function toggleModuloTec(id,mod,val){
 }
 
 /* ── helpers UI ── */
-function emptyState(ico,titulo,desc){return `<div class="empty"><div class="ico">${ico}</div><p><strong>${titulo}</strong><br>${desc}</p></div>`;}
+function emptyState(ico,titulo,desc){const inner=ICONS[ico]?`<svg viewBox="0 0 24 24" style="width:52px;height:52px;stroke:var(--gray-300);stroke-width:1.5;fill:none;stroke-linecap:round;stroke-linejoin:round">${ICONS[ico]}</svg>`:`<div class="ico">${ico}</div>`;return `<div class="empty">${inner}<p><strong>${titulo}</strong><br>${desc}</p></div>`;}
 function diasAte(d){if(!d)return 999;const diff=new Date(d+'T00:00:00')-new Date(hoje()+'T00:00:00');return Math.round(diff/86400000);}
 function getTecnicoLoc(t){const locs=JSON.parse(localStorage.getItem('mappo_locations')||'{}');const l=locs[t];if(!l)return null;if(Date.now()-l.ts>300000)return null;return l;}
 
@@ -1362,7 +1496,7 @@ function renderTecnicoApp(){
   return `
   <div class="page-head"><div><div class="page-title">Minhas ordens</div><div class="page-desc">${minhas.filter(o=>o.status!=='concluida').length} em aberto</div></div>
   <button class="btn btn-ghost btn-sm" onclick="toggleGPS()"><span id="gpsLabel">📍 Ativar GPS</span></button></div>
-  ${minhas.length?secoes:emptyState('📭','Nenhuma OS atribuída','O gestor vai criar e atribuir suas ordens.')}`;
+  ${minhas.length?secoes:emptyState('ordens','Nenhuma OS atribuída','O gestor vai criar e atribuir suas ordens.')}`;
 }
 
 function secTec(titulo,list){
@@ -1430,19 +1564,19 @@ function renderExecucao(){
   const equipTabs=os.equipamentos.map((e,i)=>{const done=e.fotoEvap&&e.fotoCond;return `<button class="fbtn ${done?'active':''}" onclick="switchEquipTab(${i})" id="etab${i}">${done?'✅':''} Split ${i+1}</button>`}).join('');
   const c=document.getElementById('contentArea');
   c.innerHTML=`
-    <button class="btn btn-ghost btn-sm" style="margin-bottom:16px" onclick="voltarExec()">← Voltar</button>
+    <button class="btn btn-ghost btn-sm" style="margin-bottom:16px" onclick="voltarExec()">${svgIco('back','ico-sm')} Voltar</button>
     <div class="page-head"><div><div class="page-title">${os.cliente}</div><div class="page-desc">📍 ${os.endereco} · ❄️ ${os.qtdSplits||1} split${(os.qtdSplits||1)>1?'s':''}</div></div></div>
 
     <!-- 1 CHECK-IN -->
     <div class="card" style="margin-bottom:16px"><div class="card-pad">
-      <h3 style="font-family:'Cormorant Garamond',serif;font-size:18px;margin-bottom:4px">1. Chegada no local</h3>
+      <h3 style="font-family:'Inter',sans-serif;letter-spacing:-.02em;font-size:18px;margin-bottom:4px">1. Chegada no local</h3>
       <p style="font-size:13px;color:var(--gray-400);margin-bottom:14px">Registre o check-in para iniciar</p>
       ${os.checkinTime?`<div style="display:flex;align-items:center;gap:10px;color:var(--green);font-weight:600">✅ Check-in às ${os.checkinTime}</div>`:`<button class="btn btn-primary" style="width:100%;padding:16px" onclick="execCheckin()">📍 Fazer Check-in</button>`}
     </div></div>
 
     <!-- 2 EQUIPAMENTOS -->
     <div class="card" style="margin-bottom:16px"><div class="card-pad">
-      <h3 style="font-family:'Cormorant Garamond',serif;font-size:18px;margin-bottom:4px">2. Equipamentos</h3>
+      <h3 style="font-family:'Inter',sans-serif;letter-spacing:-.02em;font-size:18px;margin-bottom:4px">2. Equipamentos</h3>
       <p style="font-size:13px;color:var(--gray-400);margin-bottom:14px">Marca, modelo e foto das etiquetas de cada split</p>
       <div class="filters" style="margin-bottom:16px">${equipTabs}</div>
       <div id="equipPanelArea"></div>
@@ -1450,14 +1584,14 @@ function renderExecucao(){
 
     <!-- 3 CHECKLIST -->
     <div class="card" style="margin-bottom:16px"><div class="card-pad">
-      <h3 style="font-family:'Cormorant Garamond',serif;font-size:18px;margin-bottom:4px">3. Checklist</h3>
+      <h3 style="font-family:'Inter',sans-serif;letter-spacing:-.02em;font-size:18px;margin-bottom:4px">3. Checklist</h3>
       <p style="font-size:13px;color:var(--gray-400);margin-bottom:14px">Toque para marcar. Foto obrigatória em cada item.</p>
       <div id="checklistArea"></div>
     </div></div>
 
     <!-- 4 ASSINATURA -->
     <div class="card" style="margin-bottom:16px"><div class="card-pad">
-      <h3 style="font-family:'Cormorant Garamond',serif;font-size:18px;margin-bottom:4px">4. Assinatura do cliente</h3>
+      <h3 style="font-family:'Inter',sans-serif;letter-spacing:-.02em;font-size:18px;margin-bottom:4px">4. Assinatura do cliente</h3>
       <p style="font-size:13px;color:var(--gray-400);margin-bottom:14px">Peça para o cliente assinar</p>
       <canvas id="sigCanvas" style="width:100%;height:150px;border:2px solid var(--gray-200);border-radius:10px;touch-action:none;background:#fff"></canvas>
       <button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="limparSig()">🗑 Limpar</button>
