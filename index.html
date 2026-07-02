@@ -305,6 +305,10 @@
         <option value="">Escolha...</option>
       </select>
     </div>
+    <div class="fg login-field" id="loginTecSenhaWrap" style="display:none">
+      <label>Sua senha</label>
+      <input type="password" id="loginTecSenha" placeholder="••••" autocomplete="off">
+    </div>
     <div class="fg login-field" id="loginUserWrap">
       <label>Usuário</label>
       <input type="text" id="loginUser" placeholder="confortelite" autocomplete="off">
@@ -425,8 +429,21 @@
 const CFG = {
   gestorUser: 'confortelite',
   gestorPass: 'elitear2024',
-  tecnicos: ['Carlos Silva','João Pereira','Marcos Souza','Rafael Lima'],
 };
+
+/* ── TÉCNICOS DINÂMICOS (gestor gerencia em Configurações) ── */
+let tecnicos = JSON.parse(localStorage.getItem('mappo_tecnicos')||'null');
+if(!tecnicos||!tecnicos.length){
+  tecnicos = ['Carlos Silva','João Pereira','Marcos Souza','Rafael Lima'].map((n,i)=>({
+    id:'tec_'+(i+1), nome:n, senha:'1234',
+    modulos:{split:true,vrf:false}, ativo:true,
+    criadoEm:new Date().toISOString()
+  }));
+  localStorage.setItem('mappo_tecnicos',JSON.stringify(tecnicos));
+}
+function saveTecnicos(){localStorage.setItem('mappo_tecnicos',JSON.stringify(tecnicos));}
+function nomesTecnicos(){return tecnicos.filter(t=>t.ativo!==false).map(t=>t.nome);}
+function getTecnico(nome){return tecnicos.find(t=>t.nome===nome);}
 
 const CHECKLIST_BASE = [
   {id:'nivel_evap',label:'Suporte da evaporadora no nível',critico:true},
@@ -466,12 +483,13 @@ function onPerfilChange(){
   const perfil=document.getElementById('loginPerfil').value;
   const isTec=perfil==='tecnico';
   document.getElementById('loginTecnicoWrap').style.display=isTec?'block':'none';
+  document.getElementById('loginTecSenhaWrap').style.display=isTec?'block':'none';
   document.getElementById('loginUserWrap').style.display=isTec?'none':'block';
   document.getElementById('loginPassWrap').style.display=isTec?'none':'block';
-  document.getElementById('loginHint').innerHTML=isTec?'Selecione seu nome para acessar suas ordens de serviço.':'Use as credenciais de gestor.';
+  document.getElementById('loginHint').innerHTML=isTec?'Selecione seu nome e digite a senha que o gestor te passou.':'Use as credenciais de gestor.';
   if(isTec){
     const sel=document.getElementById('loginTecnico');
-    sel.innerHTML='<option value="">Escolha...</option>'+CFG.tecnicos.map(t=>`<option value="${t}">${t}</option>`).join('');
+    sel.innerHTML='<option value="">Escolha...</option>'+nomesTecnicos().map(t=>`<option value="${t}">${t}</option>`).join('');
   }
 }
 
@@ -485,7 +503,11 @@ function fazerLogin(){
   }else{
     const t=document.getElementById('loginTecnico').value;
     if(!t){toast('Selecione seu nome','warn');return;}
-    session={perfil:'tecnico',nome:t,role:'Técnico de Campo'};
+    const tec=getTecnico(t);
+    if(!tec||tec.ativo===false){toast('Técnico não encontrado. Fale com o gestor.','error');return;}
+    const senha=document.getElementById('loginTecSenha').value;
+    if(senha!==(tec.senha||'1234')){toast('Senha incorreta','error');return;}
+    session={perfil:'tecnico',nome:t,tecId:tec.id,role:'Técnico de Campo'};
   }
   saveSession();
   entrarApp();
@@ -499,11 +521,14 @@ function entrarApp(){
   document.getElementById('userAvatar').textContent=iniciais;
   document.getElementById('userName').textContent=session.nome;
   document.getElementById('userRole').textContent=session.role;
-  // técnico vê menu reduzido
+  // técnico vê só os módulos que o gestor liberou
   if(session.perfil==='tecnico'){
-    document.querySelectorAll('[data-view="mapa"],[data-view="clientes"],[data-view="vrf"],[data-view="config"],[data-view="manutencoes"]').forEach(el=>el.style.display='none');
-    nav('ordens');
+    aplicarMenuTecnico();
+    const tec=getTecnico(session.nome)||{modulos:{split:true,vrf:false}};
+    const m=tec.modulos||{split:true,vrf:false};
+    nav(m.split?'ordens':'vrf');
   }else{
+    document.querySelectorAll('.nav-item').forEach(el=>el.style.display='');
     nav('dashboard');
   }
   updateDate();
@@ -515,6 +540,8 @@ function logout(){
   session=null;localStorage.removeItem('mappo_session');
   document.getElementById('app').classList.remove('active');
   document.getElementById('loginScreen').classList.remove('hidden');
+  const sen=document.getElementById('loginTecSenha');if(sen)sen.value='';
+  onPerfilChange(); // recarrega a lista de técnicos atualizada
 }
 
 /* ── NAVEGAÇÃO ── */
@@ -578,10 +605,23 @@ function etapaAtual(os){
 /* ════════════════════════════════════════
    RENDER DE VIEWS
    ════════════════════════════════════════ */
+/* menu do técnico conforme módulos liberados */
+function aplicarMenuTecnico(){
+  if(!session||session.perfil!=='tecnico')return;
+  const tec=getTecnico(session.nome)||{modulos:{split:true,vrf:false}};
+  const m=tec.modulos||{split:true,vrf:false};
+  document.querySelectorAll('[data-view="dashboard"],[data-view="mapa"],[data-view="clientes"],[data-view="config"],[data-view="manutencoes"],[data-view="splits"]').forEach(el=>el.style.display='none');
+  const vrfEl=document.querySelector('[data-view="vrf"]');if(vrfEl)vrfEl.style.display=m.vrf?'':'none';
+  const ordEl=document.querySelector('[data-view="ordens"]');if(ordEl)ordEl.style.display=m.split?'':'none';
+}
+
 function renderView(v){
   const c=document.getElementById('contentArea');
-  // técnico só usa "ordens" (app de campo)
-  if(session.perfil==='tecnico'){c.innerHTML=renderTecnicoApp();afterTecnicoRender();return;}
+  // técnico: app de campo (ordens) + VRF se liberado
+  if(session.perfil==='tecnico'){
+    if(v==='vrf'){c.innerHTML=renderVRF();return;}
+    c.innerHTML=renderTecnicoApp();afterTecnicoRender();return;
+  }
   switch(v){
     case'dashboard':c.innerHTML=renderDashboard();break;
     case'ordens':c.innerHTML=renderOrdens();break;
@@ -657,7 +697,7 @@ function renderDashboard(){
 }
 
 function renderEquipeMini(){
-  return CFG.tecnicos.map(t=>{
+  return nomesTecnicos().map(t=>{
     const em=osList.find(o=>o.tecnico===t&&o.status==='andamento');
     const loc=getTecnicoLoc(t);
     return `<div class="tech-row">
@@ -801,11 +841,16 @@ function manutCardHTML(m){
 
 /* ═══════════ MAPA ═══════════ */
 function renderMapa(){
+  const locs=JSON.parse(localStorage.getItem('mappo_locations')||'{}');
+  const online=nomesTecnicos().filter(t=>{const l=locs[t];return l&&Date.now()-l.ts<300000;}).length;
   return `
   <div class="page-head">
-    <div><div class="page-title">Mapa ao vivo</div><div class="page-desc">Localização da equipe em tempo real</div></div>
+    <div><div class="page-title">Mapa ao vivo</div><div class="page-desc">${online?online+' técnico'+(online>1?'s':'')+' online agora':'Nenhum técnico compartilhando localização'}</div></div>
     <button class="btn btn-ghost btn-sm" onclick="renderView('mapa')">🔄 Atualizar</button>
   </div>
+  ${!online?`<div style="background:var(--blue-bg);border-left:4px solid var(--blue);border-radius:var(--radius-sm);padding:14px 18px;margin-bottom:18px;font-size:13.5px;color:#2c5282;line-height:1.55">
+    ℹ️ <strong>Como funciona hoje:</strong> o técnico precisa tocar em "📍 Ativar GPS" no app dele. Sem servidor, a posição só aparece aqui se ele usar <strong>este mesmo aparelho/navegador</strong>. Para rastrear os celulares da equipe em tempo real de qualquer lugar, o próximo passo é conectar um banco em nuvem (Firebase) — já está no nosso roadmap.
+  </div>`:''}
   <div class="card"><div id="mapaBox"></div></div>
   <div class="card" style="margin-top:20px">
     <div class="card-head"><h3>Equipe</h3></div>
@@ -870,7 +915,13 @@ function salvarVRF(){
 /* ═══════════ CONFIG ═══════════ */
 function renderConfig(){
   return `
-  <div class="page-head"><div><div class="page-title">Configurações</div><div class="page-desc">Notificações e preferências</div></div></div>
+  <div class="page-head"><div><div class="page-title">Configurações</div><div class="page-desc">Equipe, notificações e preferências</div></div></div>
+
+  <div class="card" style="margin-bottom:22px">
+    <div class="card-head"><h3>👥 Equipe — técnicos</h3><button class="btn btn-primary btn-sm" onclick="openModalTecnico()">＋ Adicionar técnico</button></div>
+    <div class="card-pad" style="padding-top:6px">${renderEquipeConfig()}</div>
+  </div>
+
   <div class="two-col">
     <div class="card">
       <div class="card-head"><h3>Notificações de manutenção</h3></div>
@@ -907,6 +958,99 @@ function renderConfig(){
 function toggleSet(k,v){settings[k]=v;saveSettings();toast('Preferência salva','success');}
 function setField(k,v){settings[k]=v;saveSettings();}
 
+/* ════════════════════════════════════════
+   GESTÃO DE TÉCNICOS (Configurações)
+   ════════════════════════════════════════ */
+function renderEquipeConfig(){
+  if(!tecnicos.length)return '<p style="font-size:14px;color:var(--gray-400);padding:12px 0">Nenhum técnico cadastrado. Adicione o primeiro.</p>';
+  return tecnicos.map(t=>{
+    const m=t.modulos||{split:true,vrf:false};
+    return `<div class="set-row" style="flex-wrap:wrap;gap:12px">
+      <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:180px">
+        <div class="tech-av">${t.nome.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase()}</div>
+        <div><div style="font-size:15px;font-weight:600;color:var(--gray-800)">${t.nome}</div>
+        <div style="font-size:12px;color:var(--gray-400)">Senha: ${t.senha||'1234'}</div></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;user-select:none">
+          <input type="checkbox" ${m.split?'checked':''} onchange="toggleModuloTec('${t.id}','split',this.checked)"> ❄️ Split</label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;user-select:none">
+          <input type="checkbox" ${m.vrf?'checked':''} onchange="toggleModuloTec('${t.id}','vrf',this.checked)"> 🌡️ VRF</label>
+        <button class="btn btn-ghost btn-sm" onclick="openModalTecnico('${t.id}')">✏️ Editar</button>
+        <button class="btn btn-danger btn-sm" onclick="removerTecnico('${t.id}')">🗑</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openModalTecnico(id){
+  const t=id?tecnicos.find(x=>x.id===id):null;
+  const m=t?(t.modulos||{split:true,vrf:false}):{split:true,vrf:false};
+  showModal(`
+    <div class="modal-head"><h2>${t?'✏️ Editar técnico':'👷 Novo técnico'}</h2></div>
+    <div class="modal-body">
+      <div class="fg"><label>Nome completo</label><input type="text" id="tNome" value="${t?t.nome:''}" placeholder="Nome do técnico"></div>
+      <div class="fg"><label>Senha de acesso</label><input type="text" id="tSenha" value="${t?(t.senha||'1234'):''}" placeholder="Senha que ele usa no login">
+      <p style="font-size:12px;color:var(--gray-400);margin-top:5px">Passe essa senha pro técnico. Só ele acessa a própria conta.</p></div>
+      <div class="fg"><label>Módulos liberados</label>
+        <div style="display:flex;gap:22px;margin-top:8px">
+          <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;user-select:none"><input type="checkbox" id="tSplit" ${m.split?'checked':''}> ❄️ Sistema Split</label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;user-select:none"><input type="checkbox" id="tVrf" ${m.vrf?'checked':''}> 🌡️ Sistema VRF</label>
+        </div>
+        <p style="font-size:12px;color:var(--gray-400);margin-top:6px">No login, o técnico só vê os módulos marcados aqui.</p>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarTecnico(${t?`'${t.id}'`:'null'})">✓ Salvar</button>
+    </div>`);
+}
+
+function salvarTecnico(id){
+  const nome=document.getElementById('tNome').value.trim();
+  const senha=document.getElementById('tSenha').value.trim();
+  const mods={split:document.getElementById('tSplit').checked,vrf:document.getElementById('tVrf').checked};
+  if(!nome){toast('Informe o nome','warn');return;}
+  if(!senha){toast('Defina uma senha','warn');return;}
+  if(!mods.split&&!mods.vrf){toast('Libere pelo menos um módulo','warn');return;}
+  if(id){
+    const t=tecnicos.find(x=>x.id===id);if(!t)return;
+    if(tecnicos.some(x=>x.id!==id&&x.nome.toLowerCase()===nome.toLowerCase())){toast('Já existe técnico com esse nome','warn');return;}
+    const nomeAntigo=t.nome;
+    t.nome=nome;t.senha=senha;t.modulos=mods;
+    // renomeia em OS, manutenções e GPS
+    if(nomeAntigo!==nome){
+      osList.forEach(o=>{if(o.tecnico===nomeAntigo)o.tecnico=nome;});saveOS();
+      manutencoes.forEach(mn=>{if(mn.tecnico===nomeAntigo)mn.tecnico=nome;});saveManut();
+      const locs=JSON.parse(localStorage.getItem('mappo_locations')||'{}');
+      if(locs[nomeAntigo]){locs[nome]=locs[nomeAntigo];delete locs[nomeAntigo];localStorage.setItem('mappo_locations',JSON.stringify(locs));}
+    }
+    toast('Técnico atualizado','success');
+  }else{
+    if(tecnicos.some(x=>x.nome.toLowerCase()===nome.toLowerCase())){toast('Já existe técnico com esse nome','warn');return;}
+    tecnicos.push({id:'tec_'+Date.now(),nome,senha,modulos:mods,ativo:true,criadoEm:new Date().toISOString()});
+    toast('Técnico adicionado — já pode fazer login','success');
+  }
+  saveTecnicos();closeModal();renderView('config');
+}
+
+function removerTecnico(id){
+  const t=tecnicos.find(x=>x.id===id);if(!t)return;
+  const abertas=osList.filter(o=>o.tecnico===t.nome&&o.status!=='concluida').length;
+  const msg=abertas?`${t.nome} tem ${abertas} OS em aberto. Remover mesmo assim? (Reatribua as OS depois)`:`Remover ${t.nome} da equipe? Ele perde o acesso na hora.`;
+  if(!confirm(msg))return;
+  tecnicos=tecnicos.filter(x=>x.id!==id);saveTecnicos();
+  renderView('config');toast('Técnico removido');
+}
+
+function toggleModuloTec(id,mod,val){
+  const t=tecnicos.find(x=>x.id===id);if(!t)return;
+  if(!t.modulos)t.modulos={split:true,vrf:false};
+  t.modulos[mod]=val;
+  if(!t.modulos.split&&!t.modulos.vrf){t.modulos[mod]=true;toast('O técnico precisa de pelo menos um módulo','warn');renderView('config');return;}
+  saveTecnicos();toast('Acesso de '+t.nome+' atualizado','success');
+}
+
 /* ── helpers UI ── */
 function emptyState(ico,titulo,desc){return `<div class="empty"><div class="ico">${ico}</div><p><strong>${titulo}</strong><br>${desc}</p></div>`;}
 function diasAte(d){if(!d)return 999;const diff=new Date(d+'T00:00:00')-new Date(hoje()+'T00:00:00');return Math.round(diff/86400000);}
@@ -930,7 +1074,7 @@ function openModalOS(){
         <div class="fg"><label>Tipo de serviço</label><select id="oTipo">
           <option>Instalação Split</option><option>Manutenção Preventiva</option><option>Manutenção Corretiva</option><option>Visita Técnica</option>
         </select></div>
-        <div class="fg"><label>Técnico</label><select id="oTecnico">${CFG.tecnicos.map(t=>`<option>${t}</option>`).join('')}</select></div>
+        <div class="fg"><label>Técnico</label><select id="oTecnico">${nomesTecnicos().map(t=>`<option>${t}</option>`).join('')}</select></div>
       </div>
       <div class="frow">
         <div class="fg"><label>Data</label><input type="date" id="oData" value="${hoje()}"></div>
@@ -1040,7 +1184,7 @@ function openModalManut(prefill){
       <div class="fg"><label>Endereço</label><input type="text" id="mEndereco" value="${p.endereco||''}" placeholder="Endereço"></div>
       <div class="frow">
         <div class="fg"><label>Data da manutenção</label><input type="date" id="mData" value="${p.dataAgendada||''}"></div>
-        <div class="fg"><label>Técnico (opcional)</label><select id="mTecnico"><option value="">A definir</option>${CFG.tecnicos.map(t=>`<option ${p.tecnico===t?'selected':''}>${t}</option>`).join('')}</select></div>
+        <div class="fg"><label>Técnico (opcional)</label><select id="mTecnico"><option value="">A definir</option>${nomesTecnicos().map(t=>`<option ${p.tecnico===t?'selected':''}>${t}</option>`).join('')}</select></div>
       </div>
       <div class="frow">
         <div class="fg"><label>Tipo</label><select id="mTipo"><option>Preventiva</option><option>Corretiva</option><option>Limpeza</option></select></div>
@@ -1111,7 +1255,7 @@ function concluirManut(id){
 }
 function criarOSdeManut(id){
   const m=manutencoes.find(x=>x.id===id);if(!m)return;
-  const os={id:'os_'+Date.now(),cliente:m.cliente,endereco:m.endereco,tipo:'Manutenção '+m.tipo,tecnico:m.tecnico||CFG.tecnicos[0],data:m.dataAgendada,hora:'08:00',obs:m.obs,notaGestor:'',qtdSplits:1,status:'pendente',checklist:CHECKLIST_BASE.map(c=>({...c,status:'pending',foto:null})),equipamentos:[{idx:0,marca:'',modelo:'',fotoEvap:null,fotoCond:null}],criadaEm:new Date().toISOString()};
+  const os={id:'os_'+Date.now(),cliente:m.cliente,endereco:m.endereco,tipo:'Manutenção '+m.tipo,tecnico:m.tecnico||nomesTecnicos()[0]||'',data:m.dataAgendada,hora:'08:00',obs:m.obs,notaGestor:'',qtdSplits:1,status:'pendente',checklist:CHECKLIST_BASE.map(c=>({...c,status:'pending',foto:null})),equipamentos:[{idx:0,marca:'',modelo:'',fotoEvap:null,fotoCond:null}],criadaEm:new Date().toISOString()};
   osList.unshift(os);saveOS();closeModal();toast('OS gerada a partir da manutenção','success');nav('ordens');
 }
 function agendarProximaManut(osId){const os=osList.find(o=>o.id===osId);if(!os)return;closeModal();openModalManut({cliente:os.cliente,endereco:os.endereco,tecnico:os.tecnico,dataAgendada:''});}
@@ -1171,15 +1315,24 @@ function initMapa(){
 function atualizarMarcadores(){
   if(!mapaInstance)return;
   const locs=JSON.parse(localStorage.getItem('mappo_locations')||'{}');
-  CFG.tecnicos.forEach(t=>{
+  const pontos=[];
+  nomesTecnicos().forEach(t=>{
     const l=locs[t];
     if(l&&Date.now()-l.ts<300000){
+      pontos.push([l.lat,l.lng]);
       const ico=L.divIcon({html:`<div style="background:var(--petrol);color:#fff;padding:4px 8px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.3);border:2px solid #fff">👷 ${t.split(' ')[0]}</div>`,className:'',iconSize:[80,24]});
       if(mapaMarkers[t])mapaMarkers[t].setLatLng([l.lat,l.lng]);
       else mapaMarkers[t]=L.marker([l.lat,l.lng],{icon:ico}).addTo(mapaInstance);
-      mapaMarkers[t].bindPopup(`<b>${t}</b><br>Atualizado: ${new Date(l.ts).toLocaleTimeString('pt-BR')}`);
+      mapaMarkers[t].bindPopup(`<b>${t}</b><br>Atualizado: ${new Date(l.ts).toLocaleTimeString('pt-BR')}${l.acc?'<br>Precisão: ~'+l.acc+'m':''}`);
+    }else if(mapaMarkers[t]){
+      mapaInstance.removeLayer(mapaMarkers[t]);delete mapaMarkers[t];
     }
   });
+  // enquadra a equipe automaticamente na primeira carga com dados
+  if(pontos.length&&!mapaInstance._fezFit){
+    mapaInstance.fitBounds(pontos,{padding:[60,60],maxZoom:15});
+    mapaInstance._fezFit=true;
+  }
 }
 
 function loadLeaflet(cb){
@@ -1232,12 +1385,33 @@ let gpsWatchId=null;
 function toggleGPS(){
   if(gpsWatchId!==null){navigator.geolocation.clearWatch(gpsWatchId);gpsWatchId=null;updateGPSLabel();toast('GPS desativado');return;}
   if(!navigator.geolocation){toast('GPS não disponível neste aparelho','error');return;}
-  gpsWatchId=navigator.geolocation.watchPosition(
-    pos=>{const locs=JSON.parse(localStorage.getItem('mappo_locations')||'{}');locs[session.nome]={lat:pos.coords.latitude,lng:pos.coords.longitude,ts:Date.now()};localStorage.setItem('mappo_locations',JSON.stringify(locs));},
-    err=>{toast('Não foi possível obter localização','error');gpsWatchId=null;updateGPSLabel();},
-    {enableHighAccuracy:true,maximumAge:30000}
+  toast('Obtendo sua localização...');
+  // 1ª posição imediata (não espera o watch)
+  navigator.geolocation.getCurrentPosition(
+    pos=>{salvarPosicao(pos);toast('📍 Localização encontrada e compartilhada','success');},
+    err=>msgErroGPS(err),
+    {enableHighAccuracy:true,timeout:15000,maximumAge:0}
   );
-  updateGPSLabel();toast('GPS ativado — sua localização é compartilhada','success');
+  // acompanhamento contínuo
+  gpsWatchId=navigator.geolocation.watchPosition(
+    pos=>salvarPosicao(pos),
+    err=>{msgErroGPS(err);if(gpsWatchId!==null){navigator.geolocation.clearWatch(gpsWatchId);gpsWatchId=null;updateGPSLabel();}},
+    {enableHighAccuracy:true,maximumAge:15000,timeout:30000}
+  );
+  updateGPSLabel();
+}
+function salvarPosicao(pos){
+  const locs=JSON.parse(localStorage.getItem('mappo_locations')||'{}');
+  locs[session.nome]={lat:pos.coords.latitude,lng:pos.coords.longitude,acc:Math.round(pos.coords.accuracy||0),ts:Date.now()};
+  localStorage.setItem('mappo_locations',JSON.stringify(locs));
+}
+function msgErroGPS(err){
+  const msgs={
+    1:'Permissão de localização negada. Libere o acesso nas configurações do navegador.',
+    2:'Sinal de GPS indisponível. Tente em área aberta.',
+    3:'O GPS demorou pra responder. Tente de novo.'
+  };
+  toast(msgs[err.code]||'Erro ao obter localização','error');
 }
 function updateGPSLabel(){const l=document.getElementById('gpsLabel');if(l)l.textContent=gpsWatchId!==null?'📍 GPS ativo':'📍 Ativar GPS';}
 
@@ -1427,6 +1601,19 @@ function startNotifChecker(){
   setInterval(()=>{
     osList=JSON.parse(localStorage.getItem('mappo_os')||'[]');
     manutencoes=JSON.parse(localStorage.getItem('mappo_manut')||'[]');
+    const tecs=JSON.parse(localStorage.getItem('mappo_tecnicos')||'null');
+    if(tecs&&tecs.length)tecnicos=tecs;
+    // se o gestor removeu o técnico logado, revoga o acesso
+    if(session&&session.perfil==='tecnico'){
+      const eu=getTecnico(session.nome);
+      if(!eu||eu.ativo===false){
+        toast('Seu acesso foi revogado pelo gestor','warn');
+        localStorage.removeItem('mappo_session');
+        setTimeout(()=>location.reload(),1600);
+        return;
+      }
+      aplicarMenuTecnico(); // módulos podem ter mudado
+    }
     if(currentView==='mapa')atualizarMarcadores();
     atualizarBadges();
   },5000);
