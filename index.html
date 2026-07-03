@@ -2,8 +2,13 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#185266">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="MAPPO">
+<link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22MAPPO%20%5Cu2014%20Gest%5Cu00e3o%20de%20Equipes%20em%20Campo%22%2C%22short_name%22%3A%22MAPPO%22%2C%22description%22%3A%22Sistema%20de%20gest%5Cu00e3o%20de%20ordens%20de%20servi%5Cu00e7o%20e%20equipes%20em%20campo%20%5Cu2014%20Elite%20Ar%22%2C%22display%22%3A%22standalone%22%2C%22start_url%22%3A%22./%22%2C%22scope%22%3A%22./%22%2C%22orientation%22%3A%22portrait%22%2C%22background_color%22%3A%22%23185266%22%2C%22theme_color%22%3A%22%23185266%22%2C%22lang%22%3A%22pt-BR%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage/svg%2Bxml%2C%253Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20viewBox%3D%270%200%20512%20512%27%253E%253Crect%20width%3D%27512%27%20height%3D%27512%27%20rx%3D%27115%27%20fill%3D%27%2523185266%27/%253E%253Cg%20fill%3D%27none%27%20stroke%3D%27white%27%20stroke-width%3D%2716%27%20stroke-linejoin%3D%27round%27%253E%253Cpath%20d%3D%27M143%20174%20L215%20143%20L297%20174%20L369%20143%20L369%20348%20L297%20379%20L215%20348%20L143%20379%20Z%27/%253E%253Cpath%20d%3D%27M215%20143%20L215%20348%20M297%20174%20L297%20379%27/%253E%253C/g%253E%253Ccircle%20cx%3D%27328%27%20cy%3D%27133%27%20r%3D%2761%27%20fill%3D%27white%27/%253E%253Ccircle%20cx%3D%27328%27%20cy%3D%27128%27%20r%3D%2726%27%20fill%3D%27%2523185266%27/%253E%253C/svg%253E%22%2C%22sizes%22%3A%22512x512%22%2C%22type%22%3A%22image/svg%2Bxml%22%2C%22purpose%22%3A%22any%22%7D%2C%7B%22src%22%3A%22data%3Aimage/svg%2Bxml%2C%253Csvg%20xmlns%3D%27http%3A//www.w3.org/2000/svg%27%20viewBox%3D%270%200%20192%20192%27%253E%253Crect%20width%3D%27192%27%20height%3D%27192%27%20rx%3D%2743%27%20fill%3D%27%2523185266%27/%253E%253Cg%20fill%3D%27none%27%20stroke%3D%27white%27%20stroke-width%3D%276%27%20stroke-linejoin%3D%27round%27%253E%253Cpath%20d%3D%27M54%2065%20L81%2054%20L111%2065%20L138%2054%20L138%20131%20L111%20142%20L81%20131%20L54%20142%20Z%27/%253E%253Cpath%20d%3D%27M81%2054%20L81%20131%20M111%2065%20L111%20142%27/%253E%253C/g%253E%253Ccircle%20cx%3D%27123%27%20cy%3D%2750%27%20r%3D%2723%27%20fill%3D%27white%27/%253E%253Ccircle%20cx%3D%27123%27%20cy%3D%2748%27%20r%3D%2710%27%20fill%3D%27%2523185266%27/%253E%253C/svg%253E%22%2C%22sizes%22%3A%22192x192%22%2C%22type%22%3A%22image/svg%2Bxml%22%2C%22purpose%22%3A%22any%22%7D%5D%7D">
 <title>MAPPO — Gestão de Equipes em Campo</title>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%23185266'/%3E%3Cg fill='none' stroke='white' stroke-width='3'%3E%3Cpath d='M30 35 L42 30 L58 35 L70 30 L70 65 L58 70 L42 65 L30 70 Z'/%3E%3Cpath d='M42 30 L42 65 M58 35 L58 70'/%3E%3C/g%3E%3Ccircle cx='62' cy='28' r='10' fill='white'/%3E%3Ccircle cx='62' cy='27' r='4' fill='%23185266'/%3E%3C/svg%3E">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -22,7 +27,8 @@
     --sidebar-w:248px;
   }
   *{box-sizing:border-box;margin:0;padding:0;}
-  body{font-family:'Outfit',sans-serif;background:var(--off);color:var(--gray-800);min-height:100vh;-webkit-font-smoothing:antialiased;}
+  html{-webkit-text-size-adjust:100%;text-size-adjust:100%;}
+  body{font-family:'Outfit',sans-serif;background:var(--off);color:var(--gray-800);min-height:100vh;-webkit-font-smoothing:antialiased;overflow-x:hidden;}
   button{font-family:inherit;cursor:pointer;}
   input,select,textarea{font-family:inherit;}
   ::-webkit-scrollbar{width:9px;height:9px;}
@@ -87,7 +93,7 @@
   /* MAIN */
   .main{flex:1;margin-left:var(--sidebar-w);min-height:100vh;display:flex;flex-direction:column;transition:margin-left .28s ease;}
 
-  .topbar{height:64px;background:var(--white);border-bottom:1px solid var(--gray-200);display:flex;align-items:center;justify-content:space-between;padding:0 28px;position:sticky;top:0;z-index:50;}
+  .topbar{height:calc(64px + env(safe-area-inset-top,0px));padding-top:env(safe-area-inset-top,0px);background:var(--white);border-bottom:1px solid var(--gray-200);display:flex;align-items:center;justify-content:space-between;padding-left:28px;padding-right:28px;position:sticky;top:0;z-index:50;}
   .topbar-left{display:flex;align-items:center;gap:14px;}
   .btn-hamburger{display:none;background:none;border:none;font-size:22px;color:var(--petrol);padding:4px;}
   .topbar-title{font-family:'Inter',sans-serif;letter-spacing:-.02em;font-size:23px;font-weight:600;color:var(--gray-800);}
@@ -282,38 +288,38 @@
 
   /* ═══════════ BARRA DE NAVEGAÇÃO — MOBILE (inferior fixa) ═══════════ */
   @media(max-width:1024px){
-    .navbar{left:0;right:0;bottom:0;top:auto;width:auto;height:62px;flex-direction:row;padding:0;gap:0;border-right:none;border-top:1px solid var(--gray-200);box-shadow:0 -2px 16px rgba(15,58,73,.10);align-items:stretch;}
+    .navbar{left:0;right:0;bottom:0;top:auto;width:auto;height:calc(62px + env(safe-area-inset-bottom,0px));flex-direction:row;padding:0;padding-bottom:env(safe-area-inset-bottom,0px);gap:0;border-right:none;border-top:1px solid var(--gray-200);box-shadow:0 -2px 16px rgba(15,58,73,.10);align-items:stretch;}
     .navbar-logo,.navbar-spacer{display:none;}
     #navbarBtns{display:flex;flex:1;}
-    .navbtn{flex:1;width:auto;padding:7px 0;gap:3px;border-radius:0;}
+    .navbtn{flex:1;width:auto;min-width:0;padding:7px 2px;gap:3px;border-radius:0;}
     .navbtn.active{background:transparent;color:var(--petrol);}
     .navbtn.active::before{left:50%;top:0;bottom:auto;transform:translateX(-50%);width:28px;height:3px;border-radius:0 0 4px 4px;}
     .navbtn:hover{background:transparent;}
     .navbtn .ico{width:22px;height:22px;}
     .navbtn-lbl{font-size:10px;}
     .navbtn-badge{top:3px;right:calc(50% - 20px);}
-    .navbtn-menu{flex:0 0 64px;border-left:1px solid var(--gray-100);}
+    .navbtn-menu{flex:0 0 58px;border-left:1px solid var(--gray-100);}
     body.has-rail .main{margin-left:0;}
     body.has-rail .sidebar{left:0;}
     /* conteúdo não passa por trás da barra */
-    .main{padding-bottom:62px;}
+    .main{padding-bottom:calc(62px + env(safe-area-inset-bottom,0px));}
     /* FAB acima da barra, tamanho contido */
-    .fab{display:flex;position:fixed;right:16px;bottom:78px;width:52px;height:52px;border-radius:50%;background:var(--gold);color:var(--petrol-dark);border:none;box-shadow:0 6px 18px rgba(201,168,76,.45);z-index:71;align-items:center;justify-content:center;cursor:pointer;transition:transform .15s;}
+    .fab{display:flex;position:fixed;right:16px;bottom:calc(78px + env(safe-area-inset-bottom,0px));width:52px;height:52px;border-radius:50%;background:var(--gold);color:var(--petrol-dark);border:none;box-shadow:0 6px 18px rgba(201,168,76,.45);z-index:71;align-items:center;justify-content:center;cursor:pointer;transition:transform .15s;}
     .fab:active{transform:scale(.92);}
     .fab svg{width:24px;height:24px;stroke:var(--petrol-dark);stroke-width:2.5;}
   }
 
   /* ═══════════ MODO MOBILE FORÇADO (toggle no desktop) ═══════════ */
-  body.force-mobile .navbar{left:0;right:0;bottom:0;top:auto;width:auto;height:62px;flex-direction:row;padding:0;gap:0;border-right:none;border-top:1px solid var(--gray-200);box-shadow:0 -2px 16px rgba(15,58,73,.10);align-items:stretch;}
+  body.force-mobile .navbar{left:0;right:0;bottom:0;top:auto;width:auto;height:calc(62px + env(safe-area-inset-bottom,0px));flex-direction:row;padding:0;padding-bottom:env(safe-area-inset-bottom,0px);gap:0;border-right:none;border-top:1px solid var(--gray-200);box-shadow:0 -2px 16px rgba(15,58,73,.10);align-items:stretch;}
   body.force-mobile .navbar-logo,body.force-mobile .navbar-spacer{display:none;}
   body.force-mobile #navbarBtns{display:flex;flex:1;}
-  body.force-mobile .navbtn{flex:1;width:auto;padding:7px 0;gap:3px;border-radius:0;}
+  body.force-mobile .navbtn{flex:1;width:auto;min-width:0;padding:7px 2px;gap:3px;border-radius:0;}
   body.force-mobile .navbtn.active{background:transparent;}
   body.force-mobile .navbtn.active::before{left:50%;top:0;bottom:auto;transform:translateX(-50%);width:28px;height:3px;border-radius:0 0 4px 4px;}
-  body.force-mobile .navbtn-menu{flex:0 0 64px;border-left:1px solid var(--gray-100);}
+  body.force-mobile .navbtn-menu{flex:0 0 58px;border-left:1px solid var(--gray-100);}
   body.force-mobile.has-rail .main{margin-left:0;padding-bottom:62px;}
   body.force-mobile.has-rail .sidebar{left:0;}
-  body.force-mobile .fab{display:flex;position:fixed;right:16px;bottom:78px;width:52px;height:52px;border-radius:50%;background:var(--gold);color:var(--petrol-dark);border:none;box-shadow:0 6px 18px rgba(201,168,76,.45);z-index:71;align-items:center;justify-content:center;cursor:pointer;}
+  body.force-mobile .fab{display:flex;position:fixed;right:16px;bottom:calc(78px + env(safe-area-inset-bottom,0px));width:52px;height:52px;border-radius:50%;background:var(--gold);color:var(--petrol-dark);border:none;box-shadow:0 6px 18px rgba(201,168,76,.45);z-index:71;align-items:center;justify-content:center;cursor:pointer;}
   body.force-mobile .fab svg{width:24px;height:24px;stroke:var(--petrol-dark);stroke-width:2.5;}
 
   /* toggle Desktop/Mobile some no mobile real (redundante) */
@@ -322,6 +328,7 @@
   }
 
 
+  .statusbar-fill{position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top,0px);background:var(--petrol);z-index:120;pointer-events:none;}
   .backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:80;}
   .backdrop.show{display:block;}
 
@@ -345,6 +352,7 @@
 </style>
 </head>
 <body>
+<div class="statusbar-fill"></div>
 
 <!-- ═══════════ LOGIN ═══════════ -->
 <div id="loginScreen">
@@ -668,9 +676,10 @@ function montarNavbar(){
   if(session.perfil==='tecnico'){
     const tec=getTecnico(session.nome)||{modulos:{split:true,vrf:false}};
     const m=tec.modulos||{split:true,vrf:false};
-    // técnico: painel só se tiver split (fluxo de ordens). VRF entra como item próprio.
+    // técnico: ordens (se split) + manutenções dele + VRF (se liberado)
     items=[];
-    if(m.split){items.push({view:'ordens',icon:'ordens',label:'Ordens',badge:'badgeOS'});}
+    if(m.split){items.push({view:'ordens',icon:'ordens',label:'Ordens'});}
+    items.push({view:'manutencoes',icon:'manutencoes',label:'Manut.'});
     if(m.vrf){items.push({view:'vrf',icon:'vrf',label:'VRF'});}
     // FAB e criação de OS são do gestor; esconde
     document.getElementById('fabNovo').style.display='none';
@@ -772,6 +781,7 @@ function renderView(v){
   // técnico: app de campo (ordens) + VRF se liberado
   if(session.perfil==='tecnico'){
     if(v==='vrf'){c.innerHTML=renderVRF();return;}
+    if(v==='manutencoes'){c.innerHTML=renderManutTecnico();return;}
     c.innerHTML=renderTecnicoApp();afterTecnicoRender();return;
   }
   switch(v){
@@ -1747,6 +1757,26 @@ function execConcluir(){
 
 function saveExecOS(){const idx=osList.findIndex(o=>o.id===execOS.id);if(idx>=0)osList[idx]=execOS;saveOS();}
 function voltarExec(){execOS=null;renderView('ordens');}
+
+/* manutenções do técnico (leitura) */
+function renderManutTecnico(){
+  const minhas=manutencoes.filter(mn=>!mn.concluida&&mn.tecnico===session.nome).sort((a,b)=>a.dataAgendada.localeCompare(b.dataAgendada));
+  return `
+  <div class="page-head"><div><div class="page-title">Minhas manutenções</div><div class="page-desc">${minhas.length?minhas.length+' agendada'+(minhas.length>1?'s':'')+' para você':'Nada agendado para você por enquanto'}</div></div></div>
+  ${minhas.length?`<div class="os-grid">${minhas.map(mn=>{
+    const dias=diasAte(mn.dataAgendada);
+    const cor=dias<0?'var(--red)':dias<=7?'var(--red)':dias<=30?'var(--yellow)':'var(--petrol)';
+    return `<div class="os-card" style="border-color:${cor}">
+      <div class="os-card-top"><div><div class="os-client">${mn.cliente}</div><div class="os-addr">${svgIco('pin','ico-sm')} ${mn.endereco||'Endereço a definir'}</div></div>
+      <span class="badge" style="background:${cor}22;color:${cor}">${dias<0?'Vencida':dias===0?'Hoje':'Em '+dias+'d'}</span></div>
+      <div class="os-meta">
+        <div class="os-meta-i">${svgIco('calendar','ico-sm')} ${fmtDate(mn.dataAgendada)}</div>
+        <div class="os-meta-i">${svgIco('config','ico-sm')} ${mn.tipo||'Preventiva'}</div>
+        ${mn.obs?`<div class="os-meta-i">${svgIco('edit','ico-sm')} ${mn.obs}</div>`:''}
+      </div>
+    </div>`;
+  }).join('')}</div>`:emptyState('manutencoes','Nenhuma manutenção sua','Quando o gestor agendar uma manutenção pra você, ela aparece aqui.')}`;
+}
 
 /* ════════════════════════════════════════
    NOTIFICAÇÕES DE MANUTENÇÃO
