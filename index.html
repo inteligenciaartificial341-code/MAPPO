@@ -65,7 +65,7 @@
 
   /* SIDEBAR */
   .sidebar{width:var(--sidebar-w);background:linear-gradient(180deg,var(--petrol) 0%,var(--petrol-dark) 100%);min-height:100vh;position:fixed;left:0;top:0;bottom:0;display:flex;flex-direction:column;z-index:90;transition:transform .28s ease;}
-  .sidebar-header{padding:24px 22px 20px;border-bottom:1px solid rgba(255,255,255,.1);}
+  .sidebar-header{padding:calc(24px + env(safe-area-inset-top,0px)) 22px 20px;border-bottom:1px solid rgba(255,255,255,.1);}
   .sidebar-logo{display:flex;align-items:center;gap:11px;}
   .sidebar-mark{width:38px;height:38px;flex-shrink:0;}
   .sidebar-brand{line-height:1;}
@@ -81,7 +81,7 @@
   .nav-ico{width:20px;height:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
   .nav-badge{margin-left:auto;background:var(--gold);color:var(--petrol-dark);font-size:11px;font-weight:700;padding:1px 8px;border-radius:20px;min-width:20px;text-align:center;}
 
-  .sidebar-footer{padding:14px;border-top:1px solid rgba(255,255,255,.1);}
+  .sidebar-footer{padding:14px;padding-bottom:calc(14px + env(safe-area-inset-bottom,0px));border-top:1px solid rgba(255,255,255,.1);}
   .sidebar-user{display:flex;align-items:center;gap:11px;padding:8px 10px;}
   .user-avatar{width:36px;height:36px;border-radius:50%;background:var(--gold);color:var(--petrol-dark);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0;}
   .user-meta{flex:1;line-height:1.3;overflow:hidden;}
@@ -327,6 +327,30 @@
     .view-toggle{display:none;}
   }
 
+
+  /* cards de seleção de módulo (modal técnico) */
+  .mod-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px;}
+  .mod-card{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:18px 12px;border:2px solid var(--gray-200);border-radius:14px;cursor:pointer;user-select:none;transition:all .15s;text-align:center;}
+  .mod-card input{position:absolute;opacity:0;pointer-events:none;}
+  .mod-card .mod-ico{color:var(--gray-400);transition:color .15s;}
+  .mod-card .mod-ico .ico{width:26px;height:26px;}
+  .mod-card .mod-name{font-size:13.5px;font-weight:600;color:var(--gray-600);line-height:1.2;}
+  .mod-card .mod-tick{position:absolute;top:8px;right:8px;width:20px;height:20px;border-radius:50%;background:var(--gray-200);color:#fff;display:flex;align-items:center;justify-content:center;opacity:0;transition:all .15s;}
+  .mod-card .mod-tick .ico{width:13px;height:13px;stroke-width:3;}
+  .mod-card.on{border-color:var(--petrol);background:var(--petrol-bg);}
+  .mod-card.on .mod-ico{color:var(--petrol);}
+  .mod-card.on .mod-name{color:var(--petrol);}
+  .mod-card.on .mod-tick{opacity:1;background:var(--petrol);}
+
+  /* checklist expansível (gestor vê fotos do técnico) */
+  .chk-item{background:var(--gray-50);border-radius:10px;margin-bottom:6px;overflow:hidden;}
+  .chk-item.nok{background:var(--red-bg);}
+  .chk-row{display:flex;align-items:center;gap:12px;padding:11px 12px;}
+  .chk-cam{color:var(--petrol);display:flex;}
+  .chk-arrow{color:var(--gray-400);display:flex;transform:rotate(-90deg);transition:transform .2s;}
+  .chk-arrow.open{transform:rotate(90deg);}
+  .chk-foto{max-height:0;overflow:hidden;transition:max-height .28s ease;padding:0 12px;}
+  .chk-foto.open{max-height:520px;padding:0 12px 12px;}
 
   .statusbar-fill{position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top,0px);background:var(--petrol);z-index:120;pointer-events:none;}
   .backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:80;}
@@ -750,6 +774,12 @@ function fmtDate(d){if(!d)return'';const[y,m,dd]=d.split('-');return`${dd}/${m}/
 function fmtDateShort(d){if(!d)return'';const[y,m,dd]=d.split('-');return`${dd}/${m}`;}
 function hoje(){return new Date().toISOString().split('T')[0];}
 function openLightbox(src){document.getElementById('lightboxImg').src=src;document.getElementById('lightbox').classList.add('open');}
+function toggleChkFoto(ci){
+  const f=document.getElementById('chkFoto'+ci),a=document.getElementById('chkArrow'+ci);
+  if(!f)return;
+  f.classList.toggle('open');
+  if(a)a.classList.toggle('open');
+}
 function closeLightbox(){document.getElementById('lightbox').classList.remove('open');}
 function updateDate(){document.getElementById('topDate').textContent=new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'numeric',month:'long'});}
 function statusReal(os){if(os.status==='pendente'&&os.data<hoje())return'atrasada';return os.status;}
@@ -778,6 +808,8 @@ function aplicarMenuTecnico(){
 
 function renderView(v){
   const c=document.getElementById('contentArea');
+  // destrói o mapa Leaflet ao sair da view do mapa (evita mapa "fantasma" sobreposto)
+  if(v!=='mapa'&&mapaInstance){try{mapaInstance.remove();}catch(e){}mapaInstance=null;mapaMarkers={};}
   // técnico: app de campo (ordens) + VRF se liberado
   if(session.perfil==='tecnico'){
     if(v==='vrf'){c.innerHTML=renderVRF();return;}
@@ -1160,17 +1192,30 @@ function openModalTecnico(id){
       <div class="fg"><label>Senha de acesso</label><input type="text" id="tSenha" value="${t?(t.senha||'1234'):''}" placeholder="Senha que ele usa no login">
       <p style="font-size:12px;color:var(--gray-400);margin-top:5px">Passe essa senha pro técnico. Só ele acessa a própria conta.</p></div>
       <div class="fg"><label>Módulos liberados</label>
-        <div style="display:flex;gap:22px;margin-top:8px">
-          <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;user-select:none"><input type="checkbox" id="tSplit" ${m.split?'checked':''}> ❄️ Sistema Split</label>
-          <label style="display:flex;align-items:center;gap:8px;font-size:14px;cursor:pointer;user-select:none"><input type="checkbox" id="tVrf" ${m.vrf?'checked':''}> 🌡️ Sistema VRF</label>
+        <div class="mod-grid">
+          <label class="mod-card" id="modCardSplit">
+            <input type="checkbox" id="tSplit" ${m.split?'checked':''} onchange="document.getElementById('modCardSplit').classList.toggle('on',this.checked)">
+            <span class="mod-ico">${svgIco('splits')}</span>
+            <span class="mod-name">Sistema Split</span>
+            <span class="mod-tick">${svgIco('check','ico-sm')}</span>
+          </label>
+          <label class="mod-card" id="modCardVrf">
+            <input type="checkbox" id="tVrf" ${m.vrf?'checked':''} onchange="document.getElementById('modCardVrf').classList.toggle('on',this.checked)">
+            <span class="mod-ico">${svgIco('vrf')}</span>
+            <span class="mod-name">Sistema VRF</span>
+            <span class="mod-tick">${svgIco('check','ico-sm')}</span>
+          </label>
         </div>
-        <p style="font-size:12px;color:var(--gray-400);margin-top:6px">No login, o técnico só vê os módulos marcados aqui.</p>
+        <p style="font-size:12px;color:var(--gray-400);margin-top:8px">No login, o técnico só vê os módulos marcados aqui.</p>
       </div>
     </div>
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
-      <button class="btn btn-primary" onclick="salvarTecnico(${t?`'${t.id}'`:'null'})">✓ Salvar</button>
+      <button class="btn btn-primary" onclick="salvarTecnico(${t?`'${t.id}'`:'null'})">${svgIco('check','ico-sm')} Salvar</button>
     </div>`);
+  // estado visual inicial dos cards de módulo
+  if(m.split)document.getElementById('modCardSplit').classList.add('on');
+  if(m.vrf)document.getElementById('modCardVrf').classList.add('on');
 }
 
 function salvarTecnico(id){
@@ -1296,12 +1341,16 @@ function openDetalhe(id){
       </div>
     </div>`).join('');
 
-  const checkHTML=(os.checklist||[]).map(c=>{
+  const checkHTML=(os.checklist||[]).map((c,ci)=>{
     const ico=c.status==='ok'?'✅':c.status==='nok'?'❌':'⬜';
-    return `<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:${c.status==='nok'?'var(--red-bg)':'var(--gray-50)'};border-radius:8px;margin-bottom:6px">
-      <span style="font-size:17px">${ico}</span>
-      <span style="flex:1;font-size:13px">${c.label} ${c.critico?'<span style="font-size:10px;background:#fee2e2;color:#991b1b;padding:1px 6px;border-radius:8px;font-weight:600">CRÍTICO</span>':''}</span>
-      ${c.foto?`<img src="${c.foto}" onclick="openLightbox('${c.foto}')" style="width:52px;height:52px;border-radius:6px;object-fit:cover;cursor:pointer;border:2px solid var(--gray-200)">`:'<span style="font-size:11px;color:var(--gray-400)">—</span>'}
+    const temFoto=!!c.foto;
+    return `<div class="chk-item ${c.status==='nok'?'nok':''}">
+      <div class="chk-row" ${temFoto?`onclick="toggleChkFoto(${ci})"`:''} style="${temFoto?'cursor:pointer':''}">
+        <span style="font-size:17px">${ico}</span>
+        <span style="flex:1;font-size:13px">${c.label} ${c.critico?'<span style="font-size:10px;background:#fee2e2;color:#991b1b;padding:1px 6px;border-radius:8px;font-weight:600">CRÍTICO</span>':''}</span>
+        ${temFoto?`<span class="chk-cam">${svgIco('camera','ico-sm')}</span><span class="chk-arrow" id="chkArrow${ci}">${svgIco('back','ico-sm')}</span>`:'<span style="font-size:11px;color:var(--gray-400)">sem foto</span>'}
+      </div>
+      ${temFoto?`<div class="chk-foto" id="chkFoto${ci}"><img src="${c.foto}" onclick="openLightbox('${c.foto}')" style="width:100%;border-radius:10px;cursor:pointer;display:block"></div>`:''}
     </div>`;
   }).join('');
 
