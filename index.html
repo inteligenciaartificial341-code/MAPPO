@@ -352,6 +352,148 @@
   .chk-foto{max-height:0;overflow:hidden;transition:max-height .28s ease;padding:0 12px;}
   .chk-foto.open{max-height:520px;padding:0 12px 12px;}
 
+  /* ═══════════ VRF — painel do gestor ═══════════ */
+  .vrf-section-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--gray-500);margin:6px 2px 10px;}
+  .vrf-hero{background:linear-gradient(135deg,var(--petrol),var(--petrol-dark));color:#fff;}
+  .vrf-hero .vrf-hero-top{display:flex;justify-content:space-between;align-items:center;}
+  .vrf-hero-label{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:rgba(255,255,255,.7);margin-bottom:6px;}
+  .vrf-hero-pct{font-size:44px;font-weight:800;font-family:'Inter';letter-spacing:-.02em;line-height:1;}
+  .vrf-hero-pct span{font-size:22px;opacity:.7;}
+  .vrf-hero-ring{width:88px;height:88px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .vrf-hero-ring-in{width:66px;height:66px;border-radius:50%;background:var(--petrol-dark);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:22px;font-weight:700;color:var(--gold);}
+  .vrf-hero-ring-in small{font-size:9px;font-weight:500;color:rgba(255,255,255,.7);text-transform:uppercase;letter-spacing:.5px;margin-top:2px;}
+  .vrf-hero-meta{margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,.15);font-size:13px;color:rgba(255,255,255,.85);display:flex;align-items:center;gap:6px;}
+  .vrf-hero-meta .ico{stroke:rgba(255,255,255,.85);}
+
+  .vrf-floors{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .vrf-floor-card{background:var(--white);border:1px solid var(--gray-200);border-radius:14px;padding:16px;cursor:pointer;transition:all .15s;box-shadow:var(--shadow-sm);}
+  .vrf-floor-card:hover{border-color:var(--petrol-light);box-shadow:var(--shadow);transform:translateY(-2px);}
+  .vrf-fc-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;}
+  .vrf-fc-name{font-size:15px;font-weight:600;color:var(--gray-800);}
+  .vrf-fc-pct{font-size:20px;font-weight:800;font-family:'Inter';}
+  .vrf-fc-meta{display:flex;justify-content:space-between;margin-top:10px;font-size:11.5px;color:var(--gray-400);}
+  .vrf-fc-meta span{display:flex;align-items:center;gap:4px;}
+  .vrf-fc-meta .ico{stroke:var(--gray-400);}
+
+  .vrf-bar{height:7px;background:var(--gray-200);border-radius:99px;overflow:hidden;}
+  .vrf-bar-fill{height:100%;border-radius:99px;transition:width .4s;}
+
+  .vrf-rel-item{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--gray-100);}
+  .vrf-rel-item:last-child{border-bottom:none;}
+  .vrf-rel-data{font-size:13px;font-weight:700;color:var(--gold-dark);min-width:70px;}
+  .vrf-rel-info{flex:1;font-size:13px;display:flex;flex-direction:column;}
+  .vrf-rel-info span{font-size:12px;color:var(--gray-400);font-style:italic;}
+  .vrf-rel-pct{font-size:14px;font-weight:700;}
+
+  /* andar aberto (modal) */
+  .modal-wide{max-width:640px;}
+  .vrf-andar-prog{display:flex;align-items:center;gap:12px;margin-bottom:16px;}
+  .vrf-fase{margin-bottom:14px;border:1px solid var(--gray-200);border-radius:12px;overflow:hidden;}
+  .vrf-fase-head{display:flex;justify-content:space-between;align-items:center;padding:11px 14px;background:var(--gray-50);font-size:13px;font-weight:600;color:var(--gray-700);}
+  .vrf-fase-pct{font-weight:800;font-size:13px;}
+  .vrf-fase-etapas{padding:6px;}
+  .vrf-etapa{border-radius:8px;margin-bottom:2px;overflow:hidden;}
+  .vrf-etapa.done{background:var(--green-bg);}
+  .vrf-etapa-row{display:flex;align-items:center;gap:10px;padding:9px 10px;cursor:pointer;}
+  .vrf-etapa-chk{width:20px;height:20px;border-radius:6px;border:2px solid var(--gray-300);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;transition:all .15s;}
+  .vrf-etapa.done .vrf-etapa-chk{background:var(--green);border-color:var(--green);}
+  .vrf-etapa-lbl{flex:1;font-size:13px;color:var(--gray-700);}
+  .vrf-etapa-fotos{font-size:11px;color:var(--petrol);display:flex;align-items:center;gap:3px;}
+  .vrf-etapa-fotos .ico{stroke:var(--petrol);}
+  .vrf-etapa-nota{padding:0 10px 8px 40px;font-size:12px;color:var(--gray-500);font-style:italic;display:flex;align-items:center;gap:5px;}
+  .vrf-etapa-gallery{display:flex;gap:6px;padding:0 10px 10px 40px;flex-wrap:wrap;}
+  .vrf-etapa-gallery img{width:56px;height:56px;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid var(--gray-200);}
+
+  /* andares na config */
+  .vrf-andar-row{display:flex;gap:8px;align-items:center;}
+  .vrf-andar-row input{flex:1;}
+  .vrf-andar-del{background:var(--red-bg);border:none;color:var(--red);width:38px;height:38px;border-radius:8px;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;}
+  .vrf-andar-del .ico{stroke:var(--red);}
+
+  /* missão (modal) */
+  .vrf-mfase{margin-bottom:12px;}
+  .vrf-mfase-head{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--petrol);padding:6px 2px;border-bottom:1px solid var(--gray-200);margin-bottom:4px;}
+  .vrf-mstep{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:13px;color:var(--gray-700);transition:background .15s;}
+  .vrf-mstep:hover{background:var(--gray-50);}
+  .vrf-mstep.on{background:var(--petrol-bg);}
+  .vrf-mstep-chk{width:20px;height:20px;border-radius:6px;border:2px solid var(--gray-300);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;}
+  .vrf-mstep.on .vrf-mstep-chk{background:var(--petrol);border-color:var(--petrol);}
+
+  /* ═══════════ VRF — checklist do prestador ═══════════ */
+  .vrf-tec-bar{background:var(--white);border:1px solid var(--gray-200);border-radius:12px;padding:14px 16px;margin-bottom:14px;box-shadow:var(--shadow-sm);}
+  .vrf-tec-bar-top{display:flex;justify-content:space-between;font-size:13px;color:var(--gray-500);margin-bottom:8px;}
+  .vrf-tec-pct{font-weight:800;color:var(--gold-dark);font-size:15px;}
+
+  .vrf-tabs{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 10px;margin-bottom:6px;-webkit-overflow-scrolling:touch;}
+  .vrf-tabs::-webkit-scrollbar{height:0;}
+  .vrf-tab{flex-shrink:0;background:var(--white);border:1.5px solid var(--gray-200);border-radius:11px;padding:9px 14px;font-size:13px;font-weight:600;color:var(--gray-600);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;min-width:74px;transition:all .15s;font-family:inherit;}
+  .vrf-tab small{font-size:11px;font-weight:700;color:var(--gray-400);}
+  .vrf-tab.on{background:var(--petrol);border-color:var(--petrol);color:#fff;}
+  .vrf-tab.on small{color:var(--gold-light);}
+  .vrf-tab .ico{stroke:currentColor;}
+
+  /* fase */
+  .vrf-phase{background:var(--white);border:1px solid var(--gray-200);border-radius:12px;margin-bottom:12px;overflow:hidden;box-shadow:var(--shadow-sm);}
+  .vrf-ph{display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--gray-50);border-bottom:1px solid var(--gray-100);}
+  .vrf-ph-num{background:var(--petrol);color:#fff;font-size:11px;font-weight:800;padding:3px 8px;border-radius:6px;flex-shrink:0;}
+  .vrf-ph-name{flex:1;font-size:13.5px;font-weight:600;color:var(--gray-700);}
+  .vrf-ph-count{font-size:12px;font-weight:700;color:var(--gray-400);}
+  .vrf-steps{list-style:none;padding:6px;}
+  .vrf-step{display:flex;align-items:flex-start;gap:10px;padding:10px;border-radius:9px;transition:background .15s;}
+  .vrf-step.on{background:var(--green-bg);}
+  .vrf-step.inmis{box-shadow:inset 3px 0 0 var(--gold);}
+  .vrf-step-box{flex-shrink:0;cursor:pointer;padding-top:1px;}
+  .vrf-step-ck{width:22px;height:22px;border-radius:6px;border:2px solid var(--gray-300);display:flex;align-items:center;justify-content:center;color:#fff;transition:all .15s;}
+  .vrf-step.on .vrf-step-ck{background:var(--green);border-color:var(--green);}
+  .vrf-step-body{flex:1;min-width:0;}
+  .vrf-step-txt{font-size:13.5px;color:var(--gray-700);line-height:1.4;cursor:pointer;display:block;}
+  .vrf-mdot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--gold);margin-right:6px;vertical-align:middle;}
+  .vrf-step-note{margin-top:6px;font-size:12px;color:var(--gray-500);font-style:italic;display:flex;align-items:center;gap:5px;background:var(--gray-50);padding:5px 9px;border-radius:7px;}
+  .vrf-step-note .ico{stroke:var(--gray-400);flex-shrink:0;}
+  .vrf-step-photos{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
+  .vrf-step-photos img{width:56px;height:56px;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid var(--gray-200);}
+  .vrf-step-acts{display:flex;gap:6px;flex-shrink:0;}
+  .vrf-act{position:relative;width:36px;height:36px;border-radius:9px;border:1.5px solid var(--gray-200);background:var(--white);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--gray-500);}
+  .vrf-act.has{border-color:var(--petrol);color:var(--petrol);background:var(--petrol-bg);}
+  .vrf-act .ico{stroke:currentColor;}
+  .vrf-act-badge{position:absolute;top:-6px;right:-6px;background:var(--gold);color:#fff;font-size:10px;font-weight:800;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px;}
+
+  /* painel expansível automático ao concluir */
+  .vrf-step-expand{margin-top:10px;padding:11px;background:var(--petrol-bg);border-radius:9px;animation:vrfExpandIn .25s ease;}
+  @keyframes vrfExpandIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+  .vrf-step-prompt{font-size:12.5px;color:var(--petrol);font-weight:500;margin-bottom:9px;display:flex;align-items:center;gap:6px;}
+  .vrf-step-prompt .ico{stroke:var(--petrol);}
+  .vrf-step-ebtns{display:flex;gap:8px;}
+  .vrf-ebtn{flex:1;padding:9px;border-radius:8px;border:1.5px solid var(--gray-200);background:var(--white);font-size:12.5px;font-weight:600;color:var(--gray-600);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;font-family:inherit;}
+  .vrf-ebtn .ico{stroke:currentColor;}
+  .vrf-ebtn.cam.has{border-color:var(--petrol);color:var(--petrol);}
+  .vrf-ebtn.note.has{border-color:var(--gold-dark);color:var(--gold-dark);}
+
+  /* missão do técnico */
+  .vrf-mis-card{border-left:4px solid var(--gold);}
+  .vrf-mis-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+  .vrf-mis-title{font-size:15px;font-weight:700;color:var(--gray-800);display:flex;align-items:center;gap:7px;}
+  .vrf-mis-title .ico{stroke:var(--gold-dark);}
+  .vrf-mis-badge{font-size:11px;font-weight:700;background:var(--gold);color:#fff;padding:4px 10px;border-radius:99px;}
+  .vrf-mis-desc{font-size:12.5px;color:var(--gray-500);margin-bottom:14px;}
+  .vrf-mis-stats{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--gray-500);margin-bottom:16px;}
+  .vrf-mis-steps{display:flex;flex-direction:column;gap:8px;}
+  .vrf-mis-step{display:flex;align-items:center;gap:11px;padding:11px;border:1px solid var(--gray-200);border-radius:10px;cursor:pointer;transition:all .15s;}
+  .vrf-mis-step.done{background:var(--green-bg);border-color:transparent;}
+  .vrf-mis-chk{width:22px;height:22px;border-radius:6px;border:2px solid var(--gray-300);flex-shrink:0;display:flex;align-items:center;justify-content:center;color:#fff;}
+  .vrf-mis-step.done .vrf-mis-chk{background:var(--green);border-color:var(--green);}
+  .vrf-mis-txt{font-size:13.5px;color:var(--gray-700);font-weight:500;}
+  .vrf-mis-fase{font-size:11.5px;color:var(--gray-400);margin-top:2px;}
+
+  /* envio */
+  .vrf-envio{margin-top:16px;}
+  .btn-block{width:100%;justify-content:center;}
+  .btn-danger{background:var(--red);color:#fff;}
+
+  @media(max-width:560px){
+    .vrf-floors{grid-template-columns:1fr;}
+  }
+
   .statusbar-fill{position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top,0px);background:var(--petrol);z-index:120;pointer-events:none;}
   .backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:80;}
   .backdrop.show{display:block;}
@@ -588,6 +730,57 @@ const NAV_ITEMS=[
   {view:'mapa',icon:'mapa',label:'Mapa'},
 ];
 
+/* ═══════════════ VRF — estrutura de dados de obra ═══════════════ */
+const VRF_FASES=[
+  {id:'f1',nome:'Perfuração e Suporte das Evaps',etapas:['Marcar e perfurar furos de passagem de tubulação','Conferir nivelamento horizontal do suporte','Para casete: furar laje e fixar tirantes roscados','Deixar no nível para recebimento das tampas']},
+  {id:'f2',nome:'Linha Frigorígena',etapas:['Passar tubulação de cobre sem dobras acentuadas','Fazer toda a brasagem da linha frigorígena','Instalar válvulas GBC e bi-pass','Limpeza com ecomate em rotação','Isolar termicamente toda a linha','Isopores dos refinets e cola de toda a linha frigorígena']},
+  {id:'f3',nome:'Sistema de Drenagem',etapas:['Linha de dreno principal','Cavaletes e conexão com dreno principal','Isolamento térmico polipex em todo sistema']},
+  {id:'f4',nome:'Comunicação e Elétrica',etapas:['Passagem do cabeamento de comunicação','Cabeamento elétrico de alimentação passados','Fechamento de ambos com terminais específicos']},
+  {id:'f5',nome:'Instalação da Condensadora',etapas:['Posicionar e fixar condensadora com calços neo premium','Conectar linhas de cobre','Conectar cabeamento de comunicação','Conexão elétrica — verificar tensão, fase e terra','Pressurização e teste de estanqueidade com 500 PSI','Se certificar com água+detergente']},
+  {id:'f6',nome:'Conexões das Evaporadoras',etapas:['Conexão das porcas frange nas evaps','Isolar as porcas flanges','Fixar painel frontal']},
+  {id:'f7',nome:'Pré-Vácuo para Startup',etapas:['Vácuo estabilizado abaixo de 500 microns por 15 minutos','Registrar leitura final do vacuômetro']},
+  {id:'f8',nome:'Startup Final',etapas:['Acompanhar representante da marca']},
+  {id:'f9',nome:'Acabamento e Entrega',etapas:['Acabamento com fita PVC','Limpeza das manchas nas tampas em geral','Limpeza geral do local de trabalho','Testar controle remoto e sistema centralizado']},
+  {id:'f10',nome:'Entrega',etapas:['CONCLUÍDO']}
+];
+const VRF_TOTAL_ETAPAS=VRF_FASES.reduce((a,f)=>a+f.etapas.length,0);
+
+// estado da obra VRF (persistido)
+let vrfObra=JSON.parse(localStorage.getItem('mappo_vrf_obra')||'null')||{
+  nome:'', andares:[{id:'a1',nome:'Térreo'}], metaData:'', missao:{items:[],andarIdx:0}
+};
+let vrfProgresso=JSON.parse(localStorage.getItem('mappo_vrf_progresso')||'{}'); // {andarId:{faseId_etapaIdx:true}}
+let vrfFotos=JSON.parse(localStorage.getItem('mappo_vrf_fotos')||'{}'); // {andarId:{faseId_etapaIdx:[fotos]}}
+let vrfNotas=JSON.parse(localStorage.getItem('mappo_vrf_notas')||'{}'); // {andarId:{faseId_etapaIdx:texto}}
+let vrfRelatorios=JSON.parse(localStorage.getItem('mappo_vrf_relatorios')||'[]');
+let vrfFloorTab=0;
+
+function saveVrfObra(){localStorage.setItem('mappo_vrf_obra',JSON.stringify(vrfObra));}
+function saveVrfProgresso(){localStorage.setItem('mappo_vrf_progresso',JSON.stringify(vrfProgresso));}
+function saveVrfFotos(){localStorage.setItem('mappo_vrf_fotos',JSON.stringify(vrfFotos));}
+function saveVrfNotas(){localStorage.setItem('mappo_vrf_notas',JSON.stringify(vrfNotas));}
+
+// progresso de um andar (0-100)
+function vrfProgAndar(andarId){
+  const p=vrfProgresso[andarId]||{};
+  let feitas=0;
+  VRF_FASES.forEach(f=>f.etapas.forEach((_,i)=>{if(p[f.id+'_'+i])feitas++;}));
+  return Math.round((feitas/VRF_TOTAL_ETAPAS)*100);
+}
+function vrfProgGeral(){
+  if(!vrfObra.andares.length)return 0;
+  const soma=vrfObra.andares.reduce((a,an)=>a+vrfProgAndar(an.id),0);
+  return Math.round(soma/vrfObra.andares.length);
+}
+function vrfProgFase(andarId,faseId){
+  const p=vrfProgresso[andarId]||{};
+  const fase=VRF_FASES.find(f=>f.id===faseId);if(!fase)return 0;
+  let feitas=0;fase.etapas.forEach((_,i)=>{if(p[faseId+'_'+i])feitas++;});
+  return Math.round((feitas/fase.etapas.length)*100);
+}
+function vrfCorProg(pct){return pct>=100?'var(--green)':pct>=50?'var(--gold)':pct>0?'var(--blue)':'var(--gray-300)';}
+
+
 const CHECKLIST_BASE = [
   {id:'nivel_evap',label:'Suporte da evaporadora no nível',critico:true},
   {id:'furo_oculto',label:'Furo 100% escondido',critico:true},
@@ -812,7 +1005,7 @@ function renderView(v){
   if(v!=='mapa'&&mapaInstance){try{mapaInstance.remove();}catch(e){}mapaInstance=null;mapaMarkers={};}
   // técnico: app de campo (ordens) + VRF se liberado
   if(session.perfil==='tecnico'){
-    if(v==='vrf'){c.innerHTML=renderVRF();return;}
+    if(v==='vrf'){c.innerHTML=renderVRF();setTimeout(vrfSetupCamera,50);return;}
     if(v==='manutencoes'){c.innerHTML=renderManutTecnico();return;}
     c.innerHTML=renderTecnicoApp();afterTecnicoRender();return;
   }
@@ -1079,36 +1272,523 @@ function renderSplits(){
 
 /* ═══════════ VRF (placeholder pra integração) ═══════════ */
 function renderVRF(){
-  const salvo=localStorage.getItem('mappo_vrf_html');
-  if(salvo){return `<iframe srcdoc="${salvo.replace(/"/g,'&quot;')}" style="width:100%;height:calc(100vh - 130px);border:none;border-radius:var(--radius)"></iframe>`;}
-  return `
-  <div class="page-head"><div><div class="page-title">Sistema VRF</div><div class="page-desc">Gestão de obras VRF — integração</div></div></div>
-  <div class="card"><div class="vrf-placeholder">
-    <div class="ico">🌡️</div>
-    <h2>Integre seu Painel VRF aqui</h2>
-    <p>Você já tem o Painel do Gestor VRF pronto. Cole o código HTML dele abaixo para embutir dentro do MAPPO — mesma sessão, mesmo menu, navegação unificada.</p>
-    <p style="margin-top:16px"><button class="btn btn-gold" onclick="openModalVRF()">📥 Colar código do VRF</button></p>
-  </div></div>`;
+  // técnico vê a versão de campo (implementada depois); gestor vê o painel de controle
+  if(session.perfil==='tecnico'){return renderVRFtecnico();}
+  return renderVRFgestor();
 }
 
-function openModalVRF(){
+function renderVRFtecnico(){
+  // sem obra configurada pelo gestor
+  if(!vrfObra.andares.length){
+    return `<div class="page-head"><div><div class="page-title">Obra VRF</div><div class="page-desc">Checklist de execução</div></div></div>
+    <div class="card">${emptyState('splits','Aguardando configuração','O gestor ainda não configurou os andares desta obra. Assim que configurar, aparecem aqui.')}</div>`;
+  }
+  const geral=vrfProgGeral();
+  const obraNome=vrfObra.nome||'Obra VRF';
+
+  // aba ativa: 0 = missão, 1..N = andares
+  if(vrfFloorTab>vrfObra.andares.length)vrfFloorTab=0;
+
+  // tabs (missão + andares)
+  const mp=vrfMissaoProgresso();
+  const tabsHTML=`
+    <button class="vrf-tab ${vrfFloorTab===0?'on':''}" onclick="vrfSetTab(0)">
+      ${svgIco('check','ico-sm')} Missão<small>${vrfObra.missao.items.length?mp.done+'/'+mp.total:'—'}</small>
+    </button>
+    ${vrfObra.andares.map((an,i)=>{
+      const pct=vrfProgAndar(an.id);
+      return `<button class="vrf-tab ${vrfFloorTab===i+1?'on':''}" onclick="vrfSetTab(${i+1})">${an.nome}<small>${pct}%</small></button>`;
+    }).join('')}`;
+
+  // painel ativo
+  let painelHTML;
+  if(vrfFloorTab===0){painelHTML=vrfRenderMissaoPainel();}
+  else{painelHTML=vrfRenderAndarPainel(vrfObra.andares[vrfFloorTab-1]);}
+
+  return `
+  <div class="page-head"><div><div class="page-title">${obraNome}</div><div class="page-desc">Checklist de execução em campo</div></div></div>
+
+  <!-- barra de progresso geral -->
+  <div class="vrf-tec-bar">
+    <div class="vrf-tec-bar-top"><span>Progresso da obra</span><span class="vrf-tec-pct">${geral}%</span></div>
+    <div class="vrf-bar"><div class="vrf-bar-fill" style="width:${geral}%;background:var(--gold)"></div></div>
+  </div>
+
+  <!-- tabs de andares -->
+  <div class="vrf-tabs" id="vrfTabs">${tabsHTML}</div>
+
+  <!-- painel -->
+  <div id="vrfPainel">${painelHTML}</div>
+
+  <!-- rodapé de envio -->
+  <div class="card vrf-envio">
+    <div class="fg"><label>Seu nome</label><input type="text" id="vrfRespNome" value="${session.nome||''}" placeholder="Responsável pelo serviço"></div>
+    <div class="fg"><label>Observações do dia (opcional)</label><textarea id="vrfObs" placeholder="Ex: faltou material, cliente pediu ajuste..."></textarea></div>
+    <button class="btn btn-primary btn-block" onclick="vrfEnviarRelatorio()">${svgIco('check')} Enviar relatório ao gestor</button>
+  </div>
+
+  <input type="file" id="vrfCameraInput" accept="image/*" capture="environment" style="display:none">`;
+}
+
+// progresso da missão
+function vrfMissaoProgresso(){
+  let done=0;const total=vrfObra.missao.items.length;
+  vrfObra.andares.forEach(an=>{
+    const p=vrfProgresso[an.id]||{};
+    vrfObra.missao.items.forEach(key=>{if(p[key])done++;});
+  });
+  // missão conta por andar? no original é global — mantemos simples: por primeiro andar
+  return {done:Math.min(done,total),total};
+}
+
+function vrfSetTab(i){
+  vrfFloorTab=i;
+  const painel=document.getElementById('vrfPainel');
+  if(i===0)painel.innerHTML=vrfRenderMissaoPainel();
+  else painel.innerHTML=vrfRenderAndarPainel(vrfObra.andares[i-1]);
+  document.querySelectorAll('#vrfTabs .vrf-tab').forEach((b,idx)=>b.classList.toggle('on',idx===i));
+}
+
+// painel da missão
+function vrfRenderMissaoPainel(){
+  if(!vrfObra.missao.items.length){
+    return `<div class="card">${emptyState('check','Missão não definida','O gestor ainda não enviou a missão desta semana. Use as abas acima para acessar o checklist completo.')}</div>`;
+  }
+  const andar=vrfObra.andares[vrfObra.missao.andarIdx]||vrfObra.andares[0];
+  const p=vrfProgresso[andar.id]||{};
+  const mp=vrfMissaoProgresso();
+  const pct=mp.total>0?Math.round(mp.done/mp.total*100):0;
+
+  const steps=vrfObra.missao.items.map(key=>{
+    const [fid,ei]=key.split('_');
+    const fase=VRF_FASES.find(f=>f.id===fid);
+    if(!fase)return'';
+    const done=!!p[key];
+    return `<div class="vrf-mis-step ${done?'done':''}" onclick="vrfToggleTec('${andar.id}','${key}',this)">
+      <span class="vrf-mis-chk">${done?svgIco('check','ico-sm'):''}</span>
+      <div><div class="vrf-mis-txt">${fase.etapas[+ei]}</div><div class="vrf-mis-fase">${fase.nome}</div></div>
+    </div>`;
+  }).join('');
+
+  return `<div class="card vrf-mis-card">
+    <div class="vrf-mis-hdr">
+      <div class="vrf-mis-title">${svgIco('check','ico-sm')} Missão da Semana</div>
+      <span class="vrf-mis-badge">Entrega: Sexta</span>
+    </div>
+    <p class="vrf-mis-desc">Tarefas prioritárias definidas pelo gestor. Marque conforme executar.</p>
+    <div class="vrf-mis-stats">
+      <span><strong>${mp.done}</strong>/${mp.total} concluídas</span>
+      <div class="vrf-bar" style="flex:1"><div class="vrf-bar-fill" style="width:${pct}%;background:${vrfCorProg(pct)}"></div></div>
+      <strong style="color:${vrfCorProg(pct)}">${pct}%</strong>
+    </div>
+    <div class="vrf-mis-steps">${steps}</div>
+  </div>`;
+}
+
+// painel de um andar (fases + etapas com foto/nota automático)
+function vrfRenderAndarPainel(andar){
+  const p=vrfProgresso[andar.id]||{};
+  const fotos=vrfFotos[andar.id]||{};
+  const notas=vrfNotas[andar.id]||{};
+
+  const fasesHTML=VRF_FASES.map((f,fi)=>{
+    let feito=0;f.etapas.forEach((_,ei)=>{if(p[f.id+'_'+ei])feito++;});
+    const etapasHTML=f.etapas.map((txt,ei)=>{
+      const key=f.id+'_'+ei;
+      const done=!!p[key];
+      const isMis=vrfObra.missao.items.includes(key);
+      const fs=fotos[key]||[];
+      const nota=notas[key]||'';
+      // painel expansível automático quando marcado
+      let expandHTML='';
+      if(done){
+        expandHTML='<div class="vrf-step-expand">';
+        if(fs.length===0 && !nota){
+          expandHTML+=`<div class="vrf-step-prompt">${svgIco('camera','ico-sm')} Etapa concluída! Registre uma foto do que foi feito:</div>`;
+        }
+        expandHTML+='<div class="vrf-step-ebtns">';
+        expandHTML+=`<button class="vrf-ebtn cam ${fs.length?'has':''}" onclick="vrfAbrirCamera('${andar.id}','${key}',event)">${svgIco('camera','ico-sm')} ${fs.length?('+'+fs.length+' foto'+(fs.length!==1?'s':'')):'Adicionar foto'}</button>`;
+        expandHTML+=`<button class="vrf-ebtn note ${nota?'has':''}" onclick="vrfAbrirNota('${andar.id}','${key}',event)">${svgIco('edit','ico-sm')} ${nota?'Editar nota':'Nota'}</button>`;
+        expandHTML+='</div></div>';
+      }
+      // ações compactas quando não marcado
+      let actHTML='';
+      if(!done){
+        actHTML=`<div class="vrf-step-acts">
+          <button class="vrf-act ${fs.length?'has':''}" onclick="vrfAbrirCamera('${andar.id}','${key}',event)">${svgIco('camera','ico-sm')}${fs.length?`<span class="vrf-act-badge">${fs.length}</span>`:''}</button>
+          <button class="vrf-act ${nota?'has':''}" onclick="vrfAbrirNota('${andar.id}','${key}',event)">${svgIco('edit','ico-sm')}</button>
+        </div>`;
+      }
+      return `<li class="vrf-step ${done?'on':''} ${isMis?'inmis':''}">
+        <div class="vrf-step-box" onclick="vrfToggleTec('${andar.id}','${key}',this.closest('.vrf-step'))"><span class="vrf-step-ck">${done?svgIco('check','ico-sm'):''}</span></div>
+        <div class="vrf-step-body">
+          <span class="vrf-step-txt" onclick="vrfToggleTec('${andar.id}','${key}',this.closest('.vrf-step'))">${isMis?'<span class="vrf-mdot"></span>':''}${txt}</span>
+          ${nota?`<div class="vrf-step-note">${svgIco('edit','ico-sm')} ${nota.replace(/</g,'&lt;')}</div>`:''}
+          ${fs.length?`<div class="vrf-step-photos">${fs.map((src,idx)=>`<img src="${src}" onclick="vrfVerFoto('${andar.id}','${key}',${idx},event)">`).join('')}</div>`:''}
+          ${expandHTML}
+        </div>
+        ${actHTML}
+      </li>`;
+    }).join('');
+    return `<div class="vrf-phase">
+      <div class="vrf-ph"><span class="vrf-ph-num">F${fi+1}</span><span class="vrf-ph-name">${f.nome}</span><span class="vrf-ph-count">${feito}/${f.etapas.length}</span></div>
+      <ul class="vrf-steps">${etapasHTML}</ul>
+    </div>`;
+  }).join('');
+  return fasesHTML;
+}
+
+// toggle no lado do técnico — re-renderiza só o painel ativo (mantém a aba)
+function vrfToggleTec(andarId,key,el){
+  if(!vrfProgresso[andarId])vrfProgresso[andarId]={};
+  const now=!vrfProgresso[andarId][key];
+  if(now)vrfProgresso[andarId][key]=true;else delete vrfProgresso[andarId][key];
+  saveVrfProgresso();
+  // re-render do painel do andar para abrir o expand automático
+  const painel=document.getElementById('vrfPainel');
+  if(vrfFloorTab===0)painel.innerHTML=vrfRenderMissaoPainel();
+  else painel.innerHTML=vrfRenderAndarPainel(vrfObra.andares[vrfFloorTab-1]);
+  // atualizar % da tab e barra geral
+  vrfAtualizarTabs();
+}
+function vrfAtualizarTabs(){
+  const tabs=document.querySelectorAll('#vrfTabs .vrf-tab');
+  const mp=vrfMissaoProgresso();
+  if(tabs[0])tabs[0].querySelector('small').textContent=vrfObra.missao.items.length?mp.done+'/'+mp.total:'—';
+  vrfObra.andares.forEach((an,i)=>{if(tabs[i+1])tabs[i+1].querySelector('small').textContent=vrfProgAndar(an.id)+'%';});
+  const geral=vrfProgGeral();
+  const bar=document.querySelector('.vrf-tec-bar .vrf-bar-fill');
+  const pctT=document.querySelector('.vrf-tec-pct');
+  if(bar)bar.style.width=geral+'%';
+  if(pctT)pctT.textContent=geral+'%';
+}
+
+// câmera com compressão
+let _vrfFotoTarget=null;
+function vrfAbrirCamera(andarId,key,ev){
+  if(ev)ev.stopPropagation();
+  _vrfFotoTarget={andarId,key};
+  const inp=document.getElementById('vrfCameraInput');
+  inp.value='';inp.click();
+}
+function vrfComprimirImagem(file,cb){
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const img=new Image();
+    img.onload=()=>{
+      const canvas=document.createElement('canvas');
+      const maxW=1024,scale=Math.min(1,maxW/img.width);
+      canvas.width=img.width*scale;canvas.height=img.height*scale;
+      canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
+      cb(canvas.toDataURL('image/jpeg',0.6));
+    };
+    img.src=e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+function vrfSetupCamera(){
+  const inp=document.getElementById('vrfCameraInput');
+  if(!inp||inp._wired)return;inp._wired=true;
+  inp.addEventListener('change',function(){
+    if(!this.files||!this.files[0]||!_vrfFotoTarget)return;
+    vrfComprimirImagem(this.files[0],b64=>{
+      const{andarId,key}=_vrfFotoTarget;
+      if(!vrfFotos[andarId])vrfFotos[andarId]={};
+      if(!vrfFotos[andarId][key])vrfFotos[andarId][key]=[];
+      vrfFotos[andarId][key].push(b64);
+      saveVrfFotos();
+      const painel=document.getElementById('vrfPainel');
+      if(vrfFloorTab>0)painel.innerHTML=vrfRenderAndarPainel(vrfObra.andares[vrfFloorTab-1]);
+      toast('Foto adicionada');
+    });
+  });
+}
+
+// nota por etapa
+function vrfAbrirNota(andarId,key,ev){
+  if(ev)ev.stopPropagation();
+  const atual=(vrfNotas[andarId]||{})[key]||'';
   showModal(`
-    <div class="modal-head"><h2>🌡️ Integrar Painel VRF</h2></div>
+    <div class="modal-head"><h2>Nota da etapa</h2></div>
+    <div class="modal-body"><div class="fg"><label>Observação</label><textarea id="vrfNotaTxt" style="min-height:110px" placeholder="Ex: faltou material, ajuste solicitado...">${atual}</textarea></div></div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="vrfSalvarNota('${andarId}','${key}')">${svgIco('check','ico-sm')} Salvar</button>
+    </div>`);
+  setTimeout(()=>document.getElementById('vrfNotaTxt').focus(),100);
+}
+function vrfSalvarNota(andarId,key){
+  const txt=document.getElementById('vrfNotaTxt').value.trim();
+  if(!vrfNotas[andarId])vrfNotas[andarId]={};
+  if(txt)vrfNotas[andarId][key]=txt;else delete vrfNotas[andarId][key];
+  saveVrfNotas();closeModal();
+  const painel=document.getElementById('vrfPainel');
+  if(vrfFloorTab>0)painel.innerHTML=vrfRenderAndarPainel(vrfObra.andares[vrfFloorTab-1]);
+  toast('Nota salva');
+}
+
+// visualizar foto com opção de excluir
+function vrfVerFoto(andarId,key,idx,ev){
+  if(ev)ev.stopPropagation();
+  const fs=(vrfFotos[andarId]||{})[key]||[];
+  const src=fs[idx];if(!src)return;
+  showModal(`
+    <div class="modal-body" style="text-align:center;padding:0">
+      <img src="${src}" style="width:100%;border-radius:12px 12px 0 0;display:block">
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal()">Fechar</button>
+      <button class="btn btn-danger" onclick="vrfExcluirFoto('${andarId}','${key}',${idx})">${svgIco('trash','ico-sm')} Excluir foto</button>
+    </div>`,'wide');
+}
+function vrfExcluirFoto(andarId,key,idx){
+  const fs=(vrfFotos[andarId]||{})[key];
+  if(fs){fs.splice(idx,1);if(!fs.length)delete vrfFotos[andarId][key];saveVrfFotos();}
+  closeModal();
+  const painel=document.getElementById('vrfPainel');
+  if(vrfFloorTab>0)painel.innerHTML=vrfRenderAndarPainel(vrfObra.andares[vrfFloorTab-1]);
+  toast('Foto excluída');
+}
+
+// enviar relatório ao gestor
+function vrfEnviarRelatorio(){
+  const nome=(document.getElementById('vrfRespNome').value||'').trim()||'Prestador';
+  const obs=(document.getElementById('vrfObs').value||'').trim();
+  const rel={data:new Date().toISOString().split('T')[0],responsavel:nome,obs,pct:vrfProgGeral()};
+  vrfRelatorios.push(rel);
+  localStorage.setItem('mappo_vrf_relatorios',JSON.stringify(vrfRelatorios));
+  toast('Relatório enviado ao gestor!','success');
+}
+
+function renderVRFgestor(){
+  const geral=vrfProgGeral();
+  const obraNome=vrfObra.nome||'';
+  // cards de andar
+  const andaresCards=vrfObra.andares.map(an=>{
+    const pct=vrfProgAndar(an.id);
+    const cor=vrfCorProg(pct);
+    const nFotos=Object.values(vrfFotos[an.id]||{}).reduce((a,arr)=>a+(arr?arr.length:0),0);
+    return `<div class="vrf-floor-card" onclick="vrfAbrirAndar('${an.id}')">
+      <div class="vrf-fc-head">
+        <span class="vrf-fc-name">${an.nome}</span>
+        <span class="vrf-fc-pct" style="color:${cor}">${pct}%</span>
+      </div>
+      <div class="vrf-bar"><div class="vrf-bar-fill" style="width:${pct}%;background:${cor}"></div></div>
+      <div class="vrf-fc-meta">
+        <span>${svgIco('camera','ico-sm')} ${nFotos} foto${nFotos!==1?'s':''}</span>
+        <span>${VRF_FASES.length} fases</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  // dias restantes até meta
+  let metaInfo='';
+  if(vrfObra.metaData){
+    const dias=diasAte(vrfObra.metaData);
+    const cor=dias<0?'var(--red)':dias<=7?'var(--yellow)':'var(--green)';
+    metaInfo=`<span style="color:${cor};font-weight:600">${dias<0?Math.abs(dias)+' dias atrasado':dias===0?'Entrega hoje':dias+' dias restantes'}</span>`;
+  }
+
+  return `
+  <div class="page-head">
+    <div><div class="page-title">Obra VRF</div><div class="page-desc">${obraNome||'Configure a obra abaixo para começar'}</div></div>
+    <button class="btn btn-primary btn-sm" onclick="vrfConfigObra()">${svgIco('config','ico-sm')} Configurar obra</button>
+  </div>
+
+  <!-- progresso geral -->
+  <div class="card vrf-hero">
+    <div class="vrf-hero-top">
+      <div>
+        <div class="vrf-hero-label">Progresso geral da obra</div>
+        <div class="vrf-hero-pct">${geral}<span>%</span></div>
+      </div>
+      <div class="vrf-hero-ring" style="background:conic-gradient(var(--gold) ${geral*3.6}deg, var(--gray-200) 0deg)">
+        <div class="vrf-hero-ring-in">${vrfObra.andares.length}<small>andar${vrfObra.andares.length!==1?'es':''}</small></div>
+      </div>
+    </div>
+    ${vrfObra.metaData?`<div class="vrf-hero-meta">${svgIco('calendar','ico-sm')} Meta: ${fmtDate(vrfObra.metaData)} · ${metaInfo}</div>`:''}
+  </div>
+
+  <!-- andares -->
+  <div class="vrf-section-label">Andares / Ambientes</div>
+  ${vrfObra.andares.length?`<div class="vrf-floors">${andaresCards}</div>`:emptyState('splits','Nenhum andar configurado','Configure a obra para adicionar andares.')}
+
+  <!-- missão da semana -->
+  <div class="vrf-section-label" style="margin-top:20px">Missão da Semana</div>
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <span style="font-size:13px;color:var(--gray-500)">${vrfObra.missao.items.length} tarefa${vrfObra.missao.items.length!==1?'s':''} priorizada${vrfObra.missao.items.length!==1?'s':''}</span>
+      <button class="btn btn-gold btn-sm" onclick="vrfConfigMissao()">${svgIco('check','ico-sm')} Definir missão</button>
+    </div>
+    ${vrfObra.missao.items.length?vrfMissaoResumo():'<p style="font-size:13px;color:var(--gray-400);text-align:center;padding:12px">Nenhuma prioridade definida para a semana.</p>'}
+  </div>
+
+  <!-- relatórios recebidos -->
+  <div class="vrf-section-label" style="margin-top:20px">Relatórios Recebidos</div>
+  <div class="card">
+    ${vrfRelatorios.length?vrfRelatorios.slice().reverse().map(r=>`
+      <div class="vrf-rel-item">
+        <div class="vrf-rel-data">${fmtDate(r.data)}</div>
+        <div class="vrf-rel-info"><strong>${r.responsavel||'Prestador'}</strong>${r.obs?`<span>${r.obs}</span>`:''}</div>
+        <div class="vrf-rel-pct" style="color:${vrfCorProg(r.pct||0)}">${r.pct||0}%</div>
+      </div>`).join(''):'<p style="font-size:13px;color:var(--gray-400);text-align:center;padding:12px">Nenhum relatório recebido ainda. Quando o prestador enviar do campo, aparece aqui.</p>'}
+  </div>`;
+}
+
+function vrfMissaoResumo(){
+  const andar=vrfObra.andares[vrfObra.missao.andarIdx]||vrfObra.andares[0];
+  return `<div style="font-size:13px;color:var(--gray-600)">
+    ${vrfObra.missao.items.slice(0,5).map(key=>{
+      const [fid,idx]=key.split('_');
+      const fase=VRF_FASES.find(f=>f.id===fid);
+      return fase?`<div style="padding:6px 0;border-bottom:1px solid var(--gray-100);display:flex;gap:8px;align-items:center">${svgIco('check','ico-sm')} ${fase.etapas[+idx]}</div>`:'';
+    }).join('')}
+    ${vrfObra.missao.items.length>5?`<div style="padding:6px 0;color:var(--gray-400)">+${vrfObra.missao.items.length-5} outras</div>`:''}
+  </div>`;
+}
+
+/* ─── configurar obra (nome, andares, meta) ─── */
+function vrfConfigObra(){
+  const andaresHTML=vrfObra.andares.map((an,i)=>`
+    <div class="vrf-andar-row" data-i="${i}">
+      <input type="text" value="${an.nome}" onchange="vrfRenomearAndar(${i},this.value)" placeholder="Nome do andar">
+      <button class="vrf-andar-del" onclick="vrfRemoverAndar(${i})" title="Remover">${svgIco('trash','ico-sm')}</button>
+    </div>`).join('');
+  showModal(`
+    <div class="modal-head"><h2>Configurar obra VRF</h2></div>
     <div class="modal-body">
-      <div class="fg"><label>Cole o HTML completo do seu Painel VRF</label>
-      <textarea id="vrfHtml" style="min-height:200px;font-family:monospace;font-size:12px" placeholder="<!DOCTYPE html>..."></textarea></div>
-      <p style="font-size:12px;color:var(--gray-400)">O conteúdo fica salvo localmente e passa a abrir dentro da aba VRF.</p>
+      <div class="fg"><label>Nome da obra</label><input type="text" id="vrfNome" value="${vrfObra.nome}" placeholder="Ex: Edifício Solar — Centro"></div>
+      <div class="fg"><label>Data alvo de conclusão</label><input type="date" id="vrfMeta" value="${vrfObra.metaData}"></div>
+      <div class="fg"><label>Andares / Ambientes</label>
+        <div id="vrfAndaresList" style="display:flex;flex-direction:column;gap:8px;margin-top:6px">${andaresHTML}</div>
+        <button class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="vrfAddAndar()">${svgIco('plus','ico-sm')} Adicionar andar</button>
+      </div>
     </div>
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
-      <button class="btn btn-primary" onclick="salvarVRF()">Salvar e integrar</button>
+      <button class="btn btn-primary" onclick="vrfSalvarObra()">${svgIco('check','ico-sm')} Salvar</button>
     </div>`);
 }
-function salvarVRF(){
-  const html=document.getElementById('vrfHtml').value.trim();
-  if(!html){toast('Cole o código do VRF','warn');return;}
-  localStorage.setItem('mappo_vrf_html',html);
-  closeModal();toast('VRF integrado!','success');nav('vrf');
+function vrfAddAndar(){
+  vrfObra.andares.push({id:'a'+Date.now(),nome:'Andar '+(vrfObra.andares.length+1)});
+  saveVrfObra();vrfConfigObra();
+}
+function vrfRemoverAndar(i){
+  if(vrfObra.andares.length<=1){toast('A obra precisa de ao menos 1 andar','warn');return;}
+  const an=vrfObra.andares[i];
+  if(!confirm('Remover "'+an.nome+'"? As marcações e fotos desse andar serão apagadas.'))return;
+  delete vrfProgresso[an.id];delete vrfFotos[an.id];delete vrfNotas[an.id];
+  vrfObra.andares.splice(i,1);
+  saveVrfObra();saveVrfProgresso();saveVrfFotos();saveVrfNotas();
+  vrfConfigObra();
+}
+function vrfRenomearAndar(i,nome){if(vrfObra.andares[i]){vrfObra.andares[i].nome=nome.trim()||('Andar '+(i+1));saveVrfObra();}}
+function vrfSalvarObra(){
+  vrfObra.nome=document.getElementById('vrfNome').value.trim();
+  vrfObra.metaData=document.getElementById('vrfMeta').value;
+  saveVrfObra();closeModal();renderView('vrf');toast('Obra salva');
+}
+
+/* ─── definir missão da semana ─── */
+function vrfConfigMissao(){
+  const tabs=vrfObra.andares.map((an,i)=>`<button class="fbtn ${i===vrfObra.missao.andarIdx?'active':''}" onclick="vrfMissaoTab(${i})">${an.nome}</button>`).join('');
+  showModal(`
+    <div class="modal-head"><h2>Missão da Semana</h2></div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--gray-500);margin-bottom:12px">Marque as etapas prioritárias. Elas aparecem destacadas para o prestador no campo.</p>
+      <div class="fbtns" style="margin-bottom:14px">${tabs}</div>
+      <div id="vrfMissaoSteps"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="vrfSalvarMissao()">${svgIco('check','ico-sm')} Salvar missão</button>
+    </div>`);
+  vrfRenderMissaoSteps();
+}
+function vrfMissaoTab(i){vrfObra.missao.andarIdx=i;
+  document.querySelectorAll('.modal-body .fbtn').forEach((b,idx)=>b.classList.toggle('active',idx===i));
+  vrfRenderMissaoSteps();
+}
+function vrfRenderMissaoSteps(){
+  const cont=document.getElementById('vrfMissaoSteps');if(!cont)return;
+  cont.innerHTML=VRF_FASES.map(f=>`
+    <div class="vrf-mfase">
+      <div class="vrf-mfase-head">${f.nome}</div>
+      ${f.etapas.map((et,i)=>{
+        const key=f.id+'_'+i;
+        const on=vrfObra.missao.items.includes(key);
+        return `<label class="vrf-mstep ${on?'on':''}" onclick="vrfToggleMissao('${key}',this)">
+          <span class="vrf-mstep-chk">${on?svgIco('check','ico-sm'):''}</span>
+          <span>${et}</span>
+        </label>`;
+      }).join('')}
+    </div>`).join('');
+}
+function vrfToggleMissao(key,el){
+  const idx=vrfObra.missao.items.indexOf(key);
+  if(idx>=0){vrfObra.missao.items.splice(idx,1);el.classList.remove('on');el.querySelector('.vrf-mstep-chk').innerHTML='';}
+  else{vrfObra.missao.items.push(key);el.classList.add('on');el.querySelector('.vrf-mstep-chk').innerHTML=svgIco('check','ico-sm');}
+}
+function vrfSalvarMissao(){saveVrfObra();closeModal();renderView('vrf');toast('Missão da semana definida');}
+
+/* ─── abrir andar: ver fases, etapas, progresso, fotos ─── */
+function vrfAbrirAndar(andarId){
+  const an=vrfObra.andares.find(a=>a.id===andarId);if(!an)return;
+  const p=vrfProgresso[andarId]||{};
+  const fotos=vrfFotos[andarId]||{};
+  const notas=vrfNotas[andarId]||{};
+  const fasesHTML=VRF_FASES.map(f=>{
+    const pctFase=vrfProgFase(andarId,f.id);
+    const etapasHTML=f.etapas.map((et,i)=>{
+      const key=f.id+'_'+i;
+      const done=!!p[key];
+      const fs=fotos[key]||[];
+      const nota=notas[key]||'';
+      return `<div class="vrf-etapa ${done?'done':''}">
+        <div class="vrf-etapa-row" onclick="vrfToggleEtapa('${andarId}','${key}',this)">
+          <span class="vrf-etapa-chk">${done?svgIco('check','ico-sm'):''}</span>
+          <span class="vrf-etapa-lbl">${et}</span>
+          ${fs.length?`<span class="vrf-etapa-fotos">${svgIco('camera','ico-sm')} ${fs.length}</span>`:''}
+        </div>
+        ${nota?`<div class="vrf-etapa-nota">${svgIco('edit','ico-sm')} ${nota}</div>`:''}
+        ${fs.length?`<div class="vrf-etapa-gallery">${fs.map(src=>`<img src="${src}" onclick="openLightbox('${src}')">`).join('')}</div>`:''}
+      </div>`;
+    }).join('');
+    return `<div class="vrf-fase">
+      <div class="vrf-fase-head">
+        <span>${f.nome}</span>
+        <span class="vrf-fase-pct" style="color:${vrfCorProg(pctFase)}">${pctFase}%</span>
+      </div>
+      <div class="vrf-fase-etapas">${etapasHTML}</div>
+    </div>`;
+  }).join('');
+  const pct=vrfProgAndar(andarId);
+  showModal(`
+    <div class="modal-head"><h2>${an.nome}</h2></div>
+    <div class="modal-body">
+      <div class="vrf-andar-prog">
+        <div class="vrf-bar" style="flex:1"><div class="vrf-bar-fill" style="width:${pct}%;background:${vrfCorProg(pct)}"></div></div>
+        <span style="font-weight:700;color:${vrfCorProg(pct)}">${pct}%</span>
+      </div>
+      ${fasesHTML}
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal()">Fechar</button>
+      <button class="btn btn-gold" onclick="vrfExportarPDF('${andarId}')">${svgIco('ordens','ico-sm')} Exportar PDF</button>
+    </div>`,'wide');
+}
+function vrfToggleEtapa(andarId,key,el){
+  if(!vrfProgresso[andarId])vrfProgresso[andarId]={};
+  const now=!vrfProgresso[andarId][key];
+  vrfProgresso[andarId][key]=now;
+  if(!now)delete vrfProgresso[andarId][key];
+  saveVrfProgresso();
+  const item=el.closest('.vrf-etapa');
+  item.classList.toggle('done',now);
+  el.querySelector('.vrf-etapa-chk').innerHTML=now?svgIco('check','ico-sm'):'';
+}
+function vrfExportarPDF(andarId){
+  toast('Geração de PDF será ativada em breve','warn');
 }
 
 /* ═══════════ CONFIG ═══════════ */
@@ -1271,7 +1951,7 @@ function getTecnicoLoc(t){const locs=JSON.parse(localStorage.getItem('mappo_loca
 /* ════════════════════════════════════════
    MODAIS
    ════════════════════════════════════════ */
-function showModal(html){document.getElementById('modalRoot').innerHTML=`<div class="overlay open" id="curOverlay" onclick="if(event.target===this)closeModal()"><div class="modal">${html}</div></div>`;}
+function showModal(html,size){document.getElementById('modalRoot').innerHTML=`<div class="overlay open" id="curOverlay" onclick="if(event.target===this)closeModal()"><div class="modal ${size==='wide'?'modal-wide':''}">${html}</div></div>`;}
 function closeModal(){const o=document.getElementById('curOverlay');if(o){o.classList.remove('open');setTimeout(()=>document.getElementById('modalRoot').innerHTML='',200);}}
 
 /* NOVA OS */
