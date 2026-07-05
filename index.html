@@ -285,6 +285,37 @@
   /* no desktop, o hamburger da topbar não é necessário (menu abre pelo logo do rail) */
   body.has-rail .btn-hamburger{display:none;}
 
+  /* ═══════════ DESKTOP LIMPO: esconde a rail lateral, sidebar única ═══════════ */
+  /* aplica só em telas largas e quando NÃO está em modo mobile forçado */
+  @media(min-width:1025px){
+    body.desktop-clean .navbar{display:none;}
+    body.desktop-clean.has-rail .sidebar{left:0;}
+    body.desktop-clean.has-rail .main{margin-left:var(--sidebar-w);}
+    body.desktop-clean .sidebar{transform:translateX(0)!important;}
+    /* botão flutuante de menu (canto inferior direito) */
+    body.desktop-clean .float-menu-btn{display:flex;}
+  }
+  /* botão flutuante — escondido por padrão (só aparece no desktop-clean) */
+  .float-menu-btn{display:none;position:fixed;right:22px;bottom:22px;width:56px;height:56px;border-radius:50%;background:linear-gradient(140deg,var(--petrol),var(--petrol-dark));border:none;box-shadow:0 8px 24px rgba(15,58,73,.4);z-index:120;align-items:center;justify-content:center;cursor:pointer;transition:transform .2s,box-shadow .2s;}
+  .float-menu-btn:hover{transform:scale(1.06);box-shadow:0 10px 30px rgba(15,58,73,.5);}
+  .float-menu-btn:active{transform:scale(.95);}
+  .float-menu-btn svg{width:26px;height:26px;stroke:#fff;stroke-width:2.2;transition:transform .3s;}
+  .float-menu-btn.open svg{transform:rotate(90deg);}
+  /* opções verticais que sobem do botão */
+  .float-menu-options{display:none;position:fixed;right:22px;bottom:90px;z-index:119;flex-direction:column;align-items:flex-end;gap:10px;}
+  .float-menu-options.show{display:flex;}
+  .float-menu-opt{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.82);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.6);border-radius:99px;padding:10px 16px 10px 14px;box-shadow:0 4px 16px rgba(15,58,73,.18);cursor:pointer;transition:all .15s;opacity:0;transform:translateX(12px);animation:floatOptIn .28s forwards;}
+  .float-menu-opt:hover{background:rgba(255,255,255,.98);transform:translateX(0) scale(1.03);}
+  .float-menu-opt.active{background:var(--petrol);border-color:var(--petrol);}
+  .float-menu-opt.active .fmo-lbl{color:#fff;}
+  .float-menu-opt.active .ico{stroke:#fff;}
+  .float-menu-opt .ico{width:20px;height:20px;stroke:var(--petrol);flex-shrink:0;}
+  .fmo-lbl{font-size:13.5px;font-weight:700;color:var(--gray-700);white-space:nowrap;}
+  @keyframes floatOptIn{to{opacity:1;transform:translateX(0);}}
+  /* backdrop translúcido do menu flutuante */
+  .float-menu-backdrop{display:none;position:fixed;inset:0;z-index:118;background:rgba(15,58,73,.08);}
+  .float-menu-backdrop.show{display:block;}
+
   .fab{display:none;}
 
   /* ═══════════ BARRA DE NAVEGAÇÃO — MOBILE (inferior fixa) ═══════════ */
@@ -691,6 +722,13 @@
     <svg viewBox="0 0 24 24" fill="none"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
   </button>
 
+  <!-- MENU FLUTUANTE (só desktop): abre as opções contextuais no canto inferior direito -->
+  <div class="float-menu-backdrop" id="floatMenuBackdrop" onclick="toggleFloatMenu(false)"></div>
+  <div class="float-menu-options" id="floatMenuOptions"></div>
+  <button class="float-menu-btn" id="floatMenuBtn" onclick="toggleFloatMenu()" title="Menu de navegação">
+    <svg viewBox="0 0 24 24" fill="none"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+
   <!-- SIDEBAR -->
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
@@ -736,11 +774,28 @@
       </div>
       <div class="topbar-right">
         <span class="topbar-date" id="topDate"></span>
+        <button class="sync-btn" id="syncBtn" onclick="syncManual()" title="Sincronizar agora">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M21 12a9 9 0 0 1-9 9c-2.5 0-4.8-1-6.4-2.7M3 12a9 9 0 0 1 9-9c2.5 0 4.8 1 6.4 2.7"/><path d="M21 3v6h-6M3 21v-6h6"/></svg>
+        </button>
         <div class="view-toggle" id="viewToggle">
           <button class="active" id="tgDesktop" onclick="setView('desktop')">🖥️ Desktop</button>
           <button id="tgMobile" onclick="setView('mobile')">📱 Mobile</button>
         </div>
       </div>
+    </div>
+
+    <!-- Botão flutuante de DEBUG (diagnóstico Firebase) -->
+    <button class="debug-btn" id="debugBtn" onclick="toggleDebugPanel()" title="Diagnóstico de sincronização">🐛</button>
+    <div class="debug-panel" id="debugPanel">
+      <div class="debug-head">
+        <strong>Diagnóstico de Sincronização</strong>
+        <button onclick="toggleDebugPanel(false)">✕</button>
+      </div>
+      <div class="debug-actions">
+        <button onclick="syncManual()">🔄 Sincronizar agora</button>
+        <button onclick="_fbLogs=[];renderDebugLogs()">🗑️ Limpar</button>
+      </div>
+      <div class="debug-log-body" id="debugLogBody"></div>
     </div>
 
     <div class="content" id="contentArea">
@@ -782,13 +837,13 @@ const SYNC_KEYS=[
 /* Inicializa Firebase; se falhar, app segue offline com localStorage */
 function fbInit(){
   try{
-    if(!window.firebase){console.warn('[MAPPO] Firebase SDK não carregou — modo offline');return false;}
+    if(!window.firebase){fbLog('Firebase SDK não carregou — modo offline','erro');return false;}
     fbApp=firebase.initializeApp(firebaseConfig);
     fbDB=firebase.firestore();
     fbReady=true;
-    console.log('[MAPPO] Firebase conectado ☁️');
+    fbLog('Firebase conectado ☁️','ok');
     return true;
-  }catch(e){console.warn('[MAPPO] Falha ao iniciar Firebase:',e.message);return false;}
+  }catch(e){fbLog('Falha ao iniciar Firebase: '+e.message,'erro');return false;}
 }
 
 /* Envia uma chave pro Firestore (debounced para evitar excesso de escritas) */
@@ -804,8 +859,9 @@ function fbPush(key){
       if(raw===null)return;
       const ref=fbDB.collection('workspaces').doc(WORKSPACE).collection('data').doc(key);
       ref.set({json:raw, updatedAt:firebase.firestore.FieldValue.serverTimestamp(), by:(session&&session.nome)||'?'})
-        .catch(e=>console.warn('[MAPPO] push falhou ('+key+'):',e.message));
-    }catch(e){console.warn('[MAPPO] push erro:',e.message);}
+        .then(()=>fbLog('⬆️ Enviado: '+key.replace('mappo_','')+' (por '+((session&&session.nome)||'?')+')','push'))
+        .catch(e=>fbLog('❌ FALHA ao enviar '+key.replace('mappo_','')+': '+e.message,'erro'));
+    }catch(e){fbLog('Erro no push: '+e.message,'erro');}
   },delay);
 }
 
@@ -876,11 +932,14 @@ function fbStartListeners(){
     const unsub=ref.onSnapshot(snap=>{
       if(!snap.exists)return;
       const d=snap.data();
-      if(d&&typeof d.json==='string')fbApply(key,d.json);
-    },err=>console.warn('[MAPPO] listener '+key+':',err.message));
+      if(d&&typeof d.json==='string'){
+        if(localStorage.getItem(key)!==d.json)fbLog('⬇️ Recebido: '+key.replace('mappo_','')+' (de '+(d.by||'?')+')','pull');
+        fbApply(key,d.json);
+      }
+    },err=>fbLog('Listener '+key+': '+err.message,'erro'));
     fbUnsubs.push(unsub);
   });
-  console.log('[MAPPO] Escutando '+SYNC_KEYS.length+' coleções em tempo real');
+  fbLog('Escutando '+SYNC_KEYS.length+' coleções em tempo real','ok');
 }
 function fbStopListeners(){fbUnsubs.forEach(u=>{try{u();}catch(e){}});fbUnsubs=[];}
 
@@ -893,8 +952,8 @@ async function fbPullAll(){
       const d=doc.data();
       if(d&&typeof d.json==='string')fbApply(doc.id,d.json);
     });
-    console.log('[MAPPO] Dados da nuvem carregados ('+col.size+' coleções)');
-  }catch(e){console.warn('[MAPPO] pull inicial falhou:',e.message);}
+    fbLog('Dados da nuvem carregados ('+col.size+' coleções)','ok');
+  }catch(e){fbLog('Pull inicial falhou: '+e.message,'erro');}
 }
 
 /* Faz o primeiro envio de tudo que já existe localmente pra nuvem (seed) */
@@ -932,6 +991,63 @@ function fbStatusBadge(ok){
   if(ok){b.style.background='#dcfce7';b.style.color='#166534';b.innerHTML='☁️ Sincronizado';b.style.opacity='1';setTimeout(()=>{if(b)b.style.opacity='0';},2500);}
   else{b.style.background='#fef9c3';b.style.color='#854d0e';b.innerHTML='⚠️ Offline (local)';b.style.opacity='1';}
 }
+
+/* ─── LOG VISÍVEL NA TELA (diagnóstico sem console) ─── */
+let _fbLogs=[];
+function fbLog(msg,tipo){
+  const hora=new Date().toLocaleTimeString('pt-BR');
+  _fbLogs.push({hora,msg,tipo:tipo||'info'});
+  if(_fbLogs.length>60)_fbLogs.shift();
+  console.log('[MAPPO] '+msg);
+  const painel=document.getElementById('debugLogBody');
+  if(painel&&document.getElementById('debugPanel').classList.contains('show'))renderDebugLogs();
+}
+function renderDebugLogs(){
+  const body=document.getElementById('debugLogBody');
+  if(!body)return;
+  const cor={info:'#334155',ok:'#166534',erro:'#b91c1c',push:'#1e40af',pull:'#7c2d12'};
+  body.innerHTML=_fbLogs.slice().reverse().map(l=>
+    `<div style="padding:5px 0;border-bottom:1px solid #eee;font-size:11.5px;line-height:1.4">
+      <span style="color:#94a3b8">${l.hora}</span>
+      <span style="color:${cor[l.tipo]||'#334155'};font-weight:600"> ${l.msg}</span>
+    </div>`).join('')||'<div style="color:#94a3b8;font-size:12px;padding:8px">Nenhum log ainda…</div>';
+}
+function toggleDebugPanel(force){
+  const p=document.getElementById('debugPanel');
+  const abrir=(typeof force==='boolean')?force:!p.classList.contains('show');
+  p.classList.toggle('show',abrir);
+  if(abrir)renderDebugLogs();
+}
+
+/* ─── SINCRONIZAÇÃO MANUAL ─── */
+async function syncManual(){
+  const btn=document.getElementById('syncBtn');
+  if(btn)btn.classList.add('spinning');
+  fbLog('Sincronização manual iniciada…','info');
+  if(!fbReady){
+    fbLog('Firebase não conectado — tentando reconectar','erro');
+    await fbBoot();
+    if(btn)setTimeout(()=>btn.classList.remove('spinning'),800);
+    return;
+  }
+  try{
+    // 1. baixa tudo da nuvem
+    await fbPullAll();
+    // 2. re-render da tela atual
+    if(typeof currentView!=='undefined'&&typeof renderView==='function'&&session){
+      renderView(currentView);
+      if(currentView==='mapa'&&typeof atualizarMarcadores==='function')atualizarMarcadores();
+      if(currentView==='vrf-mapa'&&typeof initVRFmapa==='function')initVRFmapa();
+    }
+    fbLog('✅ Sincronizado com a nuvem','ok');
+    if(typeof toast==='function')toast('Sincronizado!','success');
+  }catch(e){
+    fbLog('Erro na sincronização: '+e.message,'erro');
+    if(typeof toast==='function')toast('Erro ao sincronizar','error');
+  }
+  if(btn)setTimeout(()=>btn.classList.remove('spinning'),600);
+}
+
 
 
 
@@ -1151,6 +1267,8 @@ function entrarApp(){
   document.getElementById('loginScreen').classList.add('hidden');
   document.getElementById('app').classList.add('active');
   document.body.classList.add('has-rail');
+  // desktop limpo por padrão (menu flutuante no canto); mobile real ignora via media query
+  if(!document.body.classList.contains('force-mobile'))document.body.classList.add('desktop-clean');
   // avatar + nome
   const iniciais=session.nome.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
   document.getElementById('userAvatar').textContent=iniciais;
@@ -1258,7 +1376,7 @@ function injetarIcones(){
 }
 
 /* monta a barra de navegação (bottom mobile / rail desktop) */
-function montarNavbar(){
+function getNavItems(){
   let items=NAV_ITEMS;
   if(session.perfil==='tecnico'){
     const tec=getTecnico(session.nome)||{modulos:{split:true,vrf:false}};
@@ -1276,9 +1394,7 @@ function montarNavbar(){
       items.push({view:'manutencoes',icon:'manutencoes',label:'Manut.'});
       if(m.vrf){items.push({view:'vrf',icon:'vrf',label:'VRF'});}
     }
-    document.getElementById('fabNovo').style.display='none';
   }else if(navbarContexto==='vrf'){
-    // gestor dentro do módulo VRF: barra contextual
     items=[
       {view:'vrf',icon:'dashboard',label:'Painel VRF'},
       {view:'vrf-andares',icon:'splits',label:'Andares'},
@@ -1286,10 +1402,14 @@ function montarNavbar(){
       {view:'vrf-fotos',icon:'camera',label:'Fotos'},
       {view:'vrf-relatorios',icon:'ordens',label:'Relatórios'},
     ];
-    document.getElementById('fabNovo').style.display='none';
-  }else{
-    document.getElementById('fabNovo').style.display='';
   }
+  return items;
+}
+
+function montarNavbar(){
+  const items=getNavItems();
+  const ehVRFgestor=(session.perfil!=='tecnico'&&navbarContexto==='vrf');
+  document.getElementById('fabNovo').style.display=(session.perfil==='tecnico'||navbarContexto==='vrf')?'none':'';
   const cont=document.getElementById('navbarBtns');
   cont.innerHTML=items.map(it=>`
     <button class="navbtn" data-nav="${it.view}" onclick="nav('${it.view}')">
@@ -1297,6 +1417,36 @@ function montarNavbar(){
       <span class="navbtn-lbl">${it.label}</span>
       ${it.badge?`<span class="navbtn-badge" id="nb-${it.badge}" style="display:none">0</span>`:''}
     </button>`).join('');
+  montarFloatMenu(items); // desktop: mesmas opções no menu flutuante
+}
+
+/* Popula o menu flutuante (desktop) com as opções de navegação contextuais */
+function montarFloatMenu(items){
+  const opts=document.getElementById('floatMenuOptions');
+  if(!opts)return;
+  opts.innerHTML=items.map(it=>`
+    <div class="float-menu-opt${it.view===currentView?' active':''}" data-nav="${it.view}" onclick="floatMenuNav('${it.view}')">
+      <span class="fmo-lbl">${it.label}</span>
+      ${svgIco(it.icon)}
+    </div>`).join('');
+}
+
+/* Clicar numa opção do menu flutuante: navega e fecha */
+function floatMenuNav(view){
+  toggleFloatMenu(false);
+  nav(view);
+}
+
+/* Abre/fecha o menu flutuante do canto inferior direito */
+function toggleFloatMenu(force){
+  const btn=document.getElementById('floatMenuBtn');
+  const opts=document.getElementById('floatMenuOptions');
+  const bd=document.getElementById('floatMenuBackdrop');
+  const abrir=(typeof force==='boolean')?force:!opts.classList.contains('show');
+  opts.classList.toggle('show',abrir);
+  bd.classList.toggle('show',abrir);
+  btn.classList.toggle('open',abrir);
+  if(abrir)montarFloatMenu(getNavItems()); // garante que reflita o contexto atual
 }
 
 function logout(){
@@ -1359,8 +1509,10 @@ function setView(mode){
   const main=document.getElementById('mainArea');
   main.classList.toggle('mobile-view',mode==='mobile');
   document.body.classList.toggle('force-mobile',mode==='mobile');
+  document.body.classList.toggle('desktop-clean',mode==='desktop');
   document.getElementById('tgDesktop').classList.toggle('active',mode==='desktop');
   document.getElementById('tgMobile').classList.toggle('active',mode==='mobile');
+  if(mode==='mobile')toggleFloatMenu(false); // fecha o menu flutuante ao ir pro mobile
   if(currentView==='mapa'&&mapaInstance)setTimeout(()=>mapaInstance.invalidateSize(),300);
 }
 
