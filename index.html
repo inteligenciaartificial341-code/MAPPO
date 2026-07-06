@@ -834,6 +834,84 @@ const SYNC_KEYS=[
   'mappo_vrf_relatorios','mappo_vrf_checkins','mappo_vrf_fotos_meta','mappo_locations'
 ];
 
+/* ── Estado do monitor de alterações ── */
+let _quietWrite=false;      // true durante gravações vindas da nuvem (não re-sobe)
+let _bootDone=false;        // gravações ANTES do boot completo (defaults) não contam como ação do usuário
+let _lastPushKey=null;      // diagnóstico: última chave que chegou ao fbPush
+const _snapshot={};         // último valor confirmado (enviado ou recebido) por chave
+let _localTouch={};         // timestamp da última alteração LOCAL de cada chave
+try{_localTouch=JSON.parse(localStorage.getItem('mappo_touch')||'{}');}catch(e){_localTouch={};}
+function _saveTouch(){
+  _quietWrite=true;
+  try{localStorage.setItem('mappo_touch',JSON.stringify(_localTouch));}
+  finally{_quietWrite=false;}
+}
+/* grava sem disparar push (usado quando o dado veio da nuvem) */
+function _setLocalQuiet(key,val){
+  _quietWrite=true;
+  try{localStorage.setItem(key,val);}
+  finally{_quietWrite=false;}
+  _snapshot[key]=val;
+}
+/* registra alteração local: marca o horário e agenda o envio */
+function _marcarAlteracaoLocal(key){
+  _localTouch[key]=Date.now();
+  _saveTouch();
+  fbPush(key);
+}
+
+/* ── INTERCEPTOR (camada 1): captura todo localStorage.setItem ──
+   Patch no Storage.prototype — no iPhone/Safari, substituir
+   localStorage.setItem diretamente é IGNORADO pelo navegador
+   (foi a causa do celular nunca enviar dados). O prototype funciona
+   em todos os navegadores. */
+(function(){
+  try{
+    const orig=Storage.prototype.setItem;
+    Storage.prototype.setItem=function(k,v){
+      orig.apply(this,arguments);
+      try{
+        if(this===window.localStorage&&!_quietWrite&&_bootDone&&SYNC_KEYS.includes(k)){
+          _snapshot[k]=v;
+          _marcarAlteracaoLocal(k);
+        }
+      }catch(e){}
+    };
+  }catch(e){console.warn('[MAPPO] interceptor indisponível:',e.message);}
+})();
+
+/* ── AUTO-TESTE (camada 2): confirma que o interceptor funciona neste navegador ── */
+let _interceptorOk=false;
+function _testInterceptor(){
+  try{
+    _lastPushKey=null;
+    SYNC_KEYS.push('__mappo_probe__');
+    localStorage.setItem('__mappo_probe__','1');
+    localStorage.removeItem('__mappo_probe__');
+    SYNC_KEYS.pop();
+    delete _localTouch['__mappo_probe__'];delete _snapshot['__mappo_probe__'];
+    _interceptorOk=(_lastPushKey==='__mappo_probe__');
+    fbLog(_interceptorOk?'Monitor automático ativo ✓':'⚠️ Monitor direto inativo neste navegador — vigilância contínua assumindo','info');
+  }catch(e){_interceptorOk=false;}
+}
+
+/* ── VIGILÂNCIA CONTÍNUA (camada 3): a cada 3s compara e envia o que mudou ──
+   Garante o envio mesmo se o interceptor falhar em algum navegador. */
+let _pollTimer=null;
+function _startPolling(){
+  if(_pollTimer)return;
+  _pollTimer=setInterval(()=>{
+    if(!fbReady)return;
+    SYNC_KEYS.forEach(key=>{
+      const raw=localStorage.getItem(key);
+      if(raw!==null&&raw!==_snapshot[key]){
+        _snapshot[key]=raw;
+        _marcarAlteracaoLocal(key);
+      }
+    });
+  },3000);
+}
+
 /* Inicializa Firebase; se falhar, app segue offline com localStorage */
 function fbInit(){
   try{
@@ -846,7 +924,7 @@ function fbInit(){
   }catch(e){fbLog('Falha ao iniciar Firebase: '+e.message,'erro');return false;}
 }
 
-/* Envia uma chave pro Firestore (debounced para evitar excesso de escritas) */
+/* Envia uma chave pro Firestore */
 const _pushTimers={};
 /* chaves que são listas append-only: merge por conteúdo, nunca sobrescreve */
 const APPEND_LISTS=['mappo_vrf_checkins','mappo_vrf_relatorios'];
@@ -854,40 +932,40 @@ const APPEND_LISTS=['mappo_vrf_checkins','mappo_vrf_relatorios'];
 const IMMEDIATE_KEYS=['mappo_vrf_checkins','mappo_vrf_relatorios','mappo_vrf_progresso','mappo_vrf_fotos','mappo_vrf_notas','mappo_vrf_fotos_meta','mappo_os','mappo_manut'];
 
 function fbPush(key){
-  if(!fbReady)return; // NÃO bloqueia mais por fbSyncing — cada push é independente
+  _lastPushKey=key; // diagnóstico do auto-teste
+  if(!fbReady)return;
   clearTimeout(_pushTimers[key]);
-  const delay=(key==='mappo_locations')?8000:(IMMEDIATE_KEYS.includes(key)?0:600);
+  const delay=(key==='mappo_locations')?8000:(IMMEDIATE_KEYS.includes(key)?50:600);
   _pushTimers[key]=setTimeout(()=>_doPush(key),delay);
 }
 
-function _doPush(key){
+async function _doPush(key){
   if(!fbReady)return;
+  const nice=key.replace('mappo_','');
   try{
     const raw=localStorage.getItem(key);
     if(raw===null)return;
     const ref=fbDB.collection('workspaces').doc(WORKSPACE).collection('data').doc(key);
-    // Para listas append-only, faz merge com a nuvem antes de gravar (não perde dados de outros)
     if(APPEND_LISTS.includes(key)){
-      ref.get().then(snap=>{
-        let remoto=[];
-        if(snap.exists&&snap.data().json){try{remoto=JSON.parse(snap.data().json);}catch(e){}}
-        let local=[];try{local=JSON.parse(raw);}catch(e){}
-        const merged=_mergeLista(remoto,local);
-        const mergedStr=JSON.stringify(merged);
-        // atualiza local com o merge (pra ficar consistente)
-        fbSyncing=true;localStorage.setItem(key,mergedStr);fbSyncing=false;
-        _aplicarNaMemoria(key,merged);
-        ref.set({json:mergedStr,updatedAt:firebase.firestore.FieldValue.serverTimestamp(),by:(session&&session.nome)||'?'})
-          .then(()=>fbLog('⬆️ Enviado: '+key.replace('mappo_','')+' ('+merged.length+' itens)','push'))
-          .catch(e=>fbLog('❌ FALHA ao enviar '+key.replace('mappo_','')+': '+e.message,'erro'));
-      }).catch(e=>fbLog('❌ Erro no merge '+key+': '+e.message,'erro'));
-      return;
+      // listas append-only: junta com a nuvem antes de gravar (não perde nada de ninguém)
+      const snap=await ref.get();
+      let remoto=[];
+      if(snap.exists&&snap.data().json){try{remoto=JSON.parse(snap.data().json);}catch(e){}}
+      let local=[];try{local=JSON.parse(raw);}catch(e){}
+      const merged=_mergeLista(remoto,local);
+      const mergedStr=JSON.stringify(merged);
+      if(mergedStr!==raw){_setLocalQuiet(key,mergedStr);_aplicarNaMemoria(key,merged);}
+      await ref.set({json:mergedStr,updatedAt:firebase.firestore.FieldValue.serverTimestamp(),by:(session&&session.nome)||'?'});
+      fbLog('⬆️ Enviado: '+nice+' ('+merged.length+' itens)','push');
+    }else{
+      await ref.set({json:raw,updatedAt:firebase.firestore.FieldValue.serverTimestamp(),by:(session&&session.nome)||'?'});
+      fbLog('⬆️ Enviado: '+nice,'push');
     }
-    // demais chaves: grava direto
-    ref.set({json:raw,updatedAt:firebase.firestore.FieldValue.serverTimestamp(),by:(session&&session.nome)||'?'})
-      .then(()=>fbLog('⬆️ Enviado: '+key.replace('mappo_',''),'push'))
-      .catch(e=>fbLog('❌ FALHA ao enviar '+key.replace('mappo_','')+': '+e.message,'erro'));
-  }catch(e){fbLog('Erro no push: '+e.message,'erro');}
+    _snapshot[key]=localStorage.getItem(key);
+  }catch(e){
+    delete _snapshot[key]; // a vigilância contínua vai tentar de novo
+    fbLog('❌ FALHA ao enviar '+nice+': '+e.message,'erro');
+  }
 }
 
 /* Une duas listas de check-ins/relatórios sem duplicar (por prestador+data+hora) */
@@ -918,35 +996,40 @@ function _aplicarNaMemoria(key,val){
   }
 }
 
-/* Aplica um dado vindo da nuvem no localStorage + variáveis em memória */
-function fbApply(key,jsonStr){
+/* Aplica um dado vindo da nuvem no localStorage + variáveis em memória.
+   remoteMs = quando a nuvem foi atualizada; protege alterações locais mais novas. */
+function fbApply(key,jsonStr,remoteMs){
   if(jsonStr===null||jsonStr===undefined)return;
+  const nice=key.replace('mappo_','');
   const atual=localStorage.getItem(key);
-  if(atual===jsonStr)return; // sem mudança real
-  fbSyncing=true;
+  if(atual===jsonStr){_snapshot[key]=jsonStr;return;} // sem mudança real
   try{
-    let val=JSON.parse(jsonStr);
-    // Listas append-only: faz MERGE com o local, nunca perde o que está aqui
+    // Listas append-only: sempre MERGE — junta nuvem + local, nunca perde nada
     if(APPEND_LISTS.includes(key)){
+      let remoto=[];try{remoto=JSON.parse(jsonStr);}catch(e){}
       let local=[];try{local=JSON.parse(atual||'[]');}catch(e){}
-      val=_mergeLista(val,local);
-      jsonStr=JSON.stringify(val);
-      // se o merge gerou algo diferente da nuvem, re-sobe (nossos itens locais)
-      if(jsonStr!==(atual||'')){
-        localStorage.setItem(key,jsonStr);
-        _aplicarNaMemoria(key,val);
-        // reenvia o merge pra nuvem (fora do fbSyncing pra não bloquear)
-        setTimeout(()=>{if(fbReady)_doPush(key);},100);
-        fbOnRemoteChange(key);
-        fbSyncing=false;
-        return;
-      }
+      const merged=_mergeLista(remoto,local);
+      const mergedStr=JSON.stringify(merged);
+      const mudouLocal=(mergedStr!==(atual||''));
+      _setLocalQuiet(key,mergedStr);
+      _aplicarNaMemoria(key,merged);
+      // se o local tinha itens que a nuvem não tem, re-envia o conjunto completo
+      if(mergedStr!==jsonStr){setTimeout(()=>{if(fbReady)_doPush(key);},150);}
+      if(mudouLocal){fbLog('⬇️ Recebido: '+nice,'pull');fbOnRemoteChange(key);}
+      return;
     }
-    localStorage.setItem(key,jsonStr);
-    _aplicarNaMemoria(key,val);
+    // Dados de estado: o mais RECENTE vence (nunca sobrescreve alteração local mais nova)
+    const touch=_localTouch[key]||0;
+    if(touch&&(!remoteMs||touch>remoteMs)){
+      fbLog('↔️ Mantido local (mais recente): '+nice,'info');
+      setTimeout(()=>{if(fbReady)_doPush(key);},150); // garante que o local suba
+      return;
+    }
+    _setLocalQuiet(key,jsonStr);
+    _aplicarNaMemoria(key,JSON.parse(jsonStr));
+    fbLog('⬇️ Recebido: '+nice,'pull');
     fbOnRemoteChange(key);
   }catch(e){console.warn('[MAPPO] apply erro ('+key+'):',e.message);}
-  fbSyncing=false;
 }
 
 /* Reage a mudanças remotas: re-renderiza a tela atual quando faz sentido */
@@ -988,13 +1071,19 @@ function fbStartListeners(){
       if(!snap.exists)return;
       const d=snap.data();
       if(d&&typeof d.json==='string'){
-        if(localStorage.getItem(key)!==d.json)fbLog('⬇️ Recebido: '+key.replace('mappo_','')+' (de '+(d.by||'?')+')','pull');
-        fbApply(key,d.json);
+        fbApply(key,d.json,_remoteMs(d));
       }
     },err=>fbLog('Listener '+key+': '+err.message,'erro'));
     fbUnsubs.push(unsub);
   });
   fbLog('Escutando '+SYNC_KEYS.length+' coleções em tempo real','ok');
+}
+/* extrai o horário (ms) do updatedAt do documento da nuvem */
+function _remoteMs(d){
+  if(!d||!d.updatedAt)return 0;
+  if(typeof d.updatedAt.toMillis==='function')return d.updatedAt.toMillis();
+  if(typeof d.updatedAt==='number')return d.updatedAt;
+  return 0;
 }
 function fbStopListeners(){fbUnsubs.forEach(u=>{try{u();}catch(e){}});fbUnsubs=[];}
 
@@ -1005,7 +1094,7 @@ async function fbPullAll(){
     const col=await fbDB.collection('workspaces').doc(WORKSPACE).collection('data').get();
     col.forEach(doc=>{
       const d=doc.data();
-      if(d&&typeof d.json==='string')fbApply(doc.id,d.json);
+      if(d&&typeof d.json==='string')fbApply(doc.id,d.json,_remoteMs(d));
     });
     fbLog('Dados da nuvem carregados ('+col.size+' coleções)','ok');
   }catch(e){fbLog('Pull inicial falhou: '+e.message,'erro');}
@@ -1028,10 +1117,14 @@ async function fbSeedFromLocal(){
 
 /* Boot da nuvem: conecta, puxa, semeia o que falta, e liga listeners */
 async function fbBoot(){
-  if(!fbInit())return;
-  await fbPullAll();     // 1. baixa o que já existe na nuvem
+  if(!fbInit()){_bootDone=true;_testInterceptor();return;}
+  await fbPullAll();      // 1. baixa o que já existe na nuvem (com proteção do mais recente)
   await fbSeedFromLocal();// 2. sobe o que só existe local
-  fbStartListeners();    // 3. escuta mudanças ao vivo
+  SYNC_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!==null)_snapshot[k]=v;}); // baseline
+  _bootDone=true;         // a partir daqui, gravações são ações reais do usuário
+  _testInterceptor();     // confirma se o monitor automático funciona neste navegador
+  fbStartListeners();     // 3. escuta mudanças ao vivo
+  _startPolling();        // 4. vigilância contínua (rede de segurança p/ qualquer navegador)
   fbStatusBadge(true);
 }
 
@@ -1086,9 +1179,20 @@ async function syncManual(){
     return;
   }
   try{
-    // 1. baixa tudo da nuvem
+    // 1. ENVIA primeiro tudo que mudou localmente (nunca perde nada)
+    let enviados=0;
+    for(const key of SYNC_KEYS){
+      const raw=localStorage.getItem(key);
+      if(raw!==null&&raw!==_snapshot[key]){
+        _localTouch[key]=_localTouch[key]||Date.now();
+        await _doPush(key);
+        enviados++;
+      }
+    }
+    if(enviados)fbLog('⬆️ '+enviados+' alteração(ões) local(is) enviada(s) antes de baixar','push');
+    // 2. baixa tudo da nuvem (listas são mescladas; estado usa o mais recente)
     await fbPullAll();
-    // 2. re-render da tela atual
+    // 3. re-render da tela atual
     if(typeof currentView!=='undefined'&&typeof renderView==='function'&&session){
       renderView(currentView);
       if(currentView==='mapa'&&typeof atualizarMarcadores==='function')atualizarMarcadores();
@@ -1106,14 +1210,8 @@ async function syncManual(){
 
 
 
-/* Intercepta setItem: todo save local também vai pra nuvem (sem tocar em cada função) */
-(function(){
-  const _origSet=localStorage.setItem.bind(localStorage);
-  localStorage.setItem=function(k,v){
-    _origSet(k,v);
-    if(typeof SYNC_KEYS!=='undefined'&&SYNC_KEYS.includes(k))fbPush(k);
-  };
-})();
+/* (o monitor de alterações agora fica no topo da camada de nuvem,
+   via Storage.prototype — compatível com iPhone/Safari) */
 
 /* ── CONFIG ── */
 const CFG = {
