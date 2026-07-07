@@ -651,6 +651,49 @@
     .frow{grid-template-columns:1fr;}
     .topbar-date{display:none;}
   }
+  /* ── botão de sincronização (topbar, slim) ── */
+  .sync-btn{width:36px;height:36px;border-radius:50%;border:1.5px solid var(--gray-300);background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;flex-shrink:0;transition:border-color .15s;}
+  .sync-btn svg{width:17px;height:17px;stroke:var(--gray-500);stroke-width:2;fill:none;stroke-linecap:round;stroke-linejoin:round;}
+  .sync-btn:hover{border-color:var(--petrol);}
+  .sync-btn:hover svg{stroke:var(--petrol);}
+  .sync-btn.spinning svg{animation:syncspin .8s linear infinite;}
+  @keyframes syncspin{to{transform:rotate(360deg)}}
+
+  /* ── diagnóstico de sincronização (dentro de Configurações) ── */
+  .diag-status{font-size:13.5px;font-weight:600;color:var(--gray-700);display:flex;align-items:center;gap:9px;padding:11px 14px;background:var(--gray-50);border-radius:10px;}
+  .diag-log{max-height:320px;overflow:auto;margin-top:12px;}
+  .diag-row{display:flex;align-items:baseline;gap:9px;padding:7px 2px;border-bottom:1px solid var(--gray-100);font-size:12.5px;line-height:1.45;}
+  .diag-row:last-child{border-bottom:none;}
+  .diag-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;background:var(--gray-300);}
+  .diag-dot.ok{background:#16a34a;}
+  .diag-dot.push{background:var(--petrol-light);}
+  .diag-dot.pull{background:var(--gold);}
+  .diag-dot.erro{background:#dc2626;}
+  .diag-dot.info{background:var(--gray-400);}
+  .diag-hora{color:var(--gray-400);font-variant-numeric:tabular-nums;flex-shrink:0;font-size:11.5px;}
+  .diag-msg{color:var(--gray-700);}
+  .diag-empty{font-size:13px;color:var(--gray-400);text-align:center;padding:14px 0;}
+
+  /* ── tarefas adicionais ── */
+  .tf-item{background:var(--white);border:1px solid var(--gray-200);border-radius:14px;padding:16px 18px;margin-bottom:12px;box-shadow:var(--shadow-sm);}
+  .tf-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px;}
+  .tf-nome{font-size:16px;font-weight:700;color:var(--gray-800);}
+  .tf-status{font-size:10.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;padding:3px 10px;border-radius:99px;flex-shrink:0;}
+  .tf-status.pendente{background:#fdf3d7;color:#8a6d1a;}
+  .tf-status.andamento{background:#dbeafe;color:#1d4ed8;}
+  .tf-status.concluida{background:#dcfce7;color:#166534;}
+  .tf-desc{font-size:13px;color:var(--gray-500);line-height:1.5;margin-bottom:8px;}
+  .tf-meta{display:flex;flex-wrap:wrap;gap:14px;font-size:12.5px;color:var(--gray-500);align-items:center;}
+  .tf-meta span{display:flex;align-items:center;gap:5px;}
+  .tf-meta .ico{stroke:var(--gray-400);width:14px;height:14px;}
+  .tf-acts{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;}
+  .tf-fotos-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(90px,1fr));gap:8px;margin-top:10px;}
+  .tf-foto{position:relative;border-radius:10px;overflow:hidden;aspect-ratio:1;background:var(--gray-100);}
+  .tf-foto img{width:100%;height:100%;object-fit:cover;display:block;cursor:pointer;}
+  .tf-foto-x{position:absolute;top:4px;right:4px;background:rgba(0,0,0,.55);color:#fff;border:none;border-radius:50%;width:22px;height:22px;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+  .tf-checkin-hist{display:flex;flex-direction:column;gap:6px;}
+  .tf-checkin-dia{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--gray-600);padding:8px 11px;background:var(--gray-50);border-radius:8px;}
+  .tf-checkin-dia .ico{stroke:var(--petrol);width:13px;height:13px;flex-shrink:0;}
 </style>
 <!-- Firebase SDK (compat) -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -743,6 +786,9 @@
       <button class="nav-item" data-view="vrf" onclick="nav('vrf')">
         <span class="nav-ico" id="navico-vrf"></span> Sistema VRF
       </button>
+      <button class="nav-item" data-view="tarefas" onclick="nav('tarefas')">
+        <span class="nav-ico" id="navico-tarefas"></span> Tarefa Adicional
+      </button>
 
       <div class="nav-section-label">Conta</div>
       <button class="nav-item" data-view="config" onclick="nav('config')">
@@ -784,19 +830,7 @@
       </div>
     </div>
 
-    <!-- Botão flutuante de DEBUG (diagnóstico Firebase) -->
-    <button class="debug-btn" id="debugBtn" onclick="toggleDebugPanel()" title="Diagnóstico de sincronização">🐛</button>
-    <div class="debug-panel" id="debugPanel">
-      <div class="debug-head">
-        <strong>Diagnóstico de Sincronização</strong>
-        <button onclick="toggleDebugPanel(false)">✕</button>
-      </div>
-      <div class="debug-actions">
-        <button onclick="syncManual()">🔄 Sincronizar agora</button>
-        <button onclick="_fbLogs=[];renderDebugLogs()">🗑️ Limpar</button>
-      </div>
-      <div class="debug-log-body" id="debugLogBody"></div>
-    </div>
+    <!-- Diagnóstico de sincronização agora fica em Configurações -->
 
     <div class="content" id="contentArea">
       <!-- VIEWS injetadas via JS -->
@@ -831,7 +865,7 @@ const WORKSPACE='elite-ar'; // isolamento: todos os dados desta empresa sob este
 const SYNC_KEYS=[
   'mappo_tecnicos','mappo_os','mappo_clientes','mappo_manut','mappo_settings',
   'mappo_vrf_obra','mappo_vrf_progresso','mappo_vrf_fotos','mappo_vrf_notas',
-  'mappo_vrf_relatorios','mappo_vrf_checkins','mappo_vrf_fotos_meta','mappo_locations'
+  'mappo_vrf_relatorios','mappo_vrf_checkins','mappo_vrf_fotos_meta','mappo_locations','mappo_tarefas'
 ];
 
 /* ── Estado do monitor de alterações ── */
@@ -891,7 +925,7 @@ function _testInterceptor(){
     SYNC_KEYS.pop();
     delete _localTouch['__mappo_probe__'];delete _snapshot['__mappo_probe__'];
     _interceptorOk=(_lastPushKey==='__mappo_probe__');
-    fbLog(_interceptorOk?'Monitor automático ativo ✓':'⚠️ Monitor direto inativo neste navegador — vigilância contínua assumindo','info');
+    fbLog(_interceptorOk?'Monitor automático ativo':'Monitor direto inativo neste navegador — vigilância contínua assumindo','info');
   }catch(e){_interceptorOk=false;}
 }
 
@@ -919,7 +953,7 @@ function fbInit(){
     fbApp=firebase.initializeApp(firebaseConfig);
     fbDB=firebase.firestore();
     fbReady=true;
-    fbLog('Firebase conectado ☁️','ok');
+    fbLog('Conectado à nuvem','ok');
     return true;
   }catch(e){fbLog('Falha ao iniciar Firebase: '+e.message,'erro');return false;}
 }
@@ -929,7 +963,7 @@ const _pushTimers={};
 /* chaves que são listas append-only: merge por conteúdo, nunca sobrescreve */
 const APPEND_LISTS=['mappo_vrf_checkins','mappo_vrf_relatorios'];
 /* chaves críticas: sobem na hora, sem delay */
-const IMMEDIATE_KEYS=['mappo_vrf_checkins','mappo_vrf_relatorios','mappo_vrf_progresso','mappo_vrf_fotos','mappo_vrf_notas','mappo_vrf_fotos_meta','mappo_os','mappo_manut'];
+const IMMEDIATE_KEYS=['mappo_vrf_checkins','mappo_vrf_relatorios','mappo_vrf_progresso','mappo_vrf_fotos','mappo_vrf_notas','mappo_vrf_fotos_meta','mappo_os','mappo_manut','mappo_tarefas'];
 
 function fbPush(key){
   _lastPushKey=key; // diagnóstico do auto-teste
@@ -956,15 +990,15 @@ async function _doPush(key){
       const mergedStr=JSON.stringify(merged);
       if(mergedStr!==raw){_setLocalQuiet(key,mergedStr);_aplicarNaMemoria(key,merged);}
       await ref.set({json:mergedStr,updatedAt:firebase.firestore.FieldValue.serverTimestamp(),by:(session&&session.nome)||'?'});
-      fbLog('⬆️ Enviado: '+nice+' ('+merged.length+' itens)','push');
+      fbLog('Enviado: '+nice+' ('+merged.length+' itens)','push');
     }else{
       await ref.set({json:raw,updatedAt:firebase.firestore.FieldValue.serverTimestamp(),by:(session&&session.nome)||'?'});
-      fbLog('⬆️ Enviado: '+nice,'push');
+      fbLog('Enviado: '+nice,'push');
     }
     _snapshot[key]=localStorage.getItem(key);
   }catch(e){
     delete _snapshot[key]; // a vigilância contínua vai tentar de novo
-    fbLog('❌ FALHA ao enviar '+nice+': '+e.message,'erro');
+    fbLog('Falha ao enviar '+nice+': '+e.message,'erro');
   }
 }
 
@@ -993,6 +1027,7 @@ function _aplicarNaMemoria(key,val){
     case'mappo_vrf_relatorios':vrfRelatorios=val;break;
     case'mappo_vrf_checkins':vrfCheckins=val;break;
     case'mappo_vrf_fotos_meta':vrfFotosMeta=val;break;
+    case'mappo_tarefas':tarefas=val;break;
   }
 }
 
@@ -1015,19 +1050,19 @@ function fbApply(key,jsonStr,remoteMs){
       _aplicarNaMemoria(key,merged);
       // se o local tinha itens que a nuvem não tem, re-envia o conjunto completo
       if(mergedStr!==jsonStr){setTimeout(()=>{if(fbReady)_doPush(key);},150);}
-      if(mudouLocal){fbLog('⬇️ Recebido: '+nice,'pull');fbOnRemoteChange(key);}
+      if(mudouLocal){fbLog('Recebido: '+nice,'pull');fbOnRemoteChange(key);}
       return;
     }
     // Dados de estado: o mais RECENTE vence (nunca sobrescreve alteração local mais nova)
     const touch=_localTouch[key]||0;
     if(touch&&(!remoteMs||touch>remoteMs)){
-      fbLog('↔️ Mantido local (mais recente): '+nice,'info');
+      fbLog('Mantido local (mais recente): '+nice,'info');
       setTimeout(()=>{if(fbReady)_doPush(key);},150); // garante que o local suba
       return;
     }
     _setLocalQuiet(key,jsonStr);
     _aplicarNaMemoria(key,JSON.parse(jsonStr));
-    fbLog('⬇️ Recebido: '+nice,'pull');
+    fbLog('Recebido: '+nice,'pull');
     fbOnRemoteChange(key);
   }catch(e){console.warn('[MAPPO] apply erro ('+key+'):',e.message);}
 }
@@ -1051,7 +1086,8 @@ function fbOnRemoteChange(key){
     'mappo_vrf_fotos_meta':['vrf-fotos'],
     'mappo_vrf_notas':['vrf'],
     'mappo_vrf_relatorios':['vrf','vrf-relatorios','dashboard'],
-    'mappo_vrf_checkins':['vrf','vrf-mapa']
+    'mappo_vrf_checkins':['vrf','vrf-mapa'],
+    'mappo_tarefas':['tarefas','home','dashboard']
   };
   const views=reRender[key]||[];
   if(views.includes(currentView)&&typeof renderView==='function'){
@@ -1125,20 +1161,8 @@ async function fbBoot(){
   _testInterceptor();     // confirma se o monitor automático funciona neste navegador
   fbStartListeners();     // 3. escuta mudanças ao vivo
   _startPolling();        // 4. vigilância contínua (rede de segurança p/ qualquer navegador)
-  fbStatusBadge(true);
 }
 
-/* Indicador visual de sincronização */
-function fbStatusBadge(ok){
-  let b=document.getElementById('fbStatus');
-  if(!b){
-    b=document.createElement('div');b.id='fbStatus';
-    b.style.cssText='position:fixed;bottom:8px;left:8px;z-index:900;font-size:10px;font-weight:700;padding:4px 9px;border-radius:99px;display:flex;align-items:center;gap:5px;transition:opacity .4s;pointer-events:none;';
-    document.body.appendChild(b);
-  }
-  if(ok){b.style.background='#dcfce7';b.style.color='#166534';b.innerHTML='☁️ Sincronizado';b.style.opacity='1';setTimeout(()=>{if(b)b.style.opacity='0';},2500);}
-  else{b.style.background='#fef9c3';b.style.color='#854d0e';b.innerHTML='⚠️ Offline (local)';b.style.opacity='1';}
-}
 
 /* ─── LOG VISÍVEL NA TELA (diagnóstico sem console) ─── */
 let _fbLogs=[];
@@ -1147,24 +1171,16 @@ function fbLog(msg,tipo){
   _fbLogs.push({hora,msg,tipo:tipo||'info'});
   if(_fbLogs.length>60)_fbLogs.shift();
   console.log('[MAPPO] '+msg);
-  const painel=document.getElementById('debugLogBody');
-  if(painel&&document.getElementById('debugPanel').classList.contains('show'))renderDebugLogs();
+  if(document.getElementById('diagLogBody'))renderDebugLogs();
 }
 function renderDebugLogs(){
-  const body=document.getElementById('debugLogBody');
+  const st=document.getElementById('diagStatus');
+  if(st)st.innerHTML=`<span class="diag-dot ${fbReady?'ok':'erro'}"></span> ${fbReady?'Conectado à nuvem — sincronização em tempo real ativa':'Sem conexão com a nuvem — dados salvos apenas neste aparelho'}`;
+  const body=document.getElementById('diagLogBody');
   if(!body)return;
-  const cor={info:'#334155',ok:'#166534',erro:'#b91c1c',push:'#1e40af',pull:'#7c2d12'};
   body.innerHTML=_fbLogs.slice().reverse().map(l=>
-    `<div style="padding:5px 0;border-bottom:1px solid #eee;font-size:11.5px;line-height:1.4">
-      <span style="color:#94a3b8">${l.hora}</span>
-      <span style="color:${cor[l.tipo]||'#334155'};font-weight:600"> ${l.msg}</span>
-    </div>`).join('')||'<div style="color:#94a3b8;font-size:12px;padding:8px">Nenhum log ainda…</div>';
-}
-function toggleDebugPanel(force){
-  const p=document.getElementById('debugPanel');
-  const abrir=(typeof force==='boolean')?force:!p.classList.contains('show');
-  p.classList.toggle('show',abrir);
-  if(abrir)renderDebugLogs();
+    `<div class="diag-row"><span class="diag-dot ${l.tipo||'info'}"></span><span class="diag-hora">${l.hora}</span><span class="diag-msg">${l.msg}</span></div>`
+  ).join('')||'<p class="diag-empty">Nenhum registro nesta sessão ainda.</p>';
 }
 
 /* ─── SINCRONIZAÇÃO MANUAL ─── */
@@ -1189,7 +1205,7 @@ async function syncManual(){
         enviados++;
       }
     }
-    if(enviados)fbLog('⬆️ '+enviados+' alteração(ões) local(is) enviada(s) antes de baixar','push');
+    if(enviados)fbLog(enviados+' alteração(ões) local(is) enviada(s) antes de baixar','push');
     // 2. baixa tudo da nuvem (listas são mescladas; estado usa o mais recente)
     await fbPullAll();
     // 3. re-render da tela atual
@@ -1198,7 +1214,7 @@ async function syncManual(){
       if(currentView==='mapa'&&typeof atualizarMarcadores==='function')atualizarMarcadores();
       if(currentView==='vrf-mapa'&&typeof initVRFmapa==='function')initVRFmapa();
     }
-    fbLog('✅ Sincronizado com a nuvem','ok');
+    fbLog('Sincronizado com a nuvem','ok');
     if(typeof toast==='function')toast('Sincronizado!','success');
   }catch(e){
     fbLog('Erro na sincronização: '+e.message,'erro');
@@ -1235,6 +1251,7 @@ function getTecnico(nome){return tecnicos.find(t=>t.nome===nome);}
 
 /* ── ÍCONES SVG (Feather-style, contorno) ── */
 const ICONS={
+  tarefas:'<rect x="3" y="3" width="18" height="18" rx="3"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>',
   home:'<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>',
   'arrow-right':'<line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>',
   dashboard:'<path d="M3 3h7v9H3z"/><path d="M14 3h7v5h-7z"/><path d="M14 12h7v9h-7z"/><path d="M3 16h7v5H3z"/>',
@@ -1300,6 +1317,8 @@ let vrfFotos=JSON.parse(localStorage.getItem('mappo_vrf_fotos')||'{}'); // {anda
 let vrfNotas=JSON.parse(localStorage.getItem('mappo_vrf_notas')||'{}'); // {andarId:{faseId_etapaIdx:texto}}
 let vrfRelatorios=JSON.parse(localStorage.getItem('mappo_vrf_relatorios')||'[]');
 let vrfCheckins=JSON.parse(localStorage.getItem('mappo_vrf_checkins')||'[]'); // [{prestador,data,hora,lat,lng}]
+let tarefas=JSON.parse(localStorage.getItem('mappo_tarefas')||'[]'); // tarefas adicionais personalizadas
+function saveTarefas(){localStorage.setItem('mappo_tarefas',JSON.stringify(tarefas));}
 let vrfFotosMeta=JSON.parse(localStorage.getItem('mappo_vrf_fotos_meta')||'{}'); // {andarId:{key:[{prestador,data}]}}
 function saveVrfFotosMeta(){localStorage.setItem('mappo_vrf_fotos_meta',JSON.stringify(vrfFotosMeta));}
 function vrfFotoPrestador(andarId,key,idx){
@@ -1450,11 +1469,13 @@ function renderTecnicoHome(){
   const minhas=osList.filter(o=>o.tecnico===session.nome&&o.status!=='concluida');
   const pend=minhas.filter(o=>o.status==='pendente').length;
   const and=minhas.filter(o=>o.status==='andamento').length;
+  const minhasTarefas=tarefas.filter(t=>t.tecnico===session.nome&&t.status!=='concluida');
   const temSplitAtivo=m.split&&minhas.length>0;
   const temVRFativo=m.vrf&&vrfTemAtividade();
+  const temTarefaAtiva=minhasTarefas.length>0;
 
   // nada em andamento → boas-vindas com seletor dos módulos liberados
-  if(!temSplitAtivo&&!temVRFativo){
+  if(!temSplitAtivo&&!temVRFativo&&!temTarefaAtiva){
     const cards=[];
     if(m.split)cards.push(`
       <div class="bv-card" onclick="nav('ordens')">
@@ -1509,6 +1530,17 @@ function renderTecnicoHome(){
       <div class="vrf-dash-pct" style="color:${vrfCorProg(geral)}">${geral}%</div>
     </div>`;
   }
+  if(temTarefaAtiva){
+    blocos+=`
+    <div class="card vrf-dash-card" onclick="nav('tarefas')">
+      <div class="vrf-dash-left">
+        <div class="vrf-dash-tag">${svgIco('tarefas','ico-sm')} Tarefas Adicionais</div>
+        <div class="vrf-dash-nome">${minhasTarefas.length} tarefa${minhasTarefas.length!==1?'s':''} para você</div>
+        <div class="vrf-dash-meta">${minhasTarefas.map(t=>t.nome).slice(0,2).join(' · ')}${minhasTarefas.length>2?' · ...':''}</div>
+      </div>
+      <div class="vrf-dash-go">${svgIco('arrow-right')}</div>
+    </div>`;
+  }
   return `
   <div class="page-head"><div><div class="page-title">Olá, ${session.nome.split(' ')[0]}!</div><div class="page-desc">Resumo do que está em andamento</div></div></div>
   ${blocos}
@@ -1519,7 +1551,7 @@ function renderTecnicoHome(){
 
 /* injeta ícones SVG nos slots fixos (sidebar, topbar, footer) */
 function injetarIcones(){
-  const map={'navico-splits':'splits','navico-vrf':'vrf','navico-config':'config'};
+  const map={'navico-splits':'splits','navico-vrf':'vrf','navico-config':'config','navico-tarefas':'tarefas'};
   Object.entries(map).forEach(([id,name])=>{const el=document.getElementById(id);if(el)el.innerHTML=svgIco(name);});
   document.querySelectorAll('.nav-ico-slot').forEach(el=>{el.innerHTML=svgIco(el.dataset.ico);});
   const tgD=document.getElementById('tgDesktop'),tgM=document.getElementById('tgMobile');
@@ -1544,6 +1576,7 @@ function getNavItems(){
     }else{
       items=[{view:'home',icon:'home',label:'Início'}];
       if(m.split){items.push({view:'ordens',icon:'ordens',label:'Ordens'});}
+      items.push({view:'tarefas',icon:'tarefas',label:'Tarefas'});
       items.push({view:'manutencoes',icon:'manutencoes',label:'Manut.'});
       if(m.vrf){items.push({view:'vrf',icon:'vrf',label:'VRF'});}
     }
@@ -1627,6 +1660,7 @@ const VIEW_META={
   splits:['Sistema Split','Instalação e serviço de splits'],
   vrf:['Sistema VRF','Gestão de obras VRF'],
   config:['Configurações','Preferências do sistema'],
+  tarefas:['Tarefas Adicionais','Trabalhos personalizados fora do padrão'],
 };
 
 function nav(view){
@@ -1722,6 +1756,7 @@ function renderView(v){
     if(v==='vrf'){c.innerHTML=renderVRF();setTimeout(vrfSetupCamera,50);return;}
     if(v==='vrf-mapa'){c.innerHTML=renderVRFmapa();setTimeout(()=>initVRFmapa(),60);return;}
     if(v==='vrf-fotos'){c.innerHTML=renderVRFfotos();return;}
+    if(v==='tarefas'){c.innerHTML=renderTarefas();setTimeout(setupTarefaCam,60);return;}
     if(v==='manutencoes'){c.innerHTML=renderManutTecnico();return;}
     c.innerHTML=renderTecnicoApp();afterTecnicoRender();return;
   }
@@ -1737,7 +1772,8 @@ function renderView(v){
     case'vrf-relatorios':c.innerHTML=renderVRFrelatorios();break;
     case'vrf-mapa':c.innerHTML=renderVRFmapa();setTimeout(initVRFmapa,60);break;
     case'vrf-fotos':c.innerHTML=renderVRFfotos();break;
-    case'config':c.innerHTML=renderConfig();break;
+    case'config':c.innerHTML=renderConfig();renderDebugLogs();break;
+    case'tarefas':c.innerHTML=renderTarefas();setTimeout(setupTarefaCam,60);break;
     default:c.innerHTML='';
   }
   atualizarBadges();
@@ -2989,6 +3025,19 @@ function renderConfig(){
         </div>
       </div>
     </div>
+  </div>
+
+  <div class="card" style="margin-top:22px">
+    <div class="card-head"><h3>Sincronização</h3>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost btn-sm" onclick="syncManual()">${svgIco('refresh','ico-sm')} Sincronizar agora</button>
+        <button class="btn btn-ghost btn-sm" onclick="_fbLogs=[];renderDebugLogs()">${svgIco('trash','ico-sm')} Limpar registros</button>
+      </div>
+    </div>
+    <div class="card-pad">
+      <div class="diag-status" id="diagStatus"></div>
+      <div class="diag-log" id="diagLogBody"></div>
+    </div>
   </div>`;
 }
 function toggleSet(k,v){settings[k]=v;saveSettings();toast('Preferência salva','success');}
@@ -3477,6 +3526,301 @@ function msgErroGPS(err){
   toast(msgs[err.code]||'Erro ao obter localização','error');
 }
 function updateGPSLabel(){const l=document.getElementById('gpsLabel');if(l)l.textContent=gpsWatchId!==null?'📍 GPS ativo':'📍 Ativar GPS';}
+
+/* ════════════════════════════════════════
+   TAREFAS ADICIONAIS (personalizadas)
+   ════════════════════════════════════════ */
+let execTarefaId=null;
+function getExecTarefa(){return tarefas.find(t=>t.id===execTarefaId)||null;}
+const TF_LABEL={pendente:'Pendente',andamento:'Em andamento',concluida:'Concluída'};
+
+function renderTarefas(){
+  return session.perfil==='tecnico'?renderTarefasTecnico():renderTarefasGestor();
+}
+
+/* ── visão do GESTOR ── */
+function renderTarefasGestor(){
+  const ativas=tarefas.filter(t=>t.status!=='concluida');
+  const done=tarefas.filter(t=>t.status==='concluida');
+  const card=t=>{
+    const nf=(t.fotos||[]).length;
+    return `<div class="tf-item">
+      <div class="tf-top"><div class="tf-nome">${t.nome}</div><span class="tf-status ${t.status}">${TF_LABEL[t.status]||t.status}</span></div>
+      ${t.descricao?`<div class="tf-desc">${t.descricao}</div>`:''}
+      <div class="tf-meta">
+        <span>${svgIco('user','ico-sm')} ${t.tecnico||'Sem técnico'}</span>
+        <span>${svgIco('camera','ico-sm')} ${nf}/${t.maxFotos} foto${t.maxFotos!==1?'s':''}</span>
+        ${t.temNotas?`<span>${svgIco('edit','ico-sm')} Notas${t.nota?' recebidas':''}</span>`:''}
+        ${t.checkinHora?`<span>${svgIco('pin','ico-sm')} Check-in às ${t.checkinHora}</span>`:''}
+      </div>
+      <div class="tf-acts">
+        <button class="btn btn-ghost btn-sm" onclick="verTarefaDetalhe('${t.id}')">${svgIco('ordens','ico-sm')} Detalhes</button>
+        <button class="btn btn-ghost btn-sm" onclick="openModalTarefa('${t.id}')">${svgIco('edit','ico-sm')} Editar</button>
+        <button class="btn btn-ghost btn-sm" onclick="excluirTarefa('${t.id}')">${svgIco('trash','ico-sm')} Excluir</button>
+      </div>
+    </div>`;
+  };
+  return `
+  <div class="page-head">
+    <div><div class="page-title">Tarefas Adicionais</div><div class="page-desc">Trabalhos personalizados fora do Split e do VRF</div></div>
+    <button class="btn btn-primary btn-sm" onclick="openModalTarefa()">${svgIco('plus','ico-sm')} Nova tarefa</button>
+  </div>
+  ${ativas.length?ativas.map(card).join(''):`<div class="card">${emptyState('tarefas','Nenhuma tarefa ativa','Crie uma tarefa com nome próprio, limite de fotos e bloco de notas — sem precisar mexer no sistema.')}<div style="text-align:center;margin-top:14px;padding-bottom:14px"><button class="btn btn-primary btn-sm" onclick="openModalTarefa()">${svgIco('plus','ico-sm')} Criar primeira tarefa</button></div></div>`}
+  ${done.length?`<div class="vrf-section-label" style="margin-top:22px">Concluídas</div>${done.map(card).join('')}`:''}`;
+}
+
+function openModalTarefa(id){
+  const t=id?tarefas.find(x=>x.id===id):null;
+  const tecs=tecnicos.filter(x=>x.ativo!==false);
+  showModal(`
+    <div class="modal-head"><h2>${t?'Editar tarefa':'Nova tarefa adicional'}</h2></div>
+    <div class="modal-body">
+      <div class="fg"><label>Nome da tarefa</label><input type="text" id="tfNome" value="${t?t.nome.replace(/"/g,'&quot;'):''}" placeholder="Ex.: Limpeza de dutos do auditório"></div>
+      <div class="fg"><label>Descrição (opcional)</label><textarea id="tfDesc" rows="3" placeholder="Detalhes do que deve ser executado" style="width:100%;border:1px solid var(--gray-200);border-radius:10px;padding:11px 13px;font-family:inherit;font-size:14px;resize:vertical">${t?(t.descricao||''):''}</textarea></div>
+      <div class="fg"><label>Técnico responsável</label><select id="tfTec">${tecs.map(x=>`<option ${t&&t.tecnico===x.nome?'selected':''}>${x.nome}</option>`).join('')||'<option value="">Nenhum técnico cadastrado</option>'}</select></div>
+      <div class="fg"><label>Máximo de fotos</label><input type="number" id="tfMax" min="1" max="20" value="${t?t.maxFotos:5}"></div>
+      <div class="set-row"><div class="set-info"><div class="st">Bloco de notas</div><div class="sd">Prestador escreve o que foi executado</div></div>
+        <label class="switch"><input type="checkbox" id="tfNotas" ${!t||t.temNotas?'checked':''}><span class="slider"></span></label></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarTarefa('${t?t.id:''}')">Salvar tarefa</button>
+    </div>`);
+}
+
+function salvarTarefa(id){
+  const nome=document.getElementById('tfNome').value.trim();
+  if(!nome){toast('Dê um nome para a tarefa','warn');return;}
+  const desc=document.getElementById('tfDesc').value.trim();
+  const tec=document.getElementById('tfTec').value;
+  const max=Math.max(1,Math.min(20,parseInt(document.getElementById('tfMax').value)||5));
+  const notas=document.getElementById('tfNotas').checked;
+  if(id){
+    const t=tarefas.find(x=>x.id===id);if(!t)return;
+    t.nome=nome;t.descricao=desc;t.tecnico=tec;t.maxFotos=max;t.temNotas=notas;
+  }else{
+    tarefas.push({id:'tf_'+Date.now(),nome,descricao:desc,tecnico:tec,maxFotos:max,temNotas:notas,status:'pendente',criada:new Date().toISOString(),fotos:[],nota:''});
+  }
+  saveTarefas();closeModal();renderView('tarefas');
+  toast(id?'Tarefa atualizada':'Tarefa criada','success');
+}
+
+function excluirTarefa(id){
+  const t=tarefas.find(x=>x.id===id);if(!t)return;
+  if(!confirm('Excluir a tarefa "'+t.nome+'"? Fotos e notas enviadas serão perdidas.'))return;
+  tarefas=tarefas.filter(x=>x.id!==id);saveTarefas();renderView('tarefas');
+  toast('Tarefa excluída','success');
+}
+
+function verTarefaDetalhe(id){
+  const t=tarefas.find(x=>x.id===id);if(!t)return;
+  const nf=(t.fotos||[]).length;
+  showModal(`
+    <div class="modal-head"><h2>${t.nome}</h2></div>
+    <div class="modal-body">
+      <span class="tf-status ${t.status}" style="display:inline-block;margin-bottom:12px">${TF_LABEL[t.status]||t.status}</span>
+      ${t.descricao?`<p style="font-size:14px;color:var(--gray-600);line-height:1.55;margin-bottom:12px">${t.descricao}</p>`:''}
+      <div class="tf-meta" style="margin-bottom:14px">
+        <span>${svgIco('user','ico-sm')} ${t.tecnico||'Sem técnico'}</span>
+        ${(t.checkins&&t.checkins.length)?`<span>${svgIco('pin','ico-sm')} ${t.checkins.length} check-in${t.checkins.length!==1?'s':''}</span>`:`<span>${svgIco('pin','ico-sm')} Sem check-in ainda</span>`}
+      </div>
+      ${(t.checkins&&t.checkins.length)?`<div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--gray-400);margin-bottom:8px">Presença na obra</div>
+      <div class="tf-checkin-hist" style="margin-bottom:14px">${t.checkins.slice().reverse().map(c=>`<div class="tf-checkin-dia">${svgIco('pin','ico-sm')} ${fmtDate(c.data)} — ${c.hora}${c.lat?` · <span style="color:var(--petrol);cursor:pointer" onclick="abrirMapaCoord(${c.lat},${c.lng},'${(t.tecnico||'Técnico')} — ${fmtDate(c.data)}')">ver no mapa</span>`:' <span style="color:var(--gray-400)">(sem GPS)</span>'}</div>`).join('')}</div>`:''}
+      <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--gray-400);margin-bottom:8px">Fotos (${nf}/${t.maxFotos})</div>
+      ${nf?`<div class="tf-fotos-grid">${t.fotos.map(f=>`<div class="tf-foto"><img src="${f}" onclick="openLightbox('${f}')"></div>`).join('')}</div>`:'<p style="font-size:13px;color:var(--gray-400)">Nenhuma foto enviada ainda.</p>'}
+      ${t.temNotas?`<div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--gray-400);margin:14px 0 8px">Notas do prestador</div>
+      ${t.nota?`<div style="padding:12px;background:var(--gray-50);border-radius:10px;font-size:13.5px;color:var(--gray-700);line-height:1.55">${t.nota}</div>`:'<p style="font-size:13px;color:var(--gray-400)">Nenhuma nota escrita ainda.</p>'}`:''}
+    </div>
+    <div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal()">Fechar</button></div>`,'wide');
+}
+
+/* ── visão do TÉCNICO ── */
+function renderTarefasTecnico(){
+  const ex=getExecTarefa();
+  if(ex)return renderExecTarefa(ex);
+  const minhas=tarefas.filter(t=>t.tecnico===session.nome);
+  const ativas=minhas.filter(t=>t.status!=='concluida');
+  const done=minhas.filter(t=>t.status==='concluida');
+  const card=t=>`<div class="tf-item" onclick="abrirTarefa('${t.id}')" style="cursor:pointer">
+    <div class="tf-top"><div class="tf-nome">${t.nome}</div><span class="tf-status ${t.status}">${TF_LABEL[t.status]||t.status}</span></div>
+    ${t.descricao?`<div class="tf-desc">${t.descricao}</div>`:''}
+    <div class="tf-meta">
+      <span>${svgIco('camera','ico-sm')} ${(t.fotos||[]).length}/${t.maxFotos} fotos</span>
+      ${t.temNotas?`<span>${svgIco('edit','ico-sm')} Notas</span>`:''}
+      ${t.checkinHora?`<span>${svgIco('check','ico-sm')} Check-in feito</span>`:''}
+      <span style="margin-left:auto;color:var(--petrol);font-weight:700">Abrir ${svgIco('arrow-right','ico-sm')}</span>
+    </div>
+  </div>`;
+  if(!minhas.length){
+    return `<div class="page-head"><div><div class="page-title">Tarefas Adicionais</div><div class="page-desc">Trabalhos personalizados</div></div></div>
+    <div class="card">${emptyState('tarefas','Nenhuma tarefa para você','Quando o gestor criar uma tarefa adicional no seu nome, ela aparece aqui.')}</div>`;
+  }
+  return `
+  <div class="page-head"><div><div class="page-title">Tarefas Adicionais</div><div class="page-desc">Seus trabalhos personalizados</div></div></div>
+  ${ativas.length?ativas.map(card).join(''):'<p style="font-size:13.5px;color:var(--gray-400);margin-bottom:14px">Nenhuma tarefa pendente.</p>'}
+  ${done.length?`<div class="vrf-section-label" style="margin-top:22px">Concluídas</div>${done.map(card).join('')}`:''}`;
+}
+
+function abrirTarefa(id){execTarefaId=id;renderView('tarefas');}
+function voltarTarefa(){execTarefaId=null;renderView('tarefas');}
+function rerenderTarefaExec(){renderView('tarefas');}
+
+function renderExecTarefa(t){
+  const nf=(t.fotos||[]).length;
+  const podeFoto=nf<t.maxFotos;
+  const secNotas=t.temNotas?`
+  <div class="card" style="margin-bottom:16px"><div class="card-pad">
+    <h3 style="font-family:'Inter',sans-serif;letter-spacing:-.02em;font-size:18px;margin-bottom:4px">3. Notas do serviço</h3>
+    <p style="font-size:13px;color:var(--gray-400);margin-bottom:14px">Descreva o que foi executado</p>
+    <textarea id="tarefaNota" rows="4" placeholder="Escreva aqui o que foi feito, materiais usados, pendências..." style="width:100%;border:1px solid var(--gray-200);border-radius:10px;padding:12px 14px;font-family:inherit;font-size:14px;resize:vertical" onchange="tarefaSalvarNota(this.value)">${t.nota||''}</textarea>
+  </div></div>`:'';
+  return `
+  <button class="btn btn-ghost btn-sm" style="margin-bottom:16px" onclick="voltarTarefa()">${svgIco('back','ico-sm')} Voltar</button>
+  <div class="page-head"><div><div class="page-title">${t.nome}</div><div class="page-desc">${t.descricao||'Tarefa adicional'}</div></div></div>
+
+  <div class="card" style="margin-bottom:16px"><div class="card-pad">
+    <h3 style="font-family:'Inter',sans-serif;letter-spacing:-.02em;font-size:18px;margin-bottom:4px">1. Check-in diário</h3>
+    <p style="font-size:13px;color:var(--gray-400);margin-bottom:14px">Registre sua presença na obra todos os dias</p>
+    ${tarefaCheckinHoje(t)
+      ?`<div style="display:flex;align-items:center;gap:10px;color:#16a34a;font-weight:600;margin-bottom:${(t.checkins||[]).length>1?'12px':'0'}">${svgIco('check','ico-sm')} Check-in de hoje enviado às ${tarefaCheckinHoje(t).hora}${tarefaCheckinHoje(t).lat?' · localização registrada':''}</div>`
+      :`<button class="btn btn-primary" id="btnTarefaCheckin" style="width:100%;padding:16px" onclick="tarefaCheckin()">${svgIco('pin','ico-sm')} Fazer check-in de hoje</button>`}
+    ${(t.checkins||[]).length>1||((t.checkins||[]).length===1&&!tarefaCheckinHoje(t))?`
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--gray-400);margin:14px 0 8px">Histórico de presença</div>
+      <div class="tf-checkin-hist">${t.checkins.slice().reverse().map(c=>`<div class="tf-checkin-dia">${svgIco('pin','ico-sm')} ${fmtDate(c.data)} — ${c.hora}${c.lat?'':' <span style="color:var(--gray-400)">(sem GPS)</span>'}</div>`).join('')}</div>`:''}
+  </div></div>
+
+  <div class="card" style="margin-bottom:16px"><div class="card-pad">
+    <h3 style="font-family:'Inter',sans-serif;letter-spacing:-.02em;font-size:18px;margin-bottom:4px">2. Registro fotográfico</h3>
+    <p style="font-size:13px;color:var(--gray-400);margin-bottom:14px">${nf}/${t.maxFotos} foto${t.maxFotos!==1?'s':''} enviada${nf!==1?'s':''}</p>
+    ${nf?`<div class="tf-fotos-grid">${t.fotos.map((f,i)=>`<div class="tf-foto"><img src="${f}" onclick="openLightbox('${f}')"><button class="tf-foto-x" onclick="tarefaRemoverFoto(${i})">✕</button></div>`).join('')}</div>`:''}
+    ${podeFoto
+      ?`<button class="btn btn-ghost" style="width:100%;margin-top:${nf?'12px':'0'}" onclick="document.getElementById('tarefaCamInput').click()">${svgIco('camera','ico-sm')} Tirar foto</button>`
+      :`<p style="font-size:12.5px;color:var(--gray-400);margin-top:10px">Limite de fotos atingido.</p>`}
+    <input type="file" id="tarefaCamInput" accept="image/*" capture="environment" style="display:none">
+  </div></div>
+
+  ${secNotas}
+
+  ${t.status==='concluida'
+    ?`<div style="text-align:center;color:#16a34a;font-weight:700;padding:14px">Tarefa concluída</div>`
+    :`<button class="btn btn-gold" style="width:100%;padding:18px;font-size:16px" onclick="concluirTarefa()" ${(t.checkins&&t.checkins.length)?'':'disabled'}>${(t.checkins&&t.checkins.length)?'Concluir tarefa':'Faça o check-in para concluir'}</button>`}
+  <div style="height:40px"></div>`;
+}
+
+function setupTarefaCam(){
+  const inp=document.getElementById('tarefaCamInput');
+  if(!inp||inp._wired)return;inp._wired=true;
+  inp.addEventListener('change',function(){
+    const t=getExecTarefa();
+    if(!this.files||!this.files[0]||!t)return;
+    vrfComprimirImagem(this.files[0],b64=>{
+      t.fotos=t.fotos||[];
+      if(t.fotos.length>=t.maxFotos){toast('Limite de fotos atingido','warn');return;}
+      t.fotos.push(b64);
+      if(t.status==='pendente')t.status='andamento';
+      saveTarefas();
+      toast('Foto adicionada','success');
+      rerenderTarefaExec();
+    });
+    this.value='';
+  });
+}
+
+function tarefaRemoverFoto(i){
+  const t=getExecTarefa();if(!t)return;
+  if(!confirm('Remover esta foto?'))return;
+  t.fotos.splice(i,1);saveTarefas();rerenderTarefaExec();
+}
+
+function tarefaSalvarNota(v){
+  const t=getExecTarefa();if(!t)return;
+  t.nota=v.trim();
+  if(t.status==='pendente'&&t.nota)t.status='andamento';
+  saveTarefas();
+  toast('Nota salva','success');
+}
+
+function tarefaCheckin(){
+  const t=getExecTarefa();if(!t)return;
+  if(!navigator.geolocation){
+    if(!confirm('Este aparelho não tem GPS. Fazer check-in mesmo assim?'))return;
+    tarefaFinalizarCheckin(null);return;
+  }
+  toast('Obtendo sua localização para o check-in...');
+  const btn=document.getElementById('btnTarefaCheckin');
+  if(btn){btn.disabled=true;btn.style.opacity='.6';btn.textContent='Localizando...';}
+  navigator.geolocation.getCurrentPosition(
+    pos=>{
+      salvarPosicao(pos);
+      if(gpsWatchId===null){gpsWatchId=navigator.geolocation.watchPosition(p=>salvarPosicao(p),()=>{},{enableHighAccuracy:true,maximumAge:15000,timeout:30000});if(typeof updateGPSLabel==='function')updateGPSLabel();}
+      tarefaFinalizarCheckin(pos);
+    },
+    err=>{
+      if(btn){btn.disabled=false;btn.style.opacity='';btn.innerHTML=svgIco('pin','ico-sm')+' Fazer Check-in';}
+      msgErroGPS(err);
+    },
+    {enableHighAccuracy:true,timeout:15000,maximumAge:0}
+  );
+}
+
+function tarefaFinalizarCheckin(pos){
+  const t=getExecTarefa();if(!t)return;
+  const ag=new Date();
+  const hoje=ag.toISOString().split('T')[0];
+  t.checkins=t.checkins||[];
+  // um check-in por dia; se já bateu hoje, atualiza a hora
+  const existente=t.checkins.find(c=>c.data===hoje);
+  const reg={data:hoje,hora:ag.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),lat:pos?pos.coords.latitude:null,lng:pos?pos.coords.longitude:null};
+  if(existente){Object.assign(existente,reg);}else{t.checkins.push(reg);}
+  // mantém campos antigos por compatibilidade (último check-in)
+  t.checkinHora=reg.hora;t.checkinData=hoje;
+  if(pos){t.checkinLat=reg.lat;t.checkinLng=reg.lng;}
+  if(t.status==='pendente')t.status='andamento';
+  saveTarefas();
+  toast(pos?'✅ Check-in de hoje enviado com localização':'✅ Check-in de hoje enviado','success');
+  rerenderTarefaExec();
+}
+
+/* abre um modal com o mapa focado numa coordenada de check-in */
+function abrirMapaCoord(lat,lng,titulo){
+  showModal(`
+    <div class="modal-head"><h2>${titulo||'Localização'}</h2></div>
+    <div class="modal-body" style="padding:0">
+      <div id="coordMapaBox" style="width:100%;height:340px;background:var(--gray-100)"></div>
+      <div style="padding:12px 16px;font-size:12.5px;color:var(--gray-500)">${svgIco('pin','ico-sm')} ${lat.toFixed(5)}, ${lng.toFixed(5)}</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal()">Fechar</button>
+      <button class="btn btn-primary" onclick="window.open('https://www.google.com/maps?q=${lat},${lng}','_blank')">Abrir no Google Maps</button>
+    </div>`,'wide');
+  loadLeaflet(()=>{
+    setTimeout(()=>{
+      const box=document.getElementById('coordMapaBox');
+      if(!box)return;
+      const m=L.map('coordMapaBox').setView([lat,lng],16);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(m);
+      L.marker([lat,lng]).addTo(m).bindPopup(titulo||'Check-in').openPopup();
+      setTimeout(()=>m.invalidateSize(),100);
+    },150);
+  });
+}
+
+function tarefaCheckinHoje(t){
+  const hoje=new Date().toISOString().split('T')[0];
+  return (t.checkins||[]).find(c=>c.data===hoje);
+}
+
+function concluirTarefa(){
+  const t=getExecTarefa();if(!t)return;
+  if(!t.checkins||!t.checkins.length){toast('Faça o check-in primeiro','warn');return;}
+  if(!confirm('Concluir a tarefa "'+t.nome+'"?'))return;
+  t.status='concluida';
+  t.concluidaEm=new Date().toISOString();
+  saveTarefas();
+  execTarefaId=null;
+  renderView('tarefas');
+  toast('Tarefa concluída','success');
+}
 
 /* EXECUÇÃO DA OS (técnico) */
 let execOS=null;
