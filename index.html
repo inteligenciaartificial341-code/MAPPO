@@ -3614,10 +3614,9 @@ function ultimoCheckinHojeTs(){
   });
   // VRF
   (vrfCheckins||[]).forEach(c=>{if(c.prestador===session.nome&&c.data===hoje)melhor=Math.max(melhor,paraTs(c.data,c.hora));});
-  // OS split (check-in do checklist de hoje)
+  // OS split: campos reais são checkinTime (hora) + checkinDia (data)
   osList.filter(o=>o.tecnico===session.nome).forEach(o=>{
-    if(o.checkinData===hoje&&o.checkinHora)melhor=Math.max(melhor,paraTs(o.checkinData,o.checkinHora));
-    (o.checklist||[]).forEach(c=>{if(c.checkinData===hoje&&c.checkinHora)melhor=Math.max(melhor,paraTs(c.checkinData,c.checkinHora));});
+    if(o.checkinTime&&o.checkinDia===hoje)melhor=Math.max(melhor,paraTs(o.checkinDia,o.checkinTime));
   });
   return melhor;
 }
@@ -3639,17 +3638,18 @@ function toggleLive(){
 
 function iniciarLive(){
   if(!navigator.geolocation){toast('GPS não disponível neste aparelho','error');return;}
+  // 10h contadas do check-in de hoje; sem check-in (ou já vencido), conta a partir de agora
   const ck=ultimoCheckinHojeTs();
-  if(!ck){toast('Faça o check-in de hoje primeiro para ativar o GPS ao vivo','warn');return;}
-  if(Date.now()>ck+LIVE_DURACAO_MS){toast('O período de 10h do check-in acabou. Faça um novo check-in.','warn');return;}
+  const temCkValido=ck&&Date.now()<=ck+LIVE_DURACAO_MS;
+  const baseTs=temCkValido?ck:Date.now();
   toast('Ativando GPS ao vivo...');
   navigator.geolocation.getCurrentPosition(
     pos=>{
       liveTracks[session.nome]={
         ativo:true,
         inicioTs:Date.now(),
-        checkinTs:ck,
-        fimTs:ck+LIVE_DURACAO_MS,
+        checkinTs:baseTs,
+        fimTs:baseTs+LIVE_DURACAO_MS,
         pontos:[{lat:pos.coords.latitude,lng:pos.coords.longitude,ts:Date.now()}],
         atual:{lat:pos.coords.latitude,lng:pos.coords.longitude,acc:Math.round(pos.coords.accuracy||0),ts:Date.now()}
       };
@@ -3664,6 +3664,7 @@ function iniciarLive(){
       toast('GPS ao vivo ativado — o gestor acompanha você em tempo real (expira em '+rest+')','success');
       if(typeof rerenderTarefaExec==='function'&&typeof execTarefaId!=='undefined'&&execTarefaId)rerenderTarefaExec();
       if(typeof currentView!=='undefined'&&currentView==='vrf')renderView('vrf');
+      if(typeof currentView!=='undefined'&&currentView==='ordens')renderView('ordens');
     },
     err=>msgErroGPS(err),
     {enableHighAccuracy:true,timeout:15000,maximumAge:0}
@@ -3782,10 +3783,11 @@ function liveBlocoHTML(){
     </div>`;
   }
   const ck=ultimoCheckinHojeTs();
-  if(!ck)return `<p class="live-hint">Após o check-in, você pode ativar o GPS ao vivo para o gestor acompanhar sua posição em tempo real.</p>`;
-  if(Date.now()>ck+LIVE_DURACAO_MS)return `<p class="live-hint">O período de 10h do último check-in acabou. Faça um novo check-in para ativar o GPS ao vivo.</p>`;
+  const temCkValido=ck&&Date.now()<=ck+LIVE_DURACAO_MS;
   return `<button class="btn btn-ghost" style="width:100%" onclick="iniciarLive()">${svgIco('mapa','ico-sm')} Ativar GPS ao vivo (até 10h)</button>
-  <p class="live-hint" style="margin-top:8px">Sua posição é atualizada a cada 5 segundos enquanto o app estiver aberto.</p>`;
+  <p class="live-hint" style="margin-top:8px">${temCkValido
+    ?'Válido por 10h a partir do seu check-in de hoje. Posição atualizada a cada 5s com o app aberto.'
+    :'Sua posição é atualizada a cada 5 segundos, por até 10 horas, enquanto o app estiver aberto.'}</p>`;
 }
 
 /* ════════════════════════════════════════
@@ -4237,6 +4239,7 @@ function execCheckin(){
 }
 function finalizarCheckin(pos){
   execOS.checkinTime=new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  execOS.checkinDia=new Date().toISOString().split('T')[0]; // data do check-in (p/ GPS ao vivo)
   if(pos)execOS.checkinLocal={lat:pos.coords.latitude,lng:pos.coords.longitude};
   execOS.status='andamento';saveExecOS();renderExecucao();
   toast(pos?'✅ Check-in com localização confirmada':'Check-in registrado','success');
