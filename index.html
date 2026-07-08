@@ -694,6 +694,18 @@
   .tf-checkin-hist{display:flex;flex-direction:column;gap:6px;}
   .tf-checkin-dia{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--gray-600);padding:8px 11px;background:var(--gray-50);border-radius:8px;}
   .tf-checkin-dia .ico{stroke:var(--petrol);width:13px;height:13px;flex-shrink:0;}
+  /* GPS ao vivo */
+  @keyframes livePulse{0%{box-shadow:0 0 0 0 rgba(220,38,38,.55)}70%{box-shadow:0 0 0 9px rgba(220,38,38,0)}100%{box-shadow:0 0 0 0 rgba(220,38,38,0)}}
+  .live-dot{width:9px;height:9px;border-radius:50%;background:#dc2626;display:inline-block;flex-shrink:0;animation:livePulse 1.6s infinite;}
+  .live-status{display:flex;align-items:center;gap:11px;padding:12px 14px;background:#fef2f2;border:1px solid #fecaca;border-radius:12px;}
+  .live-status-txt{flex:1;display:flex;flex-direction:column;gap:1px;}
+  .live-status-txt b{font-size:13.5px;color:#991b1b;}
+  .live-status-txt span{font-size:12px;color:var(--gray-500);}
+  .live-hint{font-size:12.5px;color:var(--gray-400);line-height:1.5;}
+  .mk-live{background:#dc2626;color:#fff;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap;box-shadow:0 2px 10px rgba(220,38,38,.45);border:2px solid #fff;display:flex;align-items:center;gap:6px;}
+  .mk-live .mk-live-dot{width:7px;height:7px;border-radius:50%;background:#fff;animation:livePulse 1.6s infinite;}
+  .mk-live.off{background:#94a3b8;box-shadow:0 2px 8px rgba(0,0,0,.25);}
+  .mk-live.off .mk-live-dot{animation:none;opacity:.7;}
 </style>
 <!-- Firebase SDK (compat) -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -865,7 +877,7 @@ const WORKSPACE='elite-ar'; // isolamento: todos os dados desta empresa sob este
 const SYNC_KEYS=[
   'mappo_tecnicos','mappo_os','mappo_clientes','mappo_manut','mappo_settings',
   'mappo_vrf_obra','mappo_vrf_progresso','mappo_vrf_fotos','mappo_vrf_notas',
-  'mappo_vrf_relatorios','mappo_vrf_checkins','mappo_vrf_fotos_meta','mappo_locations','mappo_tarefas'
+  'mappo_vrf_relatorios','mappo_vrf_checkins','mappo_vrf_fotos_meta','mappo_locations','mappo_tarefas','mappo_live'
 ];
 
 /* ── Estado do monitor de alterações ── */
@@ -962,6 +974,9 @@ function fbInit(){
 const _pushTimers={};
 /* chaves que são listas append-only: merge por conteúdo, nunca sobrescreve */
 const APPEND_LISTS=['mappo_vrf_checkins','mappo_vrf_relatorios'];
+/* chaves que são mapas por técnico: merge por pessoa, a entrada mais recente vence
+   (permite vários técnicos compartilhando localização ao mesmo tempo sem conflito) */
+const MERGE_MAPS=['mappo_locations','mappo_live'];
 /* chaves críticas: sobem na hora, sem delay */
 const IMMEDIATE_KEYS=['mappo_vrf_checkins','mappo_vrf_relatorios','mappo_vrf_progresso','mappo_vrf_fotos','mappo_vrf_notas','mappo_vrf_fotos_meta','mappo_os','mappo_manut','mappo_tarefas'];
 
@@ -969,7 +984,7 @@ function fbPush(key){
   _lastPushKey=key; // diagnóstico do auto-teste
   if(!fbReady)return;
   clearTimeout(_pushTimers[key]);
-  const delay=(key==='mappo_locations')?8000:(IMMEDIATE_KEYS.includes(key)?50:600);
+  const delay=(key==='mappo_locations')?8000:(key==='mappo_live')?5000:(IMMEDIATE_KEYS.includes(key)?50:600);
   _pushTimers[key]=setTimeout(()=>_doPush(key),delay);
 }
 
@@ -991,6 +1006,17 @@ async function _doPush(key){
       if(mergedStr!==raw){_setLocalQuiet(key,mergedStr);_aplicarNaMemoria(key,merged);}
       await ref.set({json:mergedStr,updatedAt:firebase.firestore.FieldValue.serverTimestamp(),by:(session&&session.nome)||'?'});
       fbLog('Enviado: '+nice+' ('+merged.length+' itens)','push');
+    }else if(MERGE_MAPS.includes(key)){
+      // mapas por técnico: junta com a nuvem, a entrada mais recente de cada pessoa vence
+      const snap=await ref.get();
+      let remoto={};
+      if(snap.exists&&snap.data().json){try{remoto=JSON.parse(snap.data().json);}catch(e){}}
+      let local={};try{local=JSON.parse(raw);}catch(e){}
+      const merged=_mergeMapa(remoto,local);
+      const mergedStr=JSON.stringify(merged);
+      if(mergedStr!==raw){_setLocalQuiet(key,mergedStr);_aplicarNaMemoria(key,merged);}
+      await ref.set({json:mergedStr,updatedAt:firebase.firestore.FieldValue.serverTimestamp(),by:(session&&session.nome)||'?'});
+      fbLog('Enviado: '+nice,'push');
     }else{
       await ref.set({json:raw,updatedAt:firebase.firestore.FieldValue.serverTimestamp(),by:(session&&session.nome)||'?'});
       fbLog('Enviado: '+nice,'push');
@@ -1012,6 +1038,20 @@ function _mergeLista(a,b){
   return out;
 }
 
+/* Une dois mapas {nomeTecnico: dados}: para cada pessoa, vence a entrada mais recente.
+   Permite vários técnicos compartilhando localização simultaneamente sem um apagar o outro. */
+function _mergeMapa(a,b){
+  const out={};
+  const ts=v=>{if(!v)return 0;if(v.atual&&v.atual.ts)return v.atual.ts;return v.ts||v.inicioTs||0;};
+  [...new Set([...Object.keys(a||{}),...Object.keys(b||{})])].forEach(nome=>{
+    const va=(a||{})[nome], vb=(b||{})[nome];
+    if(!va){out[nome]=vb;return;}
+    if(!vb){out[nome]=va;return;}
+    out[nome]=ts(vb)>=ts(va)?vb:va;
+  });
+  return out;
+}
+
 /* Aplica um valor já parseado nas variáveis em memória */
 function _aplicarNaMemoria(key,val){
   switch(key){
@@ -1028,6 +1068,7 @@ function _aplicarNaMemoria(key,val){
     case'mappo_vrf_checkins':vrfCheckins=val;break;
     case'mappo_vrf_fotos_meta':vrfFotosMeta=val;break;
     case'mappo_tarefas':tarefas=val;break;
+    case'mappo_live':liveTracks=val;break;
   }
 }
 
@@ -1053,6 +1094,19 @@ function fbApply(key,jsonStr,remoteMs){
       if(mudouLocal){fbLog('Recebido: '+nice,'pull');fbOnRemoteChange(key);}
       return;
     }
+    // Mapas por técnico (localização/ao vivo): merge por pessoa, o mais recente vence
+    if(MERGE_MAPS.includes(key)){
+      let remoto={};try{remoto=JSON.parse(jsonStr);}catch(e){}
+      let local={};try{local=JSON.parse(atual||'{}');}catch(e){}
+      const merged=_mergeMapa(remoto,local);
+      const mergedStr=JSON.stringify(merged);
+      const mudouLocal=(mergedStr!==(atual||''));
+      _setLocalQuiet(key,mergedStr);
+      _aplicarNaMemoria(key,merged);
+      if(mergedStr!==jsonStr){setTimeout(()=>{if(fbReady)_doPush(key);},400);}
+      if(mudouLocal)fbOnRemoteChange(key); // sem log: localização atualiza o tempo todo
+      return;
+    }
     // Dados de estado: o mais RECENTE vence (nunca sobrescreve alteração local mais nova)
     const touch=_localTouch[key]||0;
     if(touch&&(!remoteMs||touch>remoteMs)){
@@ -1071,7 +1125,7 @@ function fbApply(key,jsonStr,remoteMs){
 function fbOnRemoteChange(key){
   if(typeof currentView==='undefined'||!session)return;
   // mapa: sempre atualiza marcadores
-  if(key==='mappo_locations'||key==='mappo_vrf_checkins'){
+  if(key==='mappo_locations'||key==='mappo_vrf_checkins'||key==='mappo_live'){
     if(currentView==='mapa'&&typeof atualizarMarcadores==='function')atualizarMarcadores();
     if(currentView==='vrf-mapa'&&typeof initVRFmapa==='function')initVRFmapa();
   }
@@ -1319,6 +1373,8 @@ let vrfRelatorios=JSON.parse(localStorage.getItem('mappo_vrf_relatorios')||'[]')
 let vrfCheckins=JSON.parse(localStorage.getItem('mappo_vrf_checkins')||'[]'); // [{prestador,data,hora,lat,lng}]
 let tarefas=JSON.parse(localStorage.getItem('mappo_tarefas')||'[]'); // tarefas adicionais personalizadas
 function saveTarefas(){localStorage.setItem('mappo_tarefas',JSON.stringify(tarefas));}
+let liveTracks=JSON.parse(localStorage.getItem('mappo_live')||'{}'); // GPS em tempo real por técnico
+function saveLive(){localStorage.setItem('mappo_live',JSON.stringify(liveTracks));}
 let vrfFotosMeta=JSON.parse(localStorage.getItem('mappo_vrf_fotos_meta')||'{}'); // {andarId:{key:[{prestador,data}]}}
 function saveVrfFotosMeta(){localStorage.setItem('mappo_vrf_fotos_meta',JSON.stringify(vrfFotosMeta));}
 function vrfFotoPrestador(andarId,key,idx){
@@ -1392,6 +1448,7 @@ let currentFilter = 'todas';
 let currentDetailId = null;
 let mapaInstance = null;
 let mapaMarkers = {};
+let mapaTrails = {}; // rastros (polylines) dos técnicos com GPS ao vivo
 
 /* ── PERSISTÊNCIA ── */
 function saveOS(){localStorage.setItem('mappo_os',JSON.stringify(osList));}
@@ -1454,6 +1511,7 @@ function entrarApp(){
   if(session.perfil==='tecnico'){
     aplicarMenuTecnico();
     nav('home');
+    retomarLiveSePreciso(); // se o GPS ao vivo estava ativo e ainda vale, religa
   }else{
     document.querySelectorAll('.nav-item').forEach(el=>el.style.display='');
     nav('dashboard');
@@ -1637,6 +1695,7 @@ function toggleFloatMenu(force){
 
 function logout(){
   if(!confirm('Deseja sair do MAPPO?'))return;
+  if(session&&session.perfil==='tecnico'&&typeof liveAtivo==='function'&&liveAtivo())pararLive(null); // encerra o GPS ao vivo ao sair
   session=null;localStorage.removeItem('mappo_session');
   document.body.classList.remove('has-rail');
   document.getElementById('app').classList.remove('active');
@@ -2045,14 +2104,18 @@ function manutCardHTML(m){
 /* ═══════════ MAPA ═══════════ */
 function renderMapa(){
   const locs=JSON.parse(localStorage.getItem('mappo_locations')||'{}');
+  const lives=JSON.parse(localStorage.getItem('mappo_live')||'{}');
+  const aoVivo=nomesTecnicos().filter(t=>{const lv=lives[t];return lv&&lv.ativo&&Date.now()<lv.fimTs&&lv.atual&&Date.now()-lv.atual.ts<120000;}).length;
   const online=nomesTecnicos().filter(t=>{const l=locs[t];return l&&Date.now()-l.ts<300000;}).length;
+  const desc=aoVivo?`<span style="color:#dc2626;font-weight:700">${aoVivo} ao vivo agora</span>${online>aoVivo?' · '+online+' com posição recente':''}`
+    :(online?online+' técnico'+(online>1?'s':'')+' com posição recente':'Nenhum técnico compartilhando localização');
   return `
   <div class="page-head">
-    <div><div class="page-title">Mapa ao vivo</div><div class="page-desc">${online?online+' técnico'+(online>1?'s':'')+' online agora':'Nenhum técnico compartilhando localização'}</div></div>
+    <div><div class="page-title">Mapa ao vivo</div><div class="page-desc">${desc}</div></div>
     <button class="btn btn-ghost btn-sm" onclick="renderView('mapa')">${svgIco('refresh','ico-sm')} Atualizar</button>
   </div>
   ${!online?`<div style="background:var(--blue-bg);border-left:4px solid var(--blue);border-radius:var(--radius-sm);padding:14px 18px;margin-bottom:18px;font-size:13.5px;color:#2c5282;line-height:1.55">
-    ℹ️ <strong>Como funciona hoje:</strong> o técnico precisa tocar em "📍 Ativar GPS" no app dele. Sem servidor, a posição só aparece aqui se ele usar <strong>este mesmo aparelho/navegador</strong>. Para rastrear os celulares da equipe em tempo real de qualquer lugar, o próximo passo é conectar um banco em nuvem (Firebase) — já está no nosso roadmap.
+    <strong>Como funciona:</strong> quando o técnico faz o check-in, o ponto dele aparece aqui. Se ele tocar em <strong>"Ativar GPS ao vivo"</strong> no app dele, você acompanha a movimentação em tempo real (atualiza a cada 5s, por até 10h após o check-in), com o caminho percorrido desenhado no mapa.
   </div>`:''}
   <div class="card"><div id="mapaBox"></div></div>
   <div class="card" style="margin-top:20px">
@@ -2100,9 +2163,10 @@ function vrfCardCheckin(){
       <div class="vrf-ci-ico">${svgIco('check')}</div>
       <div class="vrf-ci-info">
         <strong>Check-in feito hoje às ${ci.hora}</strong>
-        <span>${ci.lat?'📍 Localização registrada':'Sem GPS'}</span>
+        <span>${ci.lat?'Localização registrada':'Sem GPS'}</span>
       </div>
-    </div>`;
+    </div>
+    <div style="margin:-6px 0 14px">${liveBlocoHTML()}</div>`;
   }
   return `<div class="vrf-checkin-card">
     <div class="vrf-ci-info">
@@ -2120,8 +2184,7 @@ function vrfFazerCheckin(){
   toast('Obtendo localização para o check-in...');
   navigator.geolocation.getCurrentPosition(
     pos=>{
-      salvarPosicao(pos); // alimenta o mapa também
-      if(gpsWatchId===null){gpsWatchId=navigator.geolocation.watchPosition(p=>salvarPosicao(p),()=>{},{enableHighAccuracy:true,maximumAge:15000,timeout:30000});updateGPSLabel&&updateGPSLabel();}
+      salvarPosicao(pos); // registra o ponto do check-in no mapa
       vrfSalvarCheckin(pos);
     },
     err=>{
@@ -3417,13 +3480,38 @@ function initMapa(){
 function atualizarMarcadores(){
   if(!mapaInstance)return;
   const locs=JSON.parse(localStorage.getItem('mappo_locations')||'{}');
+  const lives=JSON.parse(localStorage.getItem('mappo_live')||'{}');
   const pontos=[];
   nomesTecnicos().forEach(t=>{
-    const l=locs[t];
+    const lv=lives[t];
+    const emLive=!!(lv&&lv.ativo&&Date.now()<lv.fimTs&&lv.atual);
+    const l=emLive?lv.atual:locs[t];
+    const nome=t.split(' ')[0];
+
+    if(emLive){
+      const semSinal=Date.now()-lv.atual.ts>120000; // 2 min sem atualizar
+      pontos.push([l.lat,l.lng]);
+      const cor=semSinal?'#94a3b8':'#dc2626';
+      const rotulo=semSinal?('sem sinal '+fmtDuracaoMs(Date.now()-lv.atual.ts)):'AO VIVO';
+      const ico=L.divIcon({html:`<div class="mk-live${semSinal?' off':''}"><span class="mk-live-dot"></span>${nome} · ${rotulo}</div>`,className:'',iconSize:[130,26]});
+      if(mapaMarkers[t]){mapaMarkers[t].setLatLng([l.lat,l.lng]);mapaMarkers[t].setIcon(ico);}
+      else mapaMarkers[t]=L.marker([l.lat,l.lng],{icon:ico}).addTo(mapaInstance);
+      mapaMarkers[t].bindPopup(`<b>${t}</b><br>${semSinal?'Último sinal':'Ao vivo'} · ${new Date(lv.atual.ts).toLocaleTimeString('pt-BR')}<br>Expira em ${fmtDuracaoMs(Math.max(0,lv.fimTs-Date.now()))}${lv.atual.acc?'<br>Precisão: ~'+lv.atual.acc+'m':''}`);
+      // rastro do caminho percorrido
+      const caminho=(lv.pontos||[]).map(p=>[p.lat,p.lng]);
+      if(caminho.length>1){
+        if(mapaTrails[t])mapaTrails[t].setLatLngs(caminho);
+        else mapaTrails[t]=L.polyline(caminho,{color:cor,weight:4,opacity:.65,dashArray:semSinal?'6 6':null}).addTo(mapaInstance);
+        if(mapaTrails[t].setStyle)mapaTrails[t].setStyle({color:cor,dashArray:semSinal?'6 6':null});
+      }
+      return;
+    }
+    // sem live: remove o rastro se existia
+    if(mapaTrails[t]){mapaInstance.removeLayer(mapaTrails[t]);delete mapaTrails[t];}
     if(l&&Date.now()-l.ts<300000){
       pontos.push([l.lat,l.lng]);
-      const ico=L.divIcon({html:`<div style="background:var(--petrol);color:#fff;padding:4px 8px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.3);border:2px solid #fff">👷 ${t.split(' ')[0]}</div>`,className:'',iconSize:[80,24]});
-      if(mapaMarkers[t])mapaMarkers[t].setLatLng([l.lat,l.lng]);
+      const ico=L.divIcon({html:`<div style="background:var(--petrol);color:#fff;padding:4px 8px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.3);border:2px solid #fff">👷 ${nome}</div>`,className:'',iconSize:[80,24]});
+      if(mapaMarkers[t]){mapaMarkers[t].setLatLng([l.lat,l.lng]);mapaMarkers[t].setIcon(ico);}
       else mapaMarkers[t]=L.marker([l.lat,l.lng],{icon:ico}).addTo(mapaInstance);
       mapaMarkers[t].bindPopup(`<b>${t}</b><br>Atualizado: ${new Date(l.ts).toLocaleTimeString('pt-BR')}${l.acc?'<br>Precisão: ~'+l.acc+'m':''}`);
     }else if(mapaMarkers[t]){
@@ -3473,7 +3561,7 @@ function renderTecnicoApp(){
 
   return `
   <div class="page-head"><div><div class="page-title">Minhas ordens</div><div class="page-desc">${minhas.filter(o=>o.status!=='concluida').length} em aberto</div></div>
-  <button class="btn btn-ghost btn-sm" onclick="toggleGPS()"><span id="gpsLabel">📍 Ativar GPS</span></button></div>
+  <button class="btn btn-ghost btn-sm" onclick="toggleGPS()"><span id="gpsLabel">${liveAtivo()?'<span class="live-dot"></span> Ao vivo · '+fmtDuracaoMs(liveRestanteMs()):'Ativar GPS ao vivo'}</span></button></div>
   ${minhas.length?secoes:emptyState('ordens','Nenhuma OS atribuída','O gestor vai criar e atribuir suas ordens.')}`;
 }
 
@@ -3493,25 +3581,176 @@ function secTec(titulo,list){
 function afterTecnicoRender(){updateGPSLabel();}
 
 /* GPS técnico */
-let gpsWatchId=null;
-function toggleGPS(){
-  if(gpsWatchId!==null){navigator.geolocation.clearWatch(gpsWatchId);gpsWatchId=null;updateGPSLabel();toast('GPS desativado');return;}
+/* ════════════════════════════════════════
+   GPS EM TEMPO REAL (live tracking)
+   Check-in = ponto fixo do local.
+   "Ativar GPS ao vivo" = rastreamento contínuo por até 10h após o check-in.
+   ════════════════════════════════════════ */
+let gpsWatchId=null;             // watch do live (compartilhado c/ funções antigas)
+const LIVE_DURACAO_MS=10*60*60*1000; // 10 horas a partir do check-in
+const LIVE_INTERVALO_MS=5000;        // registra a cada 5 segundos
+const LIVE_DIST_MIN_M=12;            // só adiciona ao rastro se andou 12m+
+const LIVE_MAX_PONTOS=720;           // limite do rastro (com afinamento automático)
+let _liveUltimoReg=0;
+let _liveWakeLock=null;
+let _liveGuardTimer=null;
+
+/* distância aproximada em metros entre 2 coordenadas */
+function _distM(a,b){
+  const R=6371000,rad=x=>x*Math.PI/180;
+  const dLat=rad(b.lat-a.lat),dLng=rad(b.lng-a.lng);
+  const h=Math.sin(dLat/2)**2+Math.cos(rad(a.lat))*Math.cos(rad(b.lat))*Math.sin(dLng/2)**2;
+  return 2*R*Math.asin(Math.sqrt(h));
+}
+
+/* último check-in de HOJE do técnico (tarefas, VRF ou OS split) → timestamp ms */
+function ultimoCheckinHojeTs(){
+  const hoje=new Date().toISOString().split('T')[0];
+  let melhor=0;
+  const paraTs=(data,hora)=>{try{const[h,m]=hora.split(':');return new Date(data+'T'+h.padStart(2,'0')+':'+m.padStart(2,'0')+':00').getTime();}catch(e){return 0;}};
+  // tarefas adicionais
+  tarefas.filter(t=>t.tecnico===session.nome).forEach(t=>{
+    (t.checkins||[]).forEach(c=>{if(c.data===hoje)melhor=Math.max(melhor,paraTs(c.data,c.hora));});
+  });
+  // VRF
+  (vrfCheckins||[]).forEach(c=>{if(c.prestador===session.nome&&c.data===hoje)melhor=Math.max(melhor,paraTs(c.data,c.hora));});
+  // OS split (check-in do checklist de hoje)
+  osList.filter(o=>o.tecnico===session.nome).forEach(o=>{
+    if(o.checkinData===hoje&&o.checkinHora)melhor=Math.max(melhor,paraTs(o.checkinData,o.checkinHora));
+    (o.checklist||[]).forEach(c=>{if(c.checkinData===hoje&&c.checkinHora)melhor=Math.max(melhor,paraTs(c.checkinData,c.checkinHora));});
+  });
+  return melhor;
+}
+
+function meuLive(){return liveTracks[session.nome]||null;}
+function liveAtivo(lv){lv=lv||meuLive();return !!(lv&&lv.ativo&&Date.now()<lv.fimTs);}
+function liveRestanteMs(lv){lv=lv||meuLive();return lv?Math.max(0,lv.fimTs-Date.now()):0;}
+function fmtDuracaoMs(ms){
+  const h=Math.floor(ms/3600000),m=Math.floor((ms%3600000)/60000);
+  return h>0?h+'h'+String(m).padStart(2,'0')+'m':m+'min';
+}
+
+/* botão principal (substitui o toggleGPS antigo — mesmo nome p/ compatibilidade) */
+function toggleGPS(){toggleLive();}
+function toggleLive(){
+  if(liveAtivo()){pararLive('GPS ao vivo desativado');return;}
+  iniciarLive();
+}
+
+function iniciarLive(){
   if(!navigator.geolocation){toast('GPS não disponível neste aparelho','error');return;}
-  toast('Obtendo sua localização...');
-  // 1ª posição imediata (não espera o watch)
+  const ck=ultimoCheckinHojeTs();
+  if(!ck){toast('Faça o check-in de hoje primeiro para ativar o GPS ao vivo','warn');return;}
+  if(Date.now()>ck+LIVE_DURACAO_MS){toast('O período de 10h do check-in acabou. Faça um novo check-in.','warn');return;}
+  toast('Ativando GPS ao vivo...');
   navigator.geolocation.getCurrentPosition(
-    pos=>{salvarPosicao(pos);toast('📍 Localização encontrada e compartilhada','success');},
+    pos=>{
+      liveTracks[session.nome]={
+        ativo:true,
+        inicioTs:Date.now(),
+        checkinTs:ck,
+        fimTs:ck+LIVE_DURACAO_MS,
+        pontos:[{lat:pos.coords.latitude,lng:pos.coords.longitude,ts:Date.now()}],
+        atual:{lat:pos.coords.latitude,lng:pos.coords.longitude,acc:Math.round(pos.coords.accuracy||0),ts:Date.now()}
+      };
+      _liveUltimoReg=Date.now();
+      saveLive();
+      salvarPosicao(pos);
+      _ligarWatchLive();
+      _pedirWakeLock();
+      _ligarGuardaLive();
+      updateGPSLabel();
+      const rest=fmtDuracaoMs(liveRestanteMs());
+      toast('GPS ao vivo ativado — o gestor acompanha você em tempo real (expira em '+rest+')','success');
+      if(typeof rerenderTarefaExec==='function'&&typeof execTarefaId!=='undefined'&&execTarefaId)rerenderTarefaExec();
+      if(typeof currentView!=='undefined'&&currentView==='vrf')renderView('vrf');
+    },
     err=>msgErroGPS(err),
     {enableHighAccuracy:true,timeout:15000,maximumAge:0}
   );
-  // acompanhamento contínuo
-  gpsWatchId=navigator.geolocation.watchPosition(
-    pos=>salvarPosicao(pos),
-    err=>{msgErroGPS(err);if(gpsWatchId!==null){navigator.geolocation.clearWatch(gpsWatchId);gpsWatchId=null;updateGPSLabel();}},
-    {enableHighAccuracy:true,maximumAge:15000,timeout:30000}
-  );
-  updateGPSLabel();
 }
+
+function pararLive(msg){
+  if(gpsWatchId!==null){navigator.geolocation.clearWatch(gpsWatchId);gpsWatchId=null;}
+  if(_liveGuardTimer){clearInterval(_liveGuardTimer);_liveGuardTimer=null;}
+  _soltarWakeLock();
+  const lv=meuLive();
+  if(lv&&lv.ativo){lv.ativo=false;lv.encerradoTs=Date.now();if(lv.atual)lv.atual.ts=Date.now();saveLive();}
+  updateGPSLabel();
+  if(msg)toast(msg);
+  if(typeof rerenderTarefaExec==='function'&&typeof execTarefaId!=='undefined'&&execTarefaId)rerenderTarefaExec();
+  if(typeof currentView!=='undefined'&&currentView==='vrf')renderView('vrf');
+}
+
+function _ligarWatchLive(){
+  if(gpsWatchId!==null)navigator.geolocation.clearWatch(gpsWatchId);
+  gpsWatchId=navigator.geolocation.watchPosition(
+    pos=>liveRegistrarPonto(pos),
+    err=>{/* não derruba o live por erro pontual de sinal */},
+    {enableHighAccuracy:true,maximumAge:4000,timeout:30000}
+  );
+}
+
+function liveRegistrarPonto(pos){
+  const lv=meuLive();
+  if(!lv||!lv.ativo)return;
+  // expirou as 10 horas?
+  if(Date.now()>lv.fimTs){pararLive('Período de 10h encerrado — GPS ao vivo desativado');return;}
+  // ritmo de 5 segundos
+  if(Date.now()-_liveUltimoReg<LIVE_INTERVALO_MS)return;
+  _liveUltimoReg=Date.now();
+  const p={lat:pos.coords.latitude,lng:pos.coords.longitude,ts:Date.now()};
+  lv.atual={...p,acc:Math.round(pos.coords.accuracy||0)};
+  // rastro: só adiciona se andou o suficiente (economiza espaço, mantém o desenho do caminho)
+  const ult=lv.pontos[lv.pontos.length-1];
+  if(!ult||_distM(ult,p)>=LIVE_DIST_MIN_M){
+    lv.pontos.push(p);
+    if(lv.pontos.length>LIVE_MAX_PONTOS){
+      lv.pontos=lv.pontos.filter((_,i)=>i%2===0||i===lv.pontos.length-1); // afina o rastro antigo
+    }
+  }
+  saveLive();          // → interceptor → nuvem (debounce de 5s)
+  salvarPosicao(pos);  // mantém a posição simples também
+}
+
+/* mantém a tela acesa enquanto o live está ativo (senão o celular dorme e o GPS para) */
+async function _pedirWakeLock(){
+  try{
+    if('wakeLock'in navigator){
+      _liveWakeLock=await navigator.wakeLock.request('screen');
+      _liveWakeLock.addEventListener('release',()=>{_liveWakeLock=null;});
+    }
+  }catch(e){}
+}
+function _soltarWakeLock(){try{if(_liveWakeLock){_liveWakeLock.release();_liveWakeLock=null;}}catch(e){}}
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible'&&liveAtivo())_pedirWakeLock();
+});
+
+/* guarda de segurança: confere a cada minuto se as 10h acabaram */
+function _ligarGuardaLive(){
+  if(_liveGuardTimer)clearInterval(_liveGuardTimer);
+  _liveGuardTimer=setInterval(()=>{
+    const lv=meuLive();
+    if(!lv||!lv.ativo){clearInterval(_liveGuardTimer);_liveGuardTimer=null;return;}
+    if(Date.now()>lv.fimTs)pararLive('Período de 10h encerrado — GPS ao vivo desativado');
+    else updateGPSLabel();
+  },60000);
+}
+
+/* retoma o live automaticamente se o app recarregar com o período ainda válido */
+function retomarLiveSePreciso(){
+  if(!session||session.perfil!=='tecnico')return;
+  const lv=meuLive();
+  if(lv&&lv.ativo){
+    if(Date.now()>lv.fimTs){lv.ativo=false;saveLive();return;}
+    _ligarWatchLive();
+    _pedirWakeLock();
+    _ligarGuardaLive();
+    updateGPSLabel();
+  }
+}
+
 function salvarPosicao(pos){
   const locs=JSON.parse(localStorage.getItem('mappo_locations')||'{}');
   locs[session.nome]={lat:pos.coords.latitude,lng:pos.coords.longitude,acc:Math.round(pos.coords.accuracy||0),ts:Date.now()};
@@ -3525,7 +3764,29 @@ function msgErroGPS(err){
   };
   toast(msgs[err.code]||'Erro ao obter localização','error');
 }
-function updateGPSLabel(){const l=document.getElementById('gpsLabel');if(l)l.textContent=gpsWatchId!==null?'📍 GPS ativo':'📍 Ativar GPS';}
+function updateGPSLabel(){
+  const l=document.getElementById('gpsLabel');
+  if(!l)return;
+  if(liveAtivo())l.innerHTML='<span class="live-dot"></span> Ao vivo · '+fmtDuracaoMs(liveRestanteMs());
+  else l.textContent='Ativar GPS ao vivo';
+}
+
+/* bloco de interface do GPS ao vivo (usado nos cards de check-in) */
+function liveBlocoHTML(){
+  if(session.perfil!=='tecnico')return'';
+  if(liveAtivo()){
+    return `<div class="live-status">
+      <span class="live-dot"></span>
+      <div class="live-status-txt"><b>GPS ao vivo ativo</b><span>O gestor acompanha sua posição · expira em ${fmtDuracaoMs(liveRestanteMs())}</span></div>
+      <button class="btn btn-ghost btn-sm" onclick="pararLive('GPS ao vivo desativado')">Desativar</button>
+    </div>`;
+  }
+  const ck=ultimoCheckinHojeTs();
+  if(!ck)return `<p class="live-hint">Após o check-in, você pode ativar o GPS ao vivo para o gestor acompanhar sua posição em tempo real.</p>`;
+  if(Date.now()>ck+LIVE_DURACAO_MS)return `<p class="live-hint">O período de 10h do último check-in acabou. Faça um novo check-in para ativar o GPS ao vivo.</p>`;
+  return `<button class="btn btn-ghost" style="width:100%" onclick="iniciarLive()">${svgIco('mapa','ico-sm')} Ativar GPS ao vivo (até 10h)</button>
+  <p class="live-hint" style="margin-top:8px">Sua posição é atualizada a cada 5 segundos enquanto o app estiver aberto.</p>`;
+}
 
 /* ════════════════════════════════════════
    TAREFAS ADICIONAIS (personalizadas)
@@ -3682,7 +3943,7 @@ function renderExecTarefa(t){
     <h3 style="font-family:'Inter',sans-serif;letter-spacing:-.02em;font-size:18px;margin-bottom:4px">1. Check-in diário</h3>
     <p style="font-size:13px;color:var(--gray-400);margin-bottom:14px">Registre sua presença na obra todos os dias</p>
     ${tarefaCheckinHoje(t)
-      ?`<div style="display:flex;align-items:center;gap:10px;color:#16a34a;font-weight:600;margin-bottom:${(t.checkins||[]).length>1?'12px':'0'}">${svgIco('check','ico-sm')} Check-in de hoje enviado às ${tarefaCheckinHoje(t).hora}${tarefaCheckinHoje(t).lat?' · localização registrada':''}</div>`
+      ?`<div style="display:flex;align-items:center;gap:10px;color:#16a34a;font-weight:600;margin-bottom:12px">${svgIco('check','ico-sm')} Check-in de hoje enviado às ${tarefaCheckinHoje(t).hora}${tarefaCheckinHoje(t).lat?' · localização registrada':''}</div>${liveBlocoHTML()}`
       :`<button class="btn btn-primary" id="btnTarefaCheckin" style="width:100%;padding:16px" onclick="tarefaCheckin()">${svgIco('pin','ico-sm')} Fazer check-in de hoje</button>`}
     ${(t.checkins||[]).length>1||((t.checkins||[]).length===1&&!tarefaCheckinHoje(t))?`
       <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--gray-400);margin:14px 0 8px">Histórico de presença</div>
@@ -3751,12 +4012,11 @@ function tarefaCheckin(){
   if(btn){btn.disabled=true;btn.style.opacity='.6';btn.textContent='Localizando...';}
   navigator.geolocation.getCurrentPosition(
     pos=>{
-      salvarPosicao(pos);
-      if(gpsWatchId===null){gpsWatchId=navigator.geolocation.watchPosition(p=>salvarPosicao(p),()=>{},{enableHighAccuracy:true,maximumAge:15000,timeout:30000});if(typeof updateGPSLabel==='function')updateGPSLabel();}
+      salvarPosicao(pos); // registra o ponto do check-in no mapa
       tarefaFinalizarCheckin(pos);
     },
     err=>{
-      if(btn){btn.disabled=false;btn.style.opacity='';btn.innerHTML=svgIco('pin','ico-sm')+' Fazer Check-in';}
+      if(btn){btn.disabled=false;btn.style.opacity='';btn.innerHTML=svgIco('pin','ico-sm')+' Fazer check-in de hoje';}
       msgErroGPS(err);
     },
     {enableHighAccuracy:true,timeout:15000,maximumAge:0}
@@ -3964,12 +4224,7 @@ function execCheckin(){
   if(btn){btn.disabled=true;btn.style.opacity='.6';btn.innerHTML='📍 Localizando...';}
   navigator.geolocation.getCurrentPosition(
     pos=>{
-      salvarPosicao(pos);
-      // ativar watch contínuo para o mapa acompanhar durante o serviço
-      if(gpsWatchId===null){
-        gpsWatchId=navigator.geolocation.watchPosition(p=>salvarPosicao(p),()=>{},{enableHighAccuracy:true,maximumAge:15000,timeout:30000});
-        updateGPSLabel();
-      }
+      salvarPosicao(pos); // registra o ponto do check-in no mapa
       finalizarCheckin(pos);
     },
     err=>{
