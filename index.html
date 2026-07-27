@@ -706,6 +706,56 @@
   .mk-live .mk-live-dot{width:7px;height:7px;border-radius:50%;background:#fff;animation:livePulse 1.6s infinite;}
   .mk-live.off{background:#94a3b8;box-shadow:0 2px 8px rgba(0,0,0,.25);}
   .mk-live.off .mk-live-dot{animation:none;opacity:.7;}
+  /* caixa do link no modal do gestor */
+  .pub-link-box input{width:100%;padding:12px 14px;border:2px solid var(--gray-200);border-radius:10px;font-size:13px;font-family:ui-monospace,Menlo,monospace;background:var(--gray-50);color:var(--gray-600);}
+  /* ── PÁGINA PÚBLICA DO CLIENTE ── */
+  body.modo-publico{background:var(--gray-50);}
+  #pubScreen{min-height:100vh;background:var(--gray-50);}
+  .pub-top{background:var(--petrol);padding:16px 0;padding-top:calc(16px + env(safe-area-inset-top));}
+  .pub-top-in{max-width:680px;margin:0 auto;padding:0 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;}
+  .pub-marca{display:flex;flex-direction:column;}
+  .pub-marca-n{font-family:'Inter',sans-serif;font-weight:800;font-size:17px;color:#fff;letter-spacing:-.02em;}
+  .pub-marca-s{font-size:11.5px;color:rgba(255,255,255,.7);}
+  .pub-live{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;color:#fff;background:rgba(255,255,255,.14);padding:5px 11px;border-radius:20px;text-transform:uppercase;letter-spacing:.4px;}
+  .pub-live i{width:7px;height:7px;border-radius:50%;background:#4ade80;animation:livePulse 1.8s infinite;}
+  .pub-wrap{max-width:680px;margin:0 auto;padding:18px 20px 48px;}
+  .pub-load,.pub-vazio{text-align:center;color:var(--gray-400);font-size:14px;padding:56px 20px;line-height:1.6;}
+  .pub-erro{text-align:center;padding:64px 24px;display:flex;flex-direction:column;gap:8px;}
+  .pub-erro b{font-family:'Inter',sans-serif;font-size:18px;color:var(--gray-600);}
+  .pub-erro span{font-size:13.5px;color:var(--gray-400);line-height:1.55;}
+  .pub-card{background:#fff;border-radius:16px;padding:22px;box-shadow:0 1px 3px rgba(0,0,0,.06);margin-bottom:18px;}
+  .pub-card h1{font-family:'Inter',sans-serif;font-size:24px;letter-spacing:-.03em;color:var(--gray-700);margin:10px 0 2px;line-height:1.15;}
+  .pub-sub{font-size:14px;color:var(--gray-500);margin-bottom:12px;}
+  .pub-pill{display:inline-block;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;padding:5px 11px;border-radius:20px;background:var(--gray-100);color:var(--gray-500);}
+  .pub-pill.and{background:var(--blue-bg);color:#1d4ed8;}
+  .pub-pill.ok{background:var(--green-bg);color:#15803d;}
+  .pub-info{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12.5px;color:var(--gray-400);margin-bottom:16px;}
+  .pub-prog-l{display:flex;justify-content:space-between;font-size:12.5px;color:var(--gray-500);margin-bottom:6px;}
+  .pub-prog-l b{color:var(--gold-dark);font-size:14px;}
+  .pub-prog-bar{height:8px;background:var(--gray-100);border-radius:20px;overflow:hidden;}
+  .pub-prog-bar i{display:block;height:100%;background:var(--gold);border-radius:20px;transition:width .5s ease;}
+  .pub-fase{background:#fff;border-radius:16px;padding:18px;box-shadow:0 1px 3px rgba(0,0,0,.06);margin-bottom:14px;}
+  .pub-fase-h{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;}
+  .pub-fase-h h3{font-family:'Inter',sans-serif;font-size:15px;letter-spacing:-.02em;color:var(--gray-700);}
+  .pub-fase-h span{font-size:12.5px;font-weight:700;color:var(--gold-dark);}
+  .pub-fase-bar{height:5px;background:var(--gray-100);border-radius:20px;overflow:hidden;margin-bottom:14px;}
+  .pub-fase-bar i{display:block;height:100%;background:var(--petrol-light);border-radius:20px;}
+  .pub-et{border-left:3px solid var(--gray-200);padding:2px 0 2px 13px;margin-bottom:16px;}
+  .pub-et.ok{border-color:var(--green);}
+  .pub-et.prob{border-color:var(--red);}
+  .pub-et-top{display:flex;align-items:flex-start;gap:9px;}
+  .pub-et-mk{width:19px;height:19px;border-radius:50%;background:var(--gray-200);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;}
+  .pub-et.ok .pub-et-mk{background:var(--green);}
+  .pub-et.prob .pub-et-mk{background:var(--red);}
+  .pub-et-lbl{font-size:13.5px;color:var(--gray-600);line-height:1.45;}
+  .pub-et-nota{font-size:12.5px;color:var(--gray-400);margin:5px 0 0 28px;line-height:1.5;font-style:italic;}
+  .pub-et-img{width:100%;margin-top:9px;border-radius:10px;display:block;cursor:zoom-in;}
+  .pub-et-mais{display:inline-block;margin-top:6px;font-size:11.5px;color:var(--gray-400);}
+  .pub-nota-corte{text-align:center;font-size:12.5px;color:var(--gray-500);background:#fff;border-radius:12px;padding:14px 16px;line-height:1.55;box-shadow:0 1px 3px rgba(0,0,0,.06);}
+  .pub-foot{text-align:center;font-size:11.5px;color:var(--gray-400);margin-top:22px;}
+  .pub-zoom{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:3000;display:none;align-items:center;justify-content:center;padding:16px;cursor:zoom-out;}
+  .pub-zoom.on{display:flex;}
+  .pub-zoom img{max-width:100%;max-height:100%;border-radius:8px;}
 </style>
 <!-- Firebase SDK (compat) -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -904,7 +954,10 @@ function _marcarAlteracaoLocal(key){
   _localTouch[key]=Date.now();
   _saveTouch();
   fbPush(key);
+  if(typeof agendarRepublicacao==='function'&&PUB_KEYS.includes(key))agendarRepublicacao();
 }
+/* alterações nestas chaves atualizam os links de acompanhamento do cliente */
+const PUB_KEYS=['mappo_os','mappo_vrf_obra','mappo_vrf_progresso','mappo_vrf_fotos','mappo_vrf_notas','mappo_vrf_checkins'];
 
 /* ── INTERCEPTOR (camada 1): captura todo localStorage.setItem ──
    Patch no Storage.prototype — no iPhone/Safari, substituir
@@ -1124,6 +1177,8 @@ function fbApply(key,jsonStr,remoteMs){
 /* Reage a mudanças remotas: re-renderiza a tela atual quando faz sentido */
 function fbOnRemoteChange(key){
   if(typeof currentView==='undefined'||!session)return;
+  // o técnico lançou algo em outro aparelho: os links do cliente também se atualizam
+  if(typeof agendarRepublicacao==='function'&&PUB_KEYS.includes(key))agendarRepublicacao();
   // mapa: sempre atualiza marcadores
   if(key==='mappo_locations'||key==='mappo_vrf_checkins'||key==='mappo_live'){
     if(currentView==='mapa'&&typeof atualizarMarcadores==='function')atualizarMarcadores();
@@ -1423,6 +1478,7 @@ function vrfProgFase(andarId,faseId){
 function vrfCorProg(pct){return pct>=100?'var(--green)':pct>=50?'var(--gold-dark)':pct>0?'var(--blue)':'var(--gray-400)';}
 
 
+/* Checklist de INSTALAÇÃO */
 const CHECKLIST_BASE = [
   {id:'nivel_evap',label:'Suporte da evaporadora no nível',critico:true},
   {id:'furo_oculto',label:'Furo 100% escondido',critico:true},
@@ -1433,6 +1489,34 @@ const CHECKLIST_BASE = [
   {id:'limpeza',label:'Limpeza do local após instalação',critico:false},
   {id:'orientacao',label:'Cliente orientado sobre uso e garantia',critico:false},
 ];
+
+/* Checklist de MANUTENÇÃO (limpeza) — sequência fotográfica do serviço */
+const CHECKLIST_MANUT = [
+  {id:'m_antes',label:'Antes: equipamento sujo (estado inicial)',critico:true},
+  {id:'m_bolsao',label:'Bolsão de limpeza instalado',critico:true},
+  {id:'m_espuma',label:'Espuma aplicada na evaporadora',critico:true},
+  {id:'m_agua',label:'Água suja recolhida no bolsão',critico:true},
+  {id:'m_depois',label:'Depois: equipamento limpo',critico:true},
+  {id:'m_ambiente',label:'Ambiente limpo e organizado na saída',critico:true},
+];
+
+/* Escolhe o checklist certo conforme o tipo de serviço da OS */
+function ehManutencao(tipo){return /manuten/i.test(tipo||'');}
+function checklistDoTipo(tipo){
+  return (ehManutencao(tipo)?CHECKLIST_MANUT:CHECKLIST_BASE).map(c=>({...c,status:'pending',foto:null}));
+}
+/* Uma OS antiga pode ter vindo com o checklist errado (manutenção usando o de instalação).
+   Se nada foi preenchido ainda, troca pelo correto sem perder trabalho do técnico. */
+function corrigirChecklistSeVazio(os){
+  if(!os||!os.checklist||!os.checklist.length)return false;
+  const querManut=ehManutencao(os.tipo);
+  const temManut=os.checklist.some(c=>String(c.id).startsWith('m_'));
+  if(querManut===temManut)return false;
+  const mexido=os.checklist.some(c=>c.status!=='pending'||c.foto);
+  if(mexido)return false; // técnico já trabalhou nele: preserva
+  os.checklist=checklistDoTipo(os.tipo);
+  return true;
+}
 
 const ETAPAS = ['checkin','equipamentos','checklist','assinatura'];
 const ETAPA_LBL = {checkin:'Check-in',equipamentos:'Equip.',checklist:'Checklist',assinatura:'Assin.'};
@@ -2609,6 +2693,7 @@ function renderVRFandares(){
         <span>${svgIco('camera','ico-sm')} ${nFotos} foto${nFotos!==1?'s':''}</span>
         <span class="vrf-al-abrir">Abrir ${svgIco('arrow-right','ico-sm')}</span>
       </div>
+      ${session.perfil==='gestor'?`<button class="btn btn-ghost btn-sm" style="width:100%;margin-top:10px" onclick="event.stopPropagation();gerarLinkObra('${an.id}')">${svgIco('mapa','ico-sm')} ${an.pubToken?'Ver link do cliente':'Gerar link do cliente'}</button>`:''}
     </div>`;
   }).join('');
   return `<div class="page-head">
@@ -3264,7 +3349,7 @@ function criarOS(){
     obs:document.getElementById('oObs').value,
     notaGestor:'',
     qtdSplits:qtd,status:'pendente',
-    checklist:CHECKLIST_BASE.map(c=>({...c,status:'pending',foto:null})),
+    checklist:checklistDoTipo(document.getElementById('oTipo').value),
     equipamentos:Array.from({length:qtd},(_,i)=>({idx:i,marca:'',modelo:'',fotoEvap:null,fotoCond:null})),
     criadaEm:new Date().toISOString(),
   };
@@ -3328,6 +3413,7 @@ function openDetalhe(id){
     </div>
     <div class="modal-foot">
       <button class="btn btn-danger" onclick="excluirOS('${os.id}')">🗑 Excluir</button>
+      <button class="btn btn-ghost" onclick="gerarLinkOS('${os.id}')">${svgIco('mapa','ico-sm')} ${os.pubToken?'Ver link do cliente':'Gerar link do cliente'}</button>
       ${podeRevisar?`<button class="btn btn-gold" onclick="revisarOS('${os.id}')">↩ Enviar p/ revisão</button>`:''}
       ${os.status==='concluida'&&os.tipo.includes('Manutenção')?`<button class="btn btn-ghost" onclick="agendarProximaManut('${os.id}')">🔄 Agendar retorno</button>`:''}
       <button class="btn btn-primary" onclick="closeModal()">Fechar</button>
@@ -3420,7 +3506,7 @@ function concluirManut(id){
 }
 function criarOSdeManut(id){
   const m=manutencoes.find(x=>x.id===id);if(!m)return;
-  const os={id:'os_'+Date.now(),cliente:m.cliente,endereco:m.endereco,tipo:'Manutenção '+m.tipo,tecnico:m.tecnico||nomesTecnicos()[0]||'',data:m.dataAgendada,hora:'08:00',obs:m.obs,notaGestor:'',qtdSplits:1,status:'pendente',checklist:CHECKLIST_BASE.map(c=>({...c,status:'pending',foto:null})),equipamentos:[{idx:0,marca:'',modelo:'',fotoEvap:null,fotoCond:null}],criadaEm:new Date().toISOString()};
+  const os={id:'os_'+Date.now(),cliente:m.cliente,endereco:m.endereco,tipo:'Manutenção '+m.tipo,tecnico:m.tecnico||nomesTecnicos()[0]||'',data:m.dataAgendada,hora:'08:00',obs:m.obs,notaGestor:'',qtdSplits:1,status:'pendente',checklist:checklistDoTipo('Manutenção '+m.tipo),equipamentos:[{idx:0,marca:'',modelo:'',fotoEvap:null,fotoCond:null}],criadaEm:new Date().toISOString()};
   osList.unshift(os);saveOS();closeModal();toast('OS gerada a partir da manutenção','success');nav('ordens');
 }
 function agendarProximaManut(osId){const os=osList.find(o=>o.id===osId);if(!os)return;closeModal();openModalManut({cliente:os.cliente,endereco:os.endereco,tecnico:os.tecnico,dataAgendada:''});}
@@ -4089,7 +4175,8 @@ let execOS=null;
 function abrirExecucao(id){
   execOS=osList.find(o=>o.id===id);if(!execOS)return;
   if(execOS.status==='revisao'){execOS.status='andamento';saveOS();}
-  if(!execOS.checklist||!execOS.checklist.length)execOS.checklist=CHECKLIST_BASE.map(c=>({...c,status:'pending',foto:null}));
+  if(!execOS.checklist||!execOS.checklist.length)execOS.checklist=checklistDoTipo(execOS.tipo);
+  if(corrigirChecklistSeVazio(execOS))saveOS(); // OS de manutenção antiga: aplica o checklist correto
   if(!execOS.equipamentos||!execOS.equipamentos.length)execOS.equipamentos=Array.from({length:execOS.qtdSplits||1},(_,i)=>({idx:i,marca:'',modelo:'',fotoEvap:null,fotoCond:null}));
   renderExecucao();
 }
@@ -4119,8 +4206,8 @@ function renderExecucao(){
 
     <!-- 3 CHECKLIST -->
     <div class="card" style="margin-bottom:16px"><div class="card-pad">
-      <h3 style="font-family:'Inter',sans-serif;letter-spacing:-.02em;font-size:18px;margin-bottom:4px">3. Checklist</h3>
-      <p style="font-size:13px;color:var(--gray-400);margin-bottom:14px">Toque para marcar. Foto obrigatória em cada item.</p>
+      <h3 style="font-family:'Inter',sans-serif;letter-spacing:-.02em;font-size:18px;margin-bottom:4px">3. ${ehManutencao(os.tipo)?'Registro da limpeza':'Checklist'}</h3>
+      <p style="font-size:13px;color:var(--gray-400);margin-bottom:14px">${ehManutencao(os.tipo)?'Siga a sequência do serviço. Foto obrigatória em cada etapa.':'Toque para marcar. Foto obrigatória em cada item.'}</p>
       <div id="checklistArea"></div>
     </div></div>
 
@@ -4360,12 +4447,318 @@ function notificarNavegador(titulo,corpo){
 function enviarEmailManut(m){console.log('[EMAIL preparado] Para:',settings.emailGestor,'Manutenção:',m.cliente,'— integrar EmailJS aqui');}
 function enviarSMSManut(m){console.log('[SMS preparado] Para:',settings.telGestor,'Manutenção:',m.cliente,'— integrar Twilio aqui');}
 
+/* ════════════════════════════════════════
+   ACOMPANHAMENTO DO CLIENTE (link público)
+   O gestor gera um link; o cliente abre no navegador, sem app e sem login,
+   e acompanha as fotos e etapas conforme o técnico vai lançando.
+   Cada link publica um documento próprio na nuvem com SOMENTE os dados
+   daquele serviço — nenhum outro cliente fica exposto.
+   ════════════════════════════════════════ */
+const PUB_LIMITE_BYTES=700000;  // margem segura do limite de 1MB por documento
+const _thumbCache={};
+const _pubUltimo={};            // token → último conteúdo publicado (evita reescrever igual)
+
+function _pubToken(){
+  const c='abcdefghijkmnpqrstuvwxyz23456789';
+  let t='';for(let i=0;i<10;i++)t+=c[Math.floor(Math.random()*c.length)];
+  return t;
+}
+function pubURL(token){return location.origin+location.pathname+'#/ac/'+token;}
+function _thumbKey(d){return d.length+'|'+d.slice(24,88);}
+
+/* reduz a foto para o tamanho do acompanhamento (leve, cabe na nuvem) */
+function _thumb(dataUrl){
+  return new Promise(res=>{
+    if(!dataUrl||typeof dataUrl!=='string'){res(null);return;}
+    const k=_thumbKey(dataUrl);
+    if(_thumbCache[k]){res(_thumbCache[k]);return;}
+    const img=new Image();
+    img.onload=()=>{
+      try{
+        const maxW=520,scale=Math.min(1,maxW/img.width);
+        const cv=document.createElement('canvas');
+        cv.width=Math.max(1,Math.round(img.width*scale));
+        cv.height=Math.max(1,Math.round(img.height*scale));
+        cv.getContext('2d').drawImage(img,0,0,cv.width,cv.height);
+        const out=cv.toDataURL('image/jpeg',0.45);
+        _thumbCache[k]=out;res(out);
+      }catch(e){res(null);}
+    };
+    img.onerror=()=>res(null);
+    img.src=dataUrl;
+  });
+}
+
+/* ── monta o conteúdo de uma OS (instalação ou manutenção) ── */
+async function pubPayloadOS(os){
+  const etapas=[];let bytes=0,cortadas=0;
+  for(const c of (os.checklist||[])){
+    const it={label:c.label,ok:c.status==='ok',prob:c.status==='nok'};
+    if(c.foto){
+      if(bytes<PUB_LIMITE_BYTES){
+        const t=await _thumb(c.foto);
+        if(t){it.foto=t;bytes+=t.length;}
+      }else cortadas++;
+    }
+    etapas.push(it);
+  }
+  const feitas=etapas.filter(e=>e.ok||e.prob).length;
+  return {
+    tipo:'os',
+    titulo:os.cliente||'Serviço',
+    servico:os.tipo||'Serviço',
+    endereco:os.endereco||'',
+    data:os.data||'',
+    tecnico:(os.tecnico||'').split(' ')[0],
+    status:os.status||'pendente',
+    checkin:os.checkinTime||null,
+    progresso:etapas.length?Math.round(feitas/etapas.length*100):0,
+    etapas,cortadas,
+    atualizadoEm:Date.now()
+  };
+}
+
+/* ── monta o conteúdo de um andar da obra VRF ── */
+async function pubPayloadObra(andarId){
+  const andar=(vrfObra.andares||[]).find(a=>a.id===andarId);
+  if(!andar)return null;
+  const prog=(vrfProgresso||{})[andarId]||{};
+  const fotosDoAndar=(vrfFotos||{})[andarId]||{};
+  const notas=(vrfNotas||{})[andarId]||{};
+  const fases=[];let bytes=0,cortadas=0;
+  for(const f of VRF_FASES){
+    const etapas=[];
+    for(let i=0;i<f.etapas.length;i++){
+      const key=f.id+'_'+i;
+      const it={label:f.etapas[i],ok:!!prog[key]};
+      if(notas[key])it.nota=notas[key];
+      const fts=fotosDoAndar[key]||[];
+      if(fts.length){
+        if(bytes<PUB_LIMITE_BYTES){
+          const t=await _thumb(fts[fts.length-1]); // a mais recente da etapa
+          if(t){it.foto=t;bytes+=t.length;}
+          if(fts.length>1)it.maisFotos=fts.length-1;
+        }else cortadas+=fts.length;
+      }
+      etapas.push(it);
+    }
+    const feitas=etapas.filter(e=>e.ok).length;
+    fases.push({nome:f.nome,pct:Math.round(feitas/etapas.length*100),etapas});
+  }
+  const totEt=fases.reduce((s,f)=>s+f.etapas.length,0);
+  const totOk=fases.reduce((s,f)=>s+f.etapas.filter(e=>e.ok).length,0);
+  const ultCk=(vrfCheckins||[]).slice().reverse().find(c=>c.data);
+  return {
+    tipo:'obra',
+    titulo:vrfObra.nome||'Obra VRF',
+    servico:'Instalação VRF · '+(andar.nome||'Ambiente'),
+    endereco:'',
+    data:'',
+    tecnico:ultCk?(ultCk.prestador||'').split(' ')[0]:'',
+    status:totOk>=totEt?'concluida':(totOk?'andamento':'pendente'),
+    checkin:ultCk?ultCk.hora:null,
+    progresso:totEt?Math.round(totOk/totEt*100):0,
+    fases,cortadas,
+    atualizadoEm:Date.now()
+  };
+}
+
+/* ── publica/atualiza o documento público de um token ── */
+async function publicarAcompanhamento(token,payload){
+  if(!token||!payload)return false;
+  const txt=JSON.stringify(payload);
+  const semData=txt.replace(/"atualizadoEm":\d+/,'');
+  if(_pubUltimo[token]===semData)return true; // nada mudou: não gasta escrita
+  if(!fbReady)return false;
+  try{
+    await fbDB.collection('workspaces').doc(WORKSPACE).collection('data').doc('pub_'+token)
+      .set({json:txt,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    _pubUltimo[token]=semData;
+    return true;
+  }catch(e){fbLog('Falha ao publicar acompanhamento: '+e.message,'erro');return false;}
+}
+
+/* ── gera (ou reaproveita) o link de uma OS ── */
+async function gerarLinkOS(id){
+  const os=osList.find(o=>o.id===id);if(!os)return;
+  if(!os.pubToken){os.pubToken=_pubToken();saveOS();}
+  toast('Preparando o link...');
+  const ok=await publicarAcompanhamento(os.pubToken,await pubPayloadOS(os));
+  abrirModalLink(os.pubToken,os.cliente,ok);
+}
+/* ── gera (ou reaproveita) o link de um andar da obra ── */
+async function gerarLinkObra(andarId){
+  const andar=(vrfObra.andares||[]).find(a=>a.id===andarId);if(!andar)return;
+  if(!andar.pubToken){andar.pubToken=_pubToken();saveVrfObra();}
+  toast('Preparando o link...');
+  const ok=await publicarAcompanhamento(andar.pubToken,await pubPayloadObra(andarId));
+  abrirModalLink(andar.pubToken,(vrfObra.nome||'Obra')+' — '+andar.nome,ok);
+}
+
+function abrirModalLink(token,nome,publicado){
+  const url=pubURL(token);
+  const msg=encodeURIComponent('Acompanhe o serviço da Elite Ar em tempo real: '+url);
+  showModal(`
+    <div class="modal-head"><h2>Link de acompanhamento</h2></div>
+    <div class="modal-body">
+      <p style="font-size:13.5px;color:var(--gray-500);line-height:1.55;margin-bottom:14px">
+        Envie este link para <b>${nome}</b>. O cliente abre no navegador do celular, sem instalar nada,
+        e acompanha as fotos e etapas conforme o técnico vai lançando.
+      </p>
+      <div class="pub-link-box"><input id="pubLinkInput" readonly value="${url}"></div>
+      ${publicado?'':`<p style="font-size:12.5px;color:#b45309;margin-top:10px">Sem conexão com a nuvem agora — o link foi criado e será publicado assim que o app sincronizar.</p>`}
+      <p style="font-size:12px;color:var(--gray-400);margin-top:12px;line-height:1.5">
+        O link mostra apenas este serviço. Ele se atualiza sozinho a cada novo lançamento do técnico.
+      </p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="copiarLinkPub()">Copiar link</button>
+      <button class="btn btn-primary" onclick="window.open('https://wa.me/?text=${msg}','_blank')">Enviar no WhatsApp</button>
+    </div>`,'wide');
+}
+function copiarLinkPub(){
+  const i=document.getElementById('pubLinkInput');if(!i)return;
+  i.select();i.setSelectionRange(0,99999);
+  const done=()=>toast('Link copiado','success');
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(i.value).then(done,()=>{document.execCommand('copy');done();});
+  else{document.execCommand('copy');done();}
+}
+
+/* ── republicação automática: sempre que algo muda, os links ativos se atualizam ── */
+let _pubTimer=null;
+function agendarRepublicacao(){
+  if(!session||session.perfil==='cliente')return;
+  clearTimeout(_pubTimer);
+  _pubTimer=setTimeout(republicarAtivos,3000);
+}
+async function republicarAtivos(){
+  if(!fbReady)return;
+  try{
+    for(const os of osList){
+      if(os.pubToken)await publicarAcompanhamento(os.pubToken,await pubPayloadOS(os));
+    }
+    for(const a of (vrfObra.andares||[])){
+      if(a.pubToken){const p=await pubPayloadObra(a.id);if(p)await publicarAcompanhamento(a.pubToken,p);}
+    }
+  }catch(e){/* republicação é best-effort */}
+}
+
+/* ════════ PÁGINA PÚBLICA (o que o cliente vê) ════════ */
+function _pubRotaToken(){
+  const m=(location.hash||'').match(/^#\/ac\/([a-z0-9]{6,20})$/i);
+  return m?m[1]:null;
+}
+function iniciarModoPublico(token){
+  document.body.classList.add('modo-publico');
+  const sp=document.getElementById('splashScreen');if(sp)sp.remove();
+  const lg=document.getElementById('loginScreen');if(lg)lg.remove();
+  const ap=document.getElementById('app');if(ap)ap.remove();
+  const box=document.createElement('div');
+  box.id='pubScreen';
+  box.innerHTML=`<div class="pub-wrap"><div class="pub-load">Carregando acompanhamento...</div></div>`;
+  document.body.appendChild(box);
+  if(!fbInit()){
+    box.innerHTML=`<div class="pub-wrap"><div class="pub-erro"><b>Não foi possível conectar</b><span>Verifique sua internet e atualize a página.</span></div></div>`;
+    return;
+  }
+  const ref=fbDB.collection('workspaces').doc(WORKSPACE).collection('data').doc('pub_'+token);
+  let recebeu=false;
+  ref.onSnapshot(snap=>{
+    if(!snap.exists){
+      if(!recebeu)renderPublicoErro('Link não encontrado','Confira se o endereço está completo ou peça um novo link.');
+      return;
+    }
+    const d=snap.data();
+    try{recebeu=true;renderPublico(JSON.parse(d.json));}
+    catch(e){renderPublicoErro('Não foi possível carregar','Tente atualizar a página em instantes.');}
+  },err=>{
+    if(!recebeu)renderPublicoErro('Não foi possível carregar','Verifique sua internet e atualize a página.');
+  });
+  setTimeout(()=>{if(!recebeu)renderPublicoErro('Link não encontrado','Confira se o endereço está completo ou peça um novo link.');},12000);
+}
+function renderPublicoErro(t,s){
+  const box=document.getElementById('pubScreen');if(!box)return;
+  box.innerHTML=`<div class="pub-wrap"><div class="pub-erro"><b>${t}</b><span>${s}</span></div></div>`;
+}
+function _pubStatusLbl(s){
+  return s==='concluida'?'Concluído':s==='andamento'?'Em andamento':s==='revisao'?'Em revisão':'Aguardando início';
+}
+function renderPublico(d){
+  const box=document.getElementById('pubScreen');if(!box)return;
+  const concl=d.status==='concluida';
+  const hora=new Date(d.atualizadoEm||Date.now()).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+
+  const cardEtapa=e=>`
+    <div class="pub-et ${e.ok?'ok':e.prob?'prob':''}">
+      <div class="pub-et-top">
+        <span class="pub-et-mk">${e.ok?'&#10003;':e.prob?'!':''}</span>
+        <span class="pub-et-lbl">${e.label}</span>
+      </div>
+      ${e.nota?`<p class="pub-et-nota">${e.nota}</p>`:''}
+      ${e.foto?`<img class="pub-et-img" src="${e.foto}" loading="lazy" onclick="pubZoom(this.src)">`:''}
+      ${e.maisFotos?`<span class="pub-et-mais">+${e.maisFotos} foto${e.maisFotos>1?'s':''} no relatório final</span>`:''}
+    </div>`;
+
+  let corpo='';
+  if(d.tipo==='obra'){
+    corpo=(d.fases||[]).map(f=>`
+      <section class="pub-fase">
+        <header class="pub-fase-h"><h3>${f.nome}</h3><span>${f.pct}%</span></header>
+        <div class="pub-fase-bar"><i style="width:${f.pct}%"></i></div>
+        ${f.etapas.map(cardEtapa).join('')}
+      </section>`).join('');
+  }else{
+    const comFoto=(d.etapas||[]).filter(e=>e.foto||e.ok||e.prob);
+    corpo=comFoto.length
+      ?`<section class="pub-fase">${comFoto.map(cardEtapa).join('')}</section>`
+      :`<div class="pub-vazio">O técnico ainda não lançou etapas. Assim que começar, tudo aparece aqui automaticamente.</div>`;
+  }
+
+  box.innerHTML=`
+  <div class="pub-top">
+    <div class="pub-top-in">
+      <div class="pub-marca"><span class="pub-marca-n">Elite Ar</span><span class="pub-marca-s">Acompanhamento do serviço</span></div>
+      <span class="pub-live"><i></i>ao vivo</span>
+    </div>
+  </div>
+  <div class="pub-wrap">
+    <div class="pub-card">
+      <span class="pub-pill ${concl?'ok':d.status==='andamento'?'and':''}">${_pubStatusLbl(d.status)}</span>
+      <h1>${d.titulo}</h1>
+      <p class="pub-sub">${d.servico}</p>
+      <div class="pub-info">
+        ${d.endereco?`<span>${d.endereco}</span>`:''}
+        ${d.data?`<span>${fmtDate(d.data)}</span>`:''}
+        ${d.tecnico?`<span>Técnico: ${d.tecnico}</span>`:''}
+        ${d.checkin?`<span>Equipe no local desde ${d.checkin}</span>`:''}
+      </div>
+      <div class="pub-prog">
+        <div class="pub-prog-l"><span>Progresso</span><b>${d.progresso}%</b></div>
+        <div class="pub-prog-bar"><i style="width:${d.progresso}%"></i></div>
+      </div>
+    </div>
+    ${corpo}
+    ${d.cortadas?`<p class="pub-nota-corte">Este serviço tem mais ${d.cortadas} foto${d.cortadas>1?'s':''} registrada${d.cortadas>1?'s':''}. Todas entram no relatório final entregue pela Elite Ar.</p>`:''}
+    <p class="pub-foot">Atualizado às ${hora} · esta página se atualiza sozinha</p>
+  </div>
+  <div id="pubZoom" class="pub-zoom" onclick="this.classList.remove('on')"><img id="pubZoomImg"></div>`;
+}
+function pubZoom(src){
+  const z=document.getElementById('pubZoom');const i=document.getElementById('pubZoomImg');
+  if(!z||!i)return;i.src=src;z.classList.add('on');
+}
+
 /* ── BOOT ── */
+const _pubTok=_pubRotaToken();
+if(_pubTok){
+  iniciarModoPublico(_pubTok); // visitante: só lê o documento daquele serviço
+}else{
 fbBoot(); // conecta à nuvem, sincroniza e liga listeners em tempo real
 if(session){entrarApp();}
 else{onPerfilChange();}
 updateDate();
 if('Notification'in window&&Notification.permission==='default'){/* pede permissão no primeiro login */}
+}
 
 /* splash de entrada */
 window.addEventListener('load',()=>{
