@@ -935,13 +935,36 @@ let _quietWrite=false;      // true durante gravações vindas da nuvem (não re
 let _bootDone=false;        // gravações ANTES do boot completo (defaults) não contam como ação do usuário
 let _lastPushKey=null;      // diagnóstico: última chave que chegou ao fbPush
 const _snapshot={};         // último valor confirmado (enviado ou recebido) por chave
-let _localTouch={};         // timestamp da última alteração LOCAL de cada chave
-try{_localTouch=JSON.parse(localStorage.getItem('mappo_touch')||'{}');}catch(e){_localTouch={};}
+
+/* Coleções que são LISTAS DE REGISTROS: cada item tem identidade própria.
+   O merge é feito item a item — o gestor criar uma tarefa nunca apaga a
+   foto que o técnico acabou de lançar em OUTRA tarefa. */
+const ITEM_LISTS={'mappo_os':'id','mappo_manut':'id','mappo_tarefas':'id','mappo_clientes':'nome','mappo_tecnicos':'nome'};
+/* Coleções em dois níveis {grupo:{chave:valor}} — merge folha a folha */
+const LEAF_MAPS=['mappo_vrf_progresso','mappo_vrf_fotos','mappo_vrf_notas','mappo_vrf_fotos_meta'];
+const SEP='\u0001';
+
+/* Alterações LOCAIS ainda não confirmadas na nuvem.
+   _pend[chave] = conjunto de itens/folhas mexidos aqui e ainda não enviados.
+   Só esses vencem o que vem da nuvem; todo o resto a nuvem manda. */
+let _pend={};               // {chave: {id: 1}}
+let _localTouch={};         // {chave: ms} — usado só nas chaves de objeto único
+try{
+  const t=JSON.parse(localStorage.getItem('mappo_touch')||'{}');
+  if(t&&(t.ts||t.it)){_localTouch=t.ts||{};_pend=t.it||{};}
+}catch(e){_localTouch={};_pend={};}
 function _saveTouch(){
   _quietWrite=true;
-  try{localStorage.setItem('mappo_touch',JSON.stringify(_localTouch));}
+  try{localStorage.setItem('mappo_touch',JSON.stringify({ts:_localTouch,it:_pend}));}
   finally{_quietWrite=false;}
 }
+function _pendDe(key){return _pend[key]||(_pend[key]={});}
+function _temPend(key){return Object.keys(_pend[key]||{}).length>0;}
+
+function _arr(s){try{const v=JSON.parse(s||'[]');return Array.isArray(v)?v:[];}catch(e){return[];}}
+function _obj(s){try{const v=JSON.parse(s||'{}');return(v&&typeof v==='object'&&!Array.isArray(v))?v:{};}catch(e){return{};}}
+function _porId(lista,idf){const m={};(lista||[]).forEach(it=>{if(it&&it[idf]!==undefined)m[String(it[idf])]=it;});return m;}
+
 /* grava sem disparar push (usado quando o dado veio da nuvem) */
 function _setLocalQuiet(key,val){
   _quietWrite=true;
@@ -949,9 +972,54 @@ function _setLocalQuiet(key,val){
   finally{_quietWrite=false;}
   _snapshot[key]=val;
 }
-/* registra alteração local: marca o horário e agenda o envio */
-function _marcarAlteracaoLocal(key){
-  _localTouch[key]=Date.now();
+
+/* Compara o valor anterior com o novo e anota EXATAMENTE o que mudou aqui */
+function _anotarPendentes(key,antes,depois){
+  const idf=ITEM_LISTS[key];
+  if(idf){
+    const a=_porId(_arr(antes),idf), b=_porId(_arr(depois),idf), set=_pendDe(key);
+    Object.keys(a).concat(Object.keys(b)).forEach(id=>{
+      const x=a[id], y=b[id];
+      if(!x||!y){set[id]={'*':1};return;}            // item criado ou apagado aqui
+      if(set[id]&&set[id]['*'])return;
+      const campos=set[id]||(set[id]={});
+      Object.keys(x).concat(Object.keys(y)).forEach(c=>{
+        if(JSON.stringify(x[c])!==JSON.stringify(y[c]))campos[c]=1; // só o campo mexido
+      });
+      if(!Object.keys(campos).length)delete set[id];
+    });
+    return;
+  }
+  if(LEAF_MAPS.includes(key)){
+    const a=_obj(antes), b=_obj(depois), set=_pendDe(key);
+    Object.keys(a).concat(Object.keys(b)).forEach(g=>{
+      const x=a[g]||{}, y=b[g]||{};
+      Object.keys(x).concat(Object.keys(y)).forEach(k=>{
+        if(JSON.stringify(x[k])!==JSON.stringify(y[k]))set[g+SEP+k]=1;
+      });
+    });
+    return;
+  }
+  _localTouch[key]=Date.now(); // objeto único (obra, configurações)
+}
+
+/* Alterações locais que o monitor ainda não viu.
+   No iPhone/Safari o interceptor pode não disparar e a vigilância só passa a cada
+   3s — se um dado da nuvem chegasse nessa janela, ele apagava o que o técnico
+   acabou de lançar. Aqui conferimos antes de qualquer envio ou recebimento. */
+function _detectarMudancasNaoVistas(key){
+  const base=_snapshot[key];
+  if(base===undefined)return; // ainda sem referência (carga inicial)
+  const atual=localStorage.getItem(key);
+  if(atual===null||atual===base)return; // base pode ser null: coleção criada agora aqui
+  _anotarPendentes(key,base,atual);
+  _saveTouch();
+  _snapshot[key]=atual;
+}
+
+/* registra alteração local e agenda o envio */
+function _marcarAlteracaoLocal(key,antes,depois){
+  _anotarPendentes(key,antes,depois);
   _saveTouch();
   fbPush(key);
   if(typeof agendarRepublicacao==='function'&&PUB_KEYS.includes(key))agendarRepublicacao();
@@ -968,12 +1036,14 @@ const PUB_KEYS=['mappo_os','mappo_vrf_obra','mappo_vrf_progresso','mappo_vrf_fot
   try{
     const orig=Storage.prototype.setItem;
     Storage.prototype.setItem=function(k,v){
+      let sync=false,antes=null;
+      try{
+        sync=(this===window.localStorage&&!_quietWrite&&_bootDone&&SYNC_KEYS.includes(k));
+        if(sync)antes=localStorage.getItem(k);
+      }catch(e){sync=false;}
       orig.apply(this,arguments);
       try{
-        if(this===window.localStorage&&!_quietWrite&&_bootDone&&SYNC_KEYS.includes(k)){
-          _snapshot[k]=v;
-          _marcarAlteracaoLocal(k);
-        }
+        if(sync){_snapshot[k]=v;_marcarAlteracaoLocal(k,antes,v);}
       }catch(e){}
     };
   }catch(e){console.warn('[MAPPO] interceptor indisponível:',e.message);}
@@ -1004,8 +1074,11 @@ function _startPolling(){
     SYNC_KEYS.forEach(key=>{
       const raw=localStorage.getItem(key);
       if(raw!==null&&raw!==_snapshot[key]){
+        const antes=_snapshot[key];
         _snapshot[key]=raw;
-        _marcarAlteracaoLocal(key);
+        _marcarAlteracaoLocal(key,antes,raw);
+      }else if(_temPend(key)&&raw!==null){
+        fbPush(key); // sobrou pendência de um envio que falhou: tenta de novo
       }
     });
   },3000);
@@ -1041,39 +1114,66 @@ function fbPush(key){
   _pushTimers[key]=setTimeout(()=>_doPush(key),delay);
 }
 
+/* Grava mesclando com a nuvem DENTRO de uma transação.
+   Sem isso, dois aparelhos que enviam no mesmo instante leem o mesmo estado e o
+   último a gravar apaga o trabalho do primeiro — era o que fazia a foto do
+   técnico sumir quando o gestor mexia em outra coisa ao mesmo tempo. */
+async function _gravarMesclado(ref,mesclar){
+  const dados=json=>({json,updatedAt:firebase.firestore.FieldValue.serverTimestamp(),by:(session&&session.nome)||'?'});
+  if(fbDB&&typeof fbDB.runTransaction==='function'){
+    let out=null;
+    await fbDB.runTransaction(async tx=>{
+      const snap=await tx.get(ref);
+      const rj=(snap&&snap.exists)?(snap.data().json||null):null;
+      out=mesclar(rj);           // recalculado a cada nova tentativa
+      tx.set(ref,dados(out));
+    });
+    return out;
+  }
+  const snap=await ref.get();    // reserva: SDK sem transação
+  const rj=(snap&&snap.exists)?(snap.data().json||null):null;
+  const out=mesclar(rj);
+  await ref.set(dados(out));
+  return out;
+}
+
 async function _doPush(key){
   if(!fbReady)return;
   const nice=key.replace('mappo_','');
+  _detectarMudancasNaoVistas(key); // garante que nada local fique de fora do merge
   try{
     const raw=localStorage.getItem(key);
     if(raw===null)return;
     const ref=fbDB.collection('workspaces').doc(WORKSPACE).collection('data').doc(key);
-    if(APPEND_LISTS.includes(key)){
-      // listas append-only: junta com a nuvem antes de gravar (não perde nada de ninguém)
-      const snap=await ref.get();
-      let remoto=[];
-      if(snap.exists&&snap.data().json){try{remoto=JSON.parse(snap.data().json);}catch(e){}}
-      let local=[];try{local=JSON.parse(raw);}catch(e){}
-      const merged=_mergeLista(remoto,local);
-      const mergedStr=JSON.stringify(merged);
-      if(mergedStr!==raw){_setLocalQuiet(key,mergedStr);_aplicarNaMemoria(key,merged);}
-      await ref.set({json:mergedStr,updatedAt:firebase.firestore.FieldValue.serverTimestamp(),by:(session&&session.nome)||'?'});
-      fbLog('Enviado: '+nice+' ('+merged.length+' itens)','push');
-    }else if(MERGE_MAPS.includes(key)){
-      // mapas por técnico: junta com a nuvem, a entrada mais recente de cada pessoa vence
-      const snap=await ref.get();
-      let remoto={};
-      if(snap.exists&&snap.data().json){try{remoto=JSON.parse(snap.data().json);}catch(e){}}
-      let local={};try{local=JSON.parse(raw);}catch(e){}
-      const merged=_mergeMapa(remoto,local);
-      const mergedStr=JSON.stringify(merged);
-      if(mergedStr!==raw){_setLocalQuiet(key,mergedStr);_aplicarNaMemoria(key,merged);}
-      await ref.set({json:mergedStr,updatedAt:firebase.firestore.FieldValue.serverTimestamp(),by:(session&&session.nome)||'?'});
-      fbLog('Enviado: '+nice,'push');
-    }else{
-      await ref.set({json:raw,updatedAt:firebase.firestore.FieldValue.serverTimestamp(),by:(session&&session.nome)||'?'});
-      fbLog('Enviado: '+nice,'push');
+
+    /* Como este dado se junta com o que já está na nuvem.
+       Roda de novo a cada tentativa da transação, então não altera nada aqui fora. */
+    const mesclar=rj=>{
+      if(APPEND_LISTS.includes(key))return JSON.stringify(_mergeLista(rj?_arr(rj):[],_arr(raw)));
+      if(MERGE_MAPS.includes(key))return JSON.stringify(_mergeMapa(rj?_obj(rj):{},_obj(raw)));
+      if(ITEM_LISTS[key]!==undefined){
+        if(rj===null)return raw;                       // primeira gravação
+        const remoto=_arr(rj),local=_arr(raw);
+        if(!remoto.length&&local.length)return raw;    // nuvem vazia não apaga o que existe aqui
+        return JSON.stringify(_mergeItens(key,remoto,local));
+      }
+      if(LEAF_MAPS.includes(key)){
+        if(rj===null)return raw;
+        const remoto=_obj(rj),local=_obj(raw);
+        if(!Object.keys(remoto).length&&Object.keys(local).length)return raw;
+        return JSON.stringify(_mergeLeafs(key,remoto,local));
+      }
+      return raw;                                      // objeto único (obra, configurações)
+    };
+
+    const mergedStr=await _gravarMesclado(ref,mesclar);
+    if(mergedStr!==raw){
+      // a nuvem trouxe coisas de outros aparelhos junto: aplica aqui também
+      let val=null;try{val=JSON.parse(mergedStr);}catch(e){}
+      if(val!==null){_setLocalQuiet(key,mergedStr);_aplicarNaMemoria(key,val);fbOnRemoteChange(key);}
     }
+    _confirmarEnvio(key,mergedStr);
+    fbLog('Enviado: '+nice,'push');
     _snapshot[key]=localStorage.getItem(key);
   }catch(e){
     delete _snapshot[key]; // a vigilância contínua vai tentar de novo
@@ -1089,6 +1189,82 @@ function _mergeLista(a,b){
     if(!vistos[id]){vistos[id]=true;out.push(item);}
   });
   return out;
+}
+
+/* Une duas listas de registros item a item.
+   Regra: só o que foi mexido AQUI e ainda não subiu vence; todo o resto vem da nuvem.
+   Isso vale inclusive para ausências — apagar aqui remove, apagar lá também remove. */
+function _mergeItens(key,remoto,local){
+  const idf=ITEM_LISTS[key], pend=_pend[key]||{};
+  const mr=_porId(remoto,idf), ml=_porId(local,idf);
+  const out=[],visto={};
+  const ordem=(local||[]).map(x=>String(x&&x[idf])).concat((remoto||[]).map(x=>String(x&&x[idf])));
+  ordem.forEach(id=>{
+    if(id==='undefined'||visto[id])return;
+    visto[id]=1;
+    const p=pend[id];
+    if(!p){if(mr[id]!==undefined)out.push(mr[id]);return;}   // intocado aqui: a nuvem manda
+    if(p['*']){if(ml[id]!==undefined)out.push(ml[id]);return;} // criado/apagado aqui
+    const r=mr[id], l=ml[id];
+    if(l===undefined)return;
+    if(r===undefined){out.push(l);return;}
+    // mesmo item mexido dos dois lados: parte da versão da nuvem e aplica só os campos daqui
+    const m=Object.assign({},r);
+    Object.keys(p).forEach(c=>{if(l[c]===undefined)delete m[c];else m[c]=l[c];});
+    out.push(m);
+  });
+  return out;
+}
+
+/* Une dois mapas {grupo:{chave:valor}} folha a folha (progresso, fotos e notas do VRF).
+   Dois técnicos em andares diferentes deixam de sobrescrever um ao outro. */
+function _mergeLeafs(key,remoto,local){
+  const pend=_pend[key]||{};
+  let out;try{out=JSON.parse(JSON.stringify(remoto||{}));}catch(e){out={};}
+  Object.keys(pend).forEach(path=>{
+    const i=path.indexOf(SEP);if(i<0)return;
+    const g=path.slice(0,i),k=path.slice(i+1);
+    const lv=(local&&local[g])?local[g][k]:undefined;
+    if(lv===undefined){
+      if(out[g]){delete out[g][k];if(!Object.keys(out[g]).length)delete out[g];}
+    }else{
+      out[g]=out[g]||{};out[g][k]=lv;
+    }
+  });
+  return out;
+}
+
+/* Limpa as pendências que já foram confirmadas na nuvem.
+   Só solta o item se o que está aqui agora é igual ao que subiu — assim uma
+   alteração feita durante o envio não é perdida. */
+function _confirmarEnvio(key,enviadoStr){
+  const idf=ITEM_LISTS[key];
+  const atual=localStorage.getItem(key);
+  if(idf){
+    const env=_porId(_arr(enviadoStr),idf), ag=_porId(_arr(atual),idf), pend=_pendDe(key);
+    Object.keys(pend).forEach(id=>{
+      const p=pend[id];
+      if(p&&p['*']){
+        if(JSON.stringify(env[id])===JSON.stringify(ag[id]))delete pend[id];
+        return;
+      }
+      Object.keys(p||{}).forEach(c=>{
+        if(JSON.stringify((env[id]||{})[c])===JSON.stringify((ag[id]||{})[c]))delete p[c];
+      });
+      if(!Object.keys(p||{}).length)delete pend[id];
+    });
+  }else if(LEAF_MAPS.includes(key)){
+    const env=_obj(enviadoStr), ag=_obj(atual), pend=_pendDe(key);
+    Object.keys(pend).forEach(path=>{
+      const i=path.indexOf(SEP);if(i<0){delete pend[path];return;}
+      const g=path.slice(0,i),k=path.slice(i+1);
+      if(JSON.stringify((env[g]||{})[k])===JSON.stringify((ag[g]||{})[k]))delete pend[path];
+    });
+  }else{
+    if(atual===enviadoStr)delete _localTouch[key];
+  }
+  if(_pend[key]&&!Object.keys(_pend[key]).length)delete _pend[key];
+  _saveTouch();
 }
 
 /* Une dois mapas {nomeTecnico: dados}: para cada pessoa, vence a entrada mais recente.
@@ -1130,6 +1306,7 @@ function _aplicarNaMemoria(key,val){
 function fbApply(key,jsonStr,remoteMs){
   if(jsonStr===null||jsonStr===undefined)return;
   const nice=key.replace('mappo_','');
+  _detectarMudancasNaoVistas(key); // protege o que foi lançado aqui e ainda não subiu
   const atual=localStorage.getItem(key);
   if(atual===jsonStr){_snapshot[key]=jsonStr;return;} // sem mudança real
   try{
@@ -1160,7 +1337,30 @@ function fbApply(key,jsonStr,remoteMs){
       if(mudouLocal)fbOnRemoteChange(key); // sem log: localização atualiza o tempo todo
       return;
     }
-    // Dados de estado: o mais RECENTE vence (nunca sobrescreve alteração local mais nova)
+    // Listas de registros (OS, tarefas, manutenções, clientes, técnicos)
+    // e mapas do VRF: mescla item a item, preservando só o que ainda não subiu daqui.
+    if(ITEM_LISTS[key]!==undefined||LEAF_MAPS.includes(key)){
+      const ehLista=ITEM_LISTS[key]!==undefined;
+      const remoto=ehLista?_arr(jsonStr):_obj(jsonStr);
+      const local=ehLista?_arr(atual):_obj(atual);
+      const vazioRemoto=ehLista?!remoto.length:!Object.keys(remoto).length;
+      const temLocal=ehLista?!!local.length:!!Object.keys(local).length;
+      if(vazioRemoto&&temLocal){ // nuvem vazia não apaga o que existe aqui
+        setTimeout(()=>{if(fbReady)_doPush(key);},200);
+        return;
+      }
+      const merged=ehLista?_mergeItens(key,remoto,local):_mergeLeafs(key,remoto,local);
+      const mergedStr=JSON.stringify(merged);
+      if(mergedStr===atual){_snapshot[key]=mergedStr;return;}
+      _setLocalQuiet(key,mergedStr);
+      _aplicarNaMemoria(key,merged);
+      // se ainda temos algo que a nuvem não tem, devolve o conjunto completo
+      if(mergedStr!==jsonStr&&_temPend(key))setTimeout(()=>{if(fbReady)_doPush(key);},200);
+      fbLog('Recebido: '+nice,'pull');
+      fbOnRemoteChange(key);
+      return;
+    }
+    // Objeto único (obra, configurações): o mais recente vence
     const touch=_localTouch[key]||0;
     if(touch&&(!remoteMs||touch>remoteMs)){
       fbLog('Mantido local (mais recente): '+nice,'info');
@@ -1263,9 +1463,11 @@ async function fbSeedFromLocal(){
 /* Boot da nuvem: conecta, puxa, semeia o que falta, e liga listeners */
 async function fbBoot(){
   if(!fbInit()){_bootDone=true;_testInterceptor();return;}
-  await fbPullAll();      // 1. baixa o que já existe na nuvem (com proteção do mais recente)
+  // referência inicial ANTES de baixar — inclusive das coleções ainda vazias,
+  // senão uma primeira gravação feita aqui não seria reconhecida como nossa
+  SYNC_KEYS.forEach(k=>{_snapshot[k]=localStorage.getItem(k);});
+  await fbPullAll();      // 1. baixa o que já existe na nuvem
   await fbSeedFromLocal();// 2. sobe o que só existe local
-  SYNC_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!==null)_snapshot[k]=v;}); // baseline
   _bootDone=true;         // a partir daqui, gravações são ações reais do usuário
   _testInterceptor();     // confirma se o monitor automático funciona neste navegador
   fbStartListeners();     // 3. escuta mudanças ao vivo
@@ -1308,8 +1510,15 @@ async function syncManual(){
     let enviados=0;
     for(const key of SYNC_KEYS){
       const raw=localStorage.getItem(key);
-      if(raw!==null&&raw!==_snapshot[key]){
-        _localTouch[key]=_localTouch[key]||Date.now();
+      if(raw===null)continue;
+      const mudouForaDoMonitor=(raw!==_snapshot[key]);
+      if(mudouForaDoMonitor){
+        // registra o que mudou antes de enviar, para o merge saber o que é nosso
+        _anotarPendentes(key,_snapshot[key],raw);
+        _saveTouch();
+        _snapshot[key]=raw;
+      }
+      if(mudouForaDoMonitor||_temPend(key)||_localTouch[key]){
         await _doPush(key);
         enviados++;
       }
@@ -2347,7 +2556,7 @@ function renderVRFtecnico(){
     <button class="btn btn-primary btn-block" onclick="vrfEnviarRelatorio()">${svgIco('check')} Enviar relatório ao gestor</button>
   </div>
 
-  <input type="file" id="vrfCameraInput" accept="image/*" capture="environment" style="display:none">`;
+  <input type="file" id="vrfCameraInput" accept="image/*" style="display:none">`;
 }
 
 // progresso da missão (soma de todos os andares)
@@ -4045,7 +4254,7 @@ function renderExecTarefa(t){
     ${podeFoto
       ?`<button class="btn btn-ghost" style="width:100%;margin-top:${nf?'12px':'0'}" onclick="document.getElementById('tarefaCamInput').click()">${svgIco('camera','ico-sm')} Tirar foto</button>`
       :`<p style="font-size:12.5px;color:var(--gray-400);margin-top:10px">Limite de fotos atingido.</p>`}
-    <input type="file" id="tarefaCamInput" accept="image/*" capture="environment" style="display:none">
+    <input type="file" id="tarefaCamInput" accept="image/*" style="display:none">
   </div></div>
 
   ${secNotas}
@@ -4237,12 +4446,12 @@ function switchEquipTab(i){
     <div class="fg"><label>Modelo</label><input type="text" value="${e.modelo||''}" oninput="updEquip(${i},'modelo',this.value)" placeholder="Modelo do aparelho"></div>
     <div class="fg"><label>📷 Etiqueta — Evaporadora</label>
       <button class="btn ${e.fotoEvap?'btn-gold':'btn-ghost'}" style="width:100%" onclick="document.getElementById('fEvap${i}').click()">${e.fotoEvap?'✅ Foto enviada — trocar':'📷 Tirar foto'}</button>
-      <input type="file" id="fEvap${i}" accept="image/*" capture="environment" style="display:none" onchange="onEquipFoto(event,${i},'evap')">
+      <input type="file" id="fEvap${i}" accept="image/*" style="display:none" onchange="onEquipFoto(event,${i},'evap')">
       ${e.fotoEvap?`<img src="${e.fotoEvap}" style="width:100%;margin-top:8px;border-radius:8px;border:2px solid var(--green)">`:''}
     </div>
     <div class="fg"><label>📷 Etiqueta — Condensadora</label>
       <button class="btn ${e.fotoCond?'btn-gold':'btn-ghost'}" style="width:100%" onclick="document.getElementById('fCond${i}').click()">${e.fotoCond?'✅ Foto enviada — trocar':'📷 Tirar foto'}</button>
-      <input type="file" id="fCond${i}" accept="image/*" capture="environment" style="display:none" onchange="onEquipFoto(event,${i},'cond')">
+      <input type="file" id="fCond${i}" accept="image/*" style="display:none" onchange="onEquipFoto(event,${i},'cond')">
       ${e.fotoCond?`<img src="${e.fotoCond}" style="width:100%;margin-top:8px;border-radius:8px;border:2px solid var(--green)">`:''}
     </div>`;
 }
@@ -4280,7 +4489,7 @@ function renderChecklistExec(){
         </div>
         ${showFoto?`<div style="padding:0 14px 14px">
           <button class="btn ${item.foto?'btn-gold':'btn-ghost'} btn-sm" style="width:100%" onclick="document.getElementById('cf${i}').click()">${item.foto?'✅ Foto enviada — trocar':'📷 Foto obrigatória'}</button>
-          <input type="file" id="cf${i}" accept="image/*" capture="environment" style="display:none" onchange="onCheckFoto(event,${i})">
+          <input type="file" id="cf${i}" accept="image/*" style="display:none" onchange="onCheckFoto(event,${i})">
           ${item.foto?`<img src="${item.foto}" style="width:100%;margin-top:8px;border-radius:8px;border:2px solid var(--green)">`:''}
         </div>`:''}
       </div>`;
