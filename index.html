@@ -1104,7 +1104,7 @@ function fbInit(onAuthReady,onAuthFail){
       }
     });
     firebase.auth().signInAnonymously()
-      .catch(e=>{fbLog('Falha na autenticação: '+e.code,'erro');if(onAuthFail)onAuthFail();});
+      .catch(e=>{fbLog('Falha na autenticação: '+e.code+' — '+e.message,'erro');if(onAuthFail)onAuthFail();});
     return true;
   }catch(e){fbLog('Falha ao iniciar Firebase: '+e.message,'erro');return false;}
 }
