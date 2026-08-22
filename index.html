@@ -1084,14 +1084,27 @@ function _startPolling(){
   },3000);
 }
 
-/* Inicializa Firebase; se falhar, app segue offline com localStorage */
-function fbInit(){
+/* Inicializa Firebase e autentica anonimamente; se falhar, app segue offline com localStorage.
+   Nenhuma leitura/escrita no Firestore pode rodar antes do onAuthStateChanged confirmar o
+   usuário — por isso fbReady só vira true ali dentro, e não logo após initializeApp(). */
+function fbInit(onAuthReady,onAuthFail){
   try{
     if(!window.firebase){fbLog('Firebase SDK não carregou — modo offline','erro');return false;}
+    if(fbApp){
+      if(fbReady)(onAuthReady||initSync)(); // já autenticado (ex.: nova tentativa de conexão)
+      return true;
+    }
     fbApp=firebase.initializeApp(firebaseConfig);
     fbDB=firebase.firestore();
-    fbReady=true;
-    fbLog('Conectado à nuvem','ok');
+    firebase.auth().onAuthStateChanged(user=>{
+      if(user){
+        fbReady=true;
+        fbLog('Autenticado na nuvem (uid: '+user.uid+')','ok');
+        (onAuthReady||initSync)();
+      }
+    });
+    firebase.auth().signInAnonymously()
+      .catch(e=>{fbLog('Falha na autenticação: '+e.code,'erro');if(onAuthFail)onAuthFail();});
     return true;
   }catch(e){fbLog('Falha ao iniciar Firebase: '+e.message,'erro');return false;}
 }
@@ -1460,9 +1473,9 @@ async function fbSeedFromLocal(){
   }
 }
 
-/* Boot da nuvem: conecta, puxa, semeia o que falta, e liga listeners */
-async function fbBoot(){
-  if(!fbInit()){_bootDone=true;_testInterceptor();return;}
+/* Sincronização inicial com a nuvem: só roda depois que fbInit confirma o login anônimo
+   (onAuthStateChanged), garantindo que nenhuma leitura/escrita no Firestore aconteça antes disso. */
+async function initSync(){
   // referência inicial ANTES de baixar — inclusive das coleções ainda vazias,
   // senão uma primeira gravação feita aqui não seria reconhecida como nossa
   SYNC_KEYS.forEach(k=>{_snapshot[k]=localStorage.getItem(k);});
@@ -1472,6 +1485,11 @@ async function fbBoot(){
   _testInterceptor();     // confirma se o monitor automático funciona neste navegador
   fbStartListeners();     // 3. escuta mudanças ao vivo
   _startPolling();        // 4. vigilância contínua (rede de segurança p/ qualquer navegador)
+}
+
+/* Boot da nuvem: autentica e, quando confirmado, chama initSync() */
+async function fbBoot(){
+  if(!fbInit(initSync,()=>{_bootDone=true;_testInterceptor();})){_bootDone=true;_testInterceptor();return;}
 }
 
 
@@ -4866,10 +4884,11 @@ function iniciarModoPublico(token){
   box.id='pubScreen';
   box.innerHTML=`<div class="pub-wrap"><div class="pub-load">Carregando acompanhamento...</div></div>`;
   document.body.appendChild(box);
-  if(!fbInit()){
-    box.innerHTML=`<div class="pub-wrap"><div class="pub-erro"><b>Não foi possível conectar</b><span>Verifique sua internet e atualize a página.</span></div></div>`;
-    return;
-  }
+  const erroConexao=()=>{box.innerHTML=`<div class="pub-wrap"><div class="pub-erro"><b>Não foi possível conectar</b><span>Verifique sua internet e atualize a página.</span></div></div>`;};
+  // só consulta o Firestore depois que fbInit confirmar o login anônimo (onAuthStateChanged)
+  if(!fbInit(()=>_pubOuvirToken(token),erroConexao))erroConexao();
+}
+function _pubOuvirToken(token){
   const ref=fbDB.collection('workspaces').doc(WORKSPACE).collection('data').doc('pub_'+token);
   let recebeu=false;
   ref.onSnapshot(snap=>{
