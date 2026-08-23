@@ -792,6 +792,13 @@
   <div class="login-box" id="cadastroBox" style="display:none">
     <h2>Cadastrar empresa</h2>
     <div class="fg login-field"><label>Nome da empresa</label><input type="text" id="cadEmpresa" placeholder="Ex.: Elite Ar"></div>
+    <div class="fg login-field"><label>Ramo de atuação</label>
+      <select id="cadRamo">
+        <option value="">Selecione…</option>
+        <option value="refrigeracao">Refrigeração/Climatização</option>
+        <option value="predial">Manutenção Predial Geral</option>
+      </select>
+    </div>
     <div class="fg login-field"><label>Seu nome</label><input type="text" id="cadNome" placeholder="Seu nome completo"></div>
     <div class="fg login-field"><label>E-mail</label><input type="email" id="cadEmail" placeholder="voce@empresa.com" autocomplete="username"></div>
     <div class="fg login-field"><label>Senha</label><input type="password" id="cadSenha" placeholder="Mínimo 6 caracteres" autocomplete="new-password"></div>
@@ -853,7 +860,7 @@
     </div>
 
     <nav class="sidebar-nav">
-      <div class="nav-section-label">Sistemas Elite Ar</div>
+      <div class="nav-section-label">Sistemas</div>
       <button class="nav-item" data-view="splits" onclick="nav('splits')">
         <span class="nav-ico" id="navico-splits"></span> Sistema Split
       </button>
@@ -934,13 +941,16 @@ const firebaseConfig = {
 /* Estado da nuvem */
 let fbApp=null, fbDB=null, fbReady=false, fbSyncing=false;
 let WORKSPACE=null; // isolamento multi-tenant: resolvido por uid (userWorkspaces+members) antes de fbReady=true -- AD-3/AD-11
+let WORKSPACE_RAMO=null; // ramo do workspace resolvido (Story 2) -- null em workspaces anteriores a esta story (ex.: Elite Ar) ou antes de resolver
+let WORKSPACE_NOME=null; // nome real da empresa (adendo Story 2 -- substitui o "Elite Ar" hardcoded); null antes de resolver
 let _signupInProgress=false; // suprime a resolução automática de workspace enquanto cadastrarEmpresa() grava o lote atomicamente
 
 /* Mapa das coleções sincronizadas: chave localStorage → doc no Firestore */
 const SYNC_KEYS=[
   'mappo_tecnicos','mappo_os','mappo_clientes','mappo_manut','mappo_settings',
   'mappo_vrf_obra','mappo_vrf_progresso','mappo_vrf_fotos','mappo_vrf_notas',
-  'mappo_vrf_relatorios','mappo_vrf_checkins','mappo_vrf_fotos_meta','mappo_locations','mappo_tarefas','mappo_live'
+  'mappo_vrf_relatorios','mappo_vrf_checkins','mappo_vrf_fotos_meta','mappo_locations','mappo_tarefas','mappo_live',
+  'mappo_checklist_config'
 ];
 
 /* ── Estado do monitor de alterações ── */
@@ -1159,19 +1169,26 @@ async function _resolverWorkspace(user,onReady,onNoAccess){
     // status do workspace (gate de aprovação manual, piloto privado): membership por si só
     // não libera sync -- só workspace 'ativo' libera. wsSnap pode falhar por regra (isMember
     // já é true aqui, então só falta o proprio doc existir) -- default pendente se não ler.
-    let status='pendente';
-    try{const wsSnap=await fbDB.collection('workspaces').doc(wsId).get();status=(wsSnap.exists&&wsSnap.data().status)||'pendente';}catch(e){}
+    // ramo/nome da empresa (Story 2 + adendo): lidos do mesmo snapshot -- null em
+    // workspaces anteriores a esta story (ex.: Elite Ar não tinha ramo; nome sempre existiu
+    // mas nunca era lido de volta pro cliente).
+    let status='pendente', ramo=null, wsNome=null;
+    try{const wsSnap=await fbDB.collection('workspaces').doc(wsId).get();if(wsSnap.exists){status=wsSnap.data().status||'pendente';ramo=wsSnap.data().ramo||null;wsNome=wsSnap.data().nome||null;}}catch(e){}
     WORKSPACE=wsId;
+    WORKSPACE_RAMO=ramo;
+    WORKSPACE_NOME=wsNome;
     fbReady=true; // só agora: auth + membership + workspace resolveram juntos (AD-3/AD-11)
-    _cacheWorkspace(user.uid,wsId,role,nome,status);
+    _cacheWorkspace(user.uid,wsId,role,nome,status,ramo,wsNome);
     fbLog('Autenticado (uid: '+user.uid+') — workspace '+wsId+' — perfil '+role+' — status '+status,'ok');
-    if(onReady)onReady({uid:user.uid,workspaceId:wsId,role,nome,status});
+    if(onReady)onReady({uid:user.uid,workspaceId:wsId,role,nome,status,ramo,wsNome});
   }catch(e){
     const semAcessoReal=(e.code==='sem-workspace'||e.code==='sem-membership');
     if(!semAcessoReal){
       const cache=_lerCacheWorkspace(user.uid);
       if(cache){
         WORKSPACE=cache.workspaceId;
+        WORKSPACE_RAMO=cache.ramo||null;
+        WORKSPACE_NOME=cache.wsNome||null;
         fbReady=true;
         fbLog('Sem rede — usando workspace em cache ('+cache.workspaceId+')','info');
         if(onReady)onReady(cache);
@@ -1182,8 +1199,8 @@ async function _resolverWorkspace(user,onReady,onNoAccess){
     if(onNoAccess)onNoAccess(user);
   }
 }
-function _cacheWorkspace(uid,workspaceId,role,nome,status){
-  try{localStorage.setItem('mappo_ws_cache',JSON.stringify({uid,workspaceId,role,nome,status:status||'ativo'}));}catch(e){}
+function _cacheWorkspace(uid,workspaceId,role,nome,status,ramo,wsNome){
+  try{localStorage.setItem('mappo_ws_cache',JSON.stringify({uid,workspaceId,role,nome,status:status||'ativo',ramo:ramo||null,wsNome:wsNome||null}));}catch(e){}
 }
 function _lerCacheWorkspace(uid){
   try{const c=JSON.parse(localStorage.getItem('mappo_ws_cache')||'null');return(c&&c.uid===uid)?c:null;}catch(e){return null;}
@@ -1265,10 +1282,12 @@ function _mensagemErroAuth(code){
    members/{uid} (bootstrap) e userWorkspaces/{uid} atomicamente (AD-2/AD-11). */
 async function cadastrarEmpresa(){
   const empresa=(document.getElementById('cadEmpresa').value||'').trim();
+  const ramo=(document.getElementById('cadRamo').value||'').trim();
   const nome=(document.getElementById('cadNome').value||'').trim();
   const email=(document.getElementById('cadEmail').value||'').trim();
   const senha=document.getElementById('cadSenha').value||'';
   if(!empresa||!nome){toast('Preencha o nome da empresa e o seu nome','warn');return;}
+  if(!ramo||!RAMO_TEMPLATES[ramo]){toast('Selecione o ramo de atuação da empresa','warn');return;}
   if(!email||!senha){toast('Informe e-mail e senha','warn');return;}
   if(senha.length<6){toast('Senha precisa de pelo menos 6 caracteres','warn');return;}
   const wsId=_slugify(empresa);
@@ -1288,10 +1307,15 @@ async function cadastrarEmpresa(){
     const batch=fbDB.batch();
     // status 'pendente': gate de aprovação manual (piloto privado) -- só o dono do projeto
     // aprova, direto no Firebase Console, fora do alcance destas regras (ver firestore.rules).
-    batch.set(fbDB.collection('workspaces').doc(wsId),{criado:true,nome:empresa,status:'pendente',criadoEm:firebase.firestore.FieldValue.serverTimestamp()});
+    batch.set(fbDB.collection('workspaces').doc(wsId),{criado:true,nome:empresa,ramo,status:'pendente',criadoEm:firebase.firestore.FieldValue.serverTimestamp()});
     batch.set(fbDB.collection('workspaces').doc(wsId).collection('members').doc(uid),{role:'gestor',nome,criadoEm:firebase.firestore.FieldValue.serverTimestamp()});
     batch.set(fbDB.collection('userWorkspaces').doc(uid),{workspaceId:wsId});
     await batch.commit();
+    // clona o template do Ramo (nunca por referência) e grava local ANTES de resolver o
+    // workspace: fbSeedFromLocal só sobe uma chave que já existe no localStorage, e
+    // _resolverWorkspace->initSync roda logo a seguir (ver nota em fbSeedFromLocal)
+    checklistConfig=JSON.parse(JSON.stringify(RAMO_TEMPLATES[ramo]));
+    saveChecklistConfig();
     _signupInProgress=false;
     fbLog('Empresa criada: '+wsId,'ok');
     await _resolverWorkspace(cred.user,_aplicarSessaoResolvida,_mostrarSemAcesso);
@@ -1532,6 +1556,7 @@ function _aplicarNaMemoria(key,val){
     case'mappo_clientes':clientes=val;break;
     case'mappo_manut':manutencoes=val;break;
     case'mappo_settings':settings=val;break;
+    case'mappo_checklist_config':checklistConfig=val;break;
     case'mappo_vrf_obra':vrfObra=val;break;
     case'mappo_vrf_progresso':vrfProgresso=val;break;
     case'mappo_vrf_fotos':vrfFotos=val;break;
@@ -1632,6 +1657,7 @@ function fbOnRemoteChange(key){
     'mappo_os':['dashboard','ordens','home'],
     'mappo_manut':['dashboard','manutencoes','home'],
     'mappo_tecnicos':['config','mapa'],
+    'mappo_checklist_config':['config'],
     'mappo_vrf_obra':['vrf','vrf-andares','home','dashboard'],
     'mappo_vrf_progresso':['vrf','vrf-andares','home','dashboard'],
     'mappo_vrf_fotos':['vrf','vrf-fotos'],
@@ -1957,10 +1983,62 @@ const CHECKLIST_MANUT = [
   {id:'m_ambiente',label:'Ambiente limpo e organizado na saída',critico:true},
 ];
 
+/* Checklist de SERVIÇO — Manutenção Predial Geral */
+const CHECKLIST_PREDIAL_BASE = [
+  {id:'pred_diagnostico',label:'Diagnóstico inicial do local registrado',critico:true},
+  {id:'pred_seguranca',label:'Equipamentos de segurança (EPI) verificados',critico:true},
+  {id:'pred_execucao',label:'Serviço executado conforme solicitado',critico:true},
+  {id:'pred_teste',label:'Teste de funcionamento realizado',critico:true},
+  {id:'pred_limpeza',label:'Limpeza do local após o serviço',critico:false},
+  {id:'pred_orientacao',label:'Cliente orientado sobre o serviço realizado',critico:false},
+];
+
+/* Checklist de MANUTENÇÃO — Manutenção Predial Geral (ids com prefixo m_: mesma
+   convenção de CHECKLIST_MANUT, exigida por corrigirChecklistSeVazio pra distinguir
+   um checklist de manutenção de um de instalação/serviço, veja mais abaixo) */
+const CHECKLIST_PREDIAL_MANUT = [
+  {id:'m_pred_antes',label:'Antes: registro do estado inicial',critico:true},
+  {id:'m_pred_inspecao',label:'Inspeção geral das instalações',critico:true},
+  {id:'m_pred_ajustes',label:'Ajustes e pequenos reparos realizados',critico:true},
+  {id:'m_pred_teste',label:'Teste de funcionamento pós-manutenção',critico:true},
+  {id:'m_pred_depois',label:'Depois: registro do estado final',critico:true},
+  {id:'m_pred_ambiente',label:'Ambiente limpo e organizado na saída',critico:true},
+];
+
+/* Registro dos Ramos do MVP (2 Ramos): cada um aponta pro par de templates-fonte que
+   é clonado (nunca referenciado — JSON.parse(JSON.stringify(...))) pro workspace novo
+   em cadastrarEmpresa(). Mais Ramos aqui exigiria decisão explícita (fora do MVP). */
+const RAMO_TEMPLATES = {
+  refrigeracao:{nome:'Refrigeração/Climatização',instalacao:CHECKLIST_BASE,manutencao:CHECKLIST_MANUT},
+  predial:{nome:'Manutenção Predial Geral',instalacao:CHECKLIST_PREDIAL_BASE,manutencao:CHECKLIST_PREDIAL_MANUT},
+};
+
+/* Clone do template do workspace, carregado uma vez no boot (mesmo padrão de
+   tecnicos/settings) e sincronizado como objeto único (mais recente vence, sem merge
+   por campo — ver _aplicarNaMemoria/SYNC_KEYS). null == workspace anterior a esta
+   story (ex.: Elite Ar): checklistDoTipo cai no fallback pras constantes globais,
+   sem exigir recadastro (sem regressão, sem migração forçada). */
+let checklistConfig = JSON.parse(localStorage.getItem('mappo_checklist_config')||'null');
+function saveChecklistConfig(){localStorage.setItem('mappo_checklist_config',JSON.stringify(checklistConfig));}
+
+/* Fonte do checklist do Ramo quando checklistConfig ainda não chegou neste aparelho
+   (ex.: técnico autentica num workspace predial recém-criado antes do fbSeedFromLocal
+   descer mappo_checklist_config): usa RAMO_TEMPLATES[WORKSPACE_RAMO] em vez de cair
+   direto nas constantes de refrigeração -- só cai nelas quando o ramo é mesmo
+   desconhecido (workspace anterior a esta story, ex.: Elite Ar). Só leitura: não
+   muta RAMO_TEMPLATES nem o array retornado (quem chama sempre faz .map com spread). */
+function _fallbackChecklistRamo(manut){
+  const tpl=WORKSPACE_RAMO&&RAMO_TEMPLATES[WORKSPACE_RAMO];
+  if(tpl)return manut?tpl.manutencao:tpl.instalacao;
+  return manut?CHECKLIST_MANUT:CHECKLIST_BASE;
+}
 /* Escolhe o checklist certo conforme o tipo de serviço da OS */
 function ehManutencao(tipo){return /manuten/i.test(tipo||'');}
 function checklistDoTipo(tipo){
-  return (ehManutencao(tipo)?CHECKLIST_MANUT:CHECKLIST_BASE).map(c=>({...c,status:'pending',foto:null}));
+  const manut=ehManutencao(tipo);
+  const fonteConfig=checklistConfig&&(manut?checklistConfig.manutencao:checklistConfig.instalacao);
+  const fonte=(fonteConfig&&fonteConfig.length)?fonteConfig:_fallbackChecklistRamo(manut);
+  return fonte.map(c=>({...c,status:'pending',foto:null}));
 }
 /* Uma OS antiga pode ter vindo com o checklist errado (manutenção usando o de instalação).
    Se nada foi preenchido ainda, troca pelo correto sem perder trabalho do técnico. */
@@ -2392,7 +2470,7 @@ function renderBemVindoGestor(){
   return `
   <div class="bemvindo">
     <div class="bv-hero">
-      <div class="bv-title">Bem-vindo, ${session.nome||'Elite Ar'}!</div>
+      <div class="bv-title">Bem-vindo, ${session.nome||'Gestor'}!</div>
       <div class="bv-sub">Por onde você quer começar hoje?</div>
     </div>
     <div class="bv-cards">
@@ -3495,7 +3573,7 @@ function gerarPDFandar(andarId){
   doc.setFillColor(24,81,102);doc.rect(0,0,W,32,'F');
   doc.setTextColor(255,255,255);
   doc.setFont('helvetica','bold');doc.setFontSize(20);
-  doc.text('ELITE AR',M,15);
+  doc.text(semAcento(WORKSPACE_NOME||'MAPPO').toUpperCase(),M,15);
   doc.setFont('helvetica','normal');doc.setFontSize(8);
   doc.text('SOLUCOES EM ENGENHARIA TERMICA',M,21);
   doc.setFontSize(11);doc.setFont('helvetica','bold');
@@ -3569,7 +3647,7 @@ function gerarPDFandar(andarId){
   for(let pg=1;pg<=pages;pg++){
     doc.setPage(pg);
     doc.setTextColor(150,150,150);doc.setFontSize(7);doc.setFont('helvetica','normal');
-    doc.text('Elite Ar — Solucoes em Engenharia Termica  |  Pagina '+pg+'/'+pages,M,290);
+    doc.text(semAcento(WORKSPACE_NOME||'MAPPO')+' — Solucoes em Engenharia Termica  |  Pagina '+pg+'/'+pages,M,290);
   }
 
   const nomeArq='Relatorio_'+andar.nome.replace(/[^a-zA-Z0-9]/g,'_')+'_'+new Date().toISOString().split('T')[0]+'.pdf';
@@ -3585,6 +3663,11 @@ function renderConfig(){
   <div class="card" style="margin-bottom:22px">
     <div class="card-head"><h3>👥 Equipe — técnicos</h3><button class="btn btn-primary btn-sm" onclick="openModalTecnico()">${svgIco('plus','ico-sm')} Adicionar técnico</button></div>
     <div class="card-pad" style="padding-top:6px">${renderEquipeConfig()}</div>
+  </div>
+
+  <div class="card" style="margin-bottom:22px">
+    <div class="card-head"><h3>🧾 Checklist</h3></div>
+    <div class="card-pad" style="padding-top:6px">${renderChecklistConfig()}</div>
   </div>
 
   <div class="two-col">
@@ -3614,7 +3697,7 @@ function renderConfig(){
       <div class="card">
         <div class="card-head"><h3>Sobre</h3></div>
         <div class="card-pad">
-          <p style="font-size:14px;color:var(--gray-600);line-height:1.6">MAPPO v2.0<br>Gestão de Equipes em Campo<br>Elite Ar — Soluções em Engenharia Térmica</p>
+          <p style="font-size:14px;color:var(--gray-600);line-height:1.6">MAPPO v2.0<br>Gestão de Equipes em Campo</p>
         </div>
       </div>
     </div>
@@ -3635,6 +3718,83 @@ function renderConfig(){
 }
 function toggleSet(k,v){settings[k]=v;saveSettings();toast('Preferência salva','success');}
 function setField(k,v){settings[k]=v;saveSettings();}
+
+/* ════════════════════════════════════════
+   GESTÃO DO CHECKLIST (Configurações)
+   Editor cirúrgico, no mesmo espírito de renderEquipeConfig: só
+   adicionar/remover/editar rótulo — sem reordenar, sem categorias.
+   ════════════════════════════════════════ */
+/* Template a usar quando checklistConfig ainda não existe: o do Ramo do workspace
+   quando conhecido (RAMO_TEMPLATES[WORKSPACE_RAMO], já com o campo nome — mesmo
+   formato clonado em cadastrarEmpresa()); só cai no fallback de refrigeração
+   (RAMO_TEMPLATES.refrigeracao, mesmo conteúdo de CHECKLIST_BASE/CHECKLIST_MANUT)
+   quando o ramo é mesmo desconhecido (workspace anterior a esta story). */
+function _templateRamoFallback(){
+  return(WORKSPACE_RAMO&&RAMO_TEMPLATES[WORKSPACE_RAMO])||RAMO_TEMPLATES.refrigeracao;
+}
+/* Workspace sem checklistConfig ainda (ex.: Elite Ar, pré-Story-2, ou um aparelho que
+   ainda não recebeu o mappo_checklist_config sincronizado): só cria o clone no momento
+   em que o gestor edita de verdade — nunca no boot (sem migração forçada).
+   Sempre clona (JSON.parse(JSON.stringify(...))): nunca aponta pras constantes globais. */
+function _garantirChecklistConfig(){
+  if(!checklistConfig)checklistConfig=JSON.parse(JSON.stringify(_templateRamoFallback()));
+}
+/* Só para exibição: se ainda não há clone, mostra o fallback vigente sem persistir nada */
+function _checklistCfgExibicao(){
+  return checklistConfig||_templateRamoFallback();
+}
+function renderChecklistConfig(){
+  const cfg=_checklistCfgExibicao();
+  const grupo=(chave,titulo,itens)=>`
+    <div style="margin-bottom:16px">
+      <div style="font-size:13px;font-weight:600;color:var(--gray-600);margin-bottom:6px">${titulo}</div>
+      ${(itens||[]).map((it,idx)=>`<div class="set-row">
+        <div class="set-info"><div class="st">${it.label}</div>${it.critico?'<div class="sd">Item crítico</div>':''}</div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost btn-sm" onclick="editarItemChecklist('${chave}',${idx})">${svgIco('edit','ico-sm')}</button>
+          <button class="btn btn-danger btn-sm" onclick="removerItemChecklist('${chave}',${idx})">${svgIco('trash','ico-sm')}</button>
+        </div>
+      </div>`).join('')||'<p style="font-size:14px;color:var(--gray-400);padding:8px 0">Nenhum item.</p>'}
+      <div class="set-row" style="gap:8px">
+        <input type="text" id="novoItem_${chave}" placeholder="Novo item…" style="flex:1">
+        <button class="btn btn-primary btn-sm" onclick="adicionarItemChecklist('${chave}')">${svgIco('plus','ico-sm')} Adicionar</button>
+      </div>
+    </div>`;
+  return grupo('instalacao','Instalação',cfg.instalacao)+grupo('manutencao','Manutenção',cfg.manutencao);
+}
+function editarItemChecklist(grupo,idx){
+  _garantirChecklistConfig();
+  const item=(checklistConfig[grupo]||[])[idx];
+  if(!item)return;
+  const novo=prompt('Rótulo do item:',item.label);
+  if(novo===null)return;
+  const limpo=novo.trim();
+  if(!limpo){toast('O rótulo não pode ficar vazio','warn');return;}
+  item.label=limpo;
+  saveChecklistConfig();renderView('config');toast('Item atualizado','success');
+}
+function removerItemChecklist(grupo,idx){
+  _garantirChecklistConfig();
+  const lista=checklistConfig[grupo]||[];
+  if(!lista[idx])return;
+  if(lista.length<=1){toast('O checklist precisa de pelo menos um item','warn');return;}
+  if(!confirm('Remover "'+lista[idx].label+'" do checklist?'))return;
+  lista.splice(idx,1);
+  saveChecklistConfig();renderView('config');toast('Item removido','success');
+}
+function adicionarItemChecklist(grupo){
+  _garantirChecklistConfig();
+  const input=document.getElementById('novoItem_'+grupo);
+  const label=(input&&input.value||'').trim();
+  if(!label){toast('Informe o rótulo do novo item','warn');return;}
+  // ids de itens de manutenção mantêm o prefixo m_: é o que corrigirChecklistSeVazio
+  // usa pra distinguir um checklist de manutenção de um de instalação/serviço
+  const id=(grupo==='manutencao'?'m_':'')+'custom_'+Date.now();
+  if(!checklistConfig[grupo])checklistConfig[grupo]=[];
+  checklistConfig[grupo].push({id,label,critico:false});
+  if(input)input.value='';
+  saveChecklistConfig();renderView('config');toast('Item adicionado','success');
+}
 
 /* ════════════════════════════════════════
    GESTÃO DE TÉCNICOS (Configurações)
@@ -5007,6 +5167,7 @@ async function pubPayloadOS(os){
   const feitas=etapas.filter(e=>e.ok||e.prob).length;
   return {
     tipo:'os',
+    empresa:WORKSPACE_NOME||'',
     titulo:os.cliente||'Serviço',
     servico:os.tipo||'Serviço',
     endereco:os.endereco||'',
@@ -5052,6 +5213,7 @@ async function pubPayloadObra(andarId){
   const ultCk=(vrfCheckins||[]).slice().reverse().find(c=>c.data);
   return {
     tipo:'obra',
+    empresa:WORKSPACE_NOME||'',
     titulo:vrfObra.nome||'Obra VRF',
     servico:'Instalação VRF · '+(andar.nome||'Ambiente'),
     endereco:'',
@@ -5103,7 +5265,7 @@ async function gerarLinkObra(andarId){
 
 function abrirModalLink(token,nome,publicado){
   const url=pubURL(token);
-  const msg=encodeURIComponent('Acompanhe o serviço da Elite Ar em tempo real: '+url);
+  const msg=encodeURIComponent('Acompanhe o serviço da '+(WORKSPACE_NOME||'empresa')+' em tempo real: '+url);
   showModal(`
     <div class="modal-head"><h2>Link de acompanhamento</h2></div>
     <div class="modal-body">
@@ -5242,7 +5404,7 @@ function renderPublico(d){
   box.innerHTML=`
   <div class="pub-top">
     <div class="pub-top-in">
-      <div class="pub-marca"><span class="pub-marca-n">Elite Ar</span><span class="pub-marca-s">Acompanhamento do serviço</span></div>
+      <div class="pub-marca"><span class="pub-marca-n">${d.empresa||'MAPPO'}</span><span class="pub-marca-s">Acompanhamento do serviço</span></div>
       <span class="pub-live"><i></i>ao vivo</span>
     </div>
   </div>
@@ -5263,7 +5425,7 @@ function renderPublico(d){
       </div>
     </div>
     ${corpo}
-    ${d.cortadas?`<p class="pub-nota-corte">Este serviço tem mais ${d.cortadas} foto${d.cortadas>1?'s':''} registrada${d.cortadas>1?'s':''}. Todas entram no relatório final entregue pela Elite Ar.</p>`:''}
+    ${d.cortadas?`<p class="pub-nota-corte">Este serviço tem mais ${d.cortadas} foto${d.cortadas>1?'s':''} registrada${d.cortadas>1?'s':''}. Todas entram no relatório final entregue pela ${d.empresa||'empresa'}.</p>`:''}
     <p class="pub-foot">Atualizado às ${hora} · esta página se atualiza sozinha</p>
   </div>
   <div id="pubZoom" class="pub-zoom" onclick="this.classList.remove('on')"><img id="pubZoomImg"></div>`;
