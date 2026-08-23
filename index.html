@@ -786,6 +786,7 @@
       <a href="#" onclick="event.preventDefault();mostrarCadastroEmpresa()" style="color:#fff;text-decoration:underline">Cadastrar minha empresa</a>
       &nbsp;·&nbsp;
       <a href="#" id="linkCriarContaTecnico" onclick="event.preventDefault();criarContaTecnico()" style="color:#fff;text-decoration:underline">Sou técnico convidado, criar minha conta</a>
+      <span style="display:block;opacity:.75;font-size:12px;margin-top:4px">(preencha e-mail e senha aqui em cima antes de clicar)</span>
     </div>
   </div>
 
@@ -1340,8 +1341,8 @@ async function criarContaTecnico(){
   const passEl=document.getElementById('loginPass');
   const email=(emailEl.value||'').trim();
   const senha=passEl.value||'';
-  if(!email||!senha){toast('Informe e-mail e senha para criar sua conta','warn');return;}
-  if(senha.length<6){toast('Senha precisa de pelo menos 6 caracteres','warn');return;}
+  if(!email||!senha){toast('Preencha e-mail e senha aqui em cima e clique de novo em "criar minha conta"','warn');emailEl.focus();return;}
+  if(senha.length<6){toast('Senha precisa de pelo menos 6 caracteres','warn');passEl.focus();return;}
   if(!fbApp||!fbDB){toast('Sem conexão com a nuvem — tente novamente em instantes','error');return;}
   const link=document.getElementById('linkCriarContaTecnico');
   if(link){
@@ -3024,9 +3025,12 @@ function vrfAbrirCamera(andarId,key,ev){
 }
 function vrfComprimirImagem(file,cb){
   const reader=new FileReader();
+  reader.onerror=()=>{toast('Não foi possível ler a foto — tente novamente','error');};
   reader.onload=e=>{
     const img=new Image();
+    img.onerror=()=>{toast('Não foi possível processar a foto — tente novamente','error');};
     img.onload=()=>{
+      if(!img.width||!img.height){toast('Não foi possível processar a foto — tente novamente','error');return;}
       const canvas=document.createElement('canvas');
       const maxW=1024,scale=Math.min(1,maxW/img.width);
       canvas.width=img.width*scale;canvas.height=img.height*scale;
@@ -4912,15 +4916,14 @@ function switchEquipTab(i){
 function updEquip(i,f,v){execOS.equipamentos[i][f]=v;saveExecOS();}
 function onEquipFoto(evt,i,tipo){
   const file=evt.target.files[0];if(!file)return;
-  const r=new FileReader();
-  r.onload=e=>{
-    if(tipo==='evap')execOS.equipamentos[i].fotoEvap=e.target.result;
-    else execOS.equipamentos[i].fotoCond=e.target.result;
+  evt.target.value='';
+  vrfComprimirImagem(file,b64=>{
+    if(tipo==='evap')execOS.equipamentos[i].fotoEvap=b64;
+    else execOS.equipamentos[i].fotoCond=b64;
     saveExecOS();switchEquipTab(i);
     document.querySelectorAll('[id^="etab"]')[i].innerHTML=(execOS.equipamentos[i].fotoEvap&&execOS.equipamentos[i].fotoCond?'✅':'')+' Split '+(i+1);
     verificarConcluir();toast('Foto salva','success');
-  };
-  r.readAsDataURL(file);
+  });
 }
 
 function renderChecklistExec(){
@@ -4961,8 +4964,8 @@ function toggleCheck(i){
 }
 function onCheckFoto(evt,i){
   const file=evt.target.files[0];if(!file)return;
-  const r=new FileReader();r.onload=e=>{execOS.checklist[i].foto=e.target.result;saveExecOS();renderChecklistExec();verificarConcluir();toast('Foto salva','success');};
-  r.readAsDataURL(file);
+  evt.target.value='';
+  vrfComprimirImagem(file,b64=>{execOS.checklist[i].foto=b64;saveExecOS();renderChecklistExec();verificarConcluir();toast('Foto salva','success');});
 }
 
 function execCheckin(){
