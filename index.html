@@ -771,35 +771,47 @@
 <div id="loginScreen">
   <div class="login-logo-wrap"><div class="login-logo-img logo-img"></div></div>
 
-  <div class="login-box">
+  <div class="login-box" id="loginBox">
     <h2 id="loginTitle">Acessar sistema</h2>
     <div class="fg login-field">
-      <label>Perfil de acesso</label>
-      <select id="loginPerfil" onchange="onPerfilChange()">
-        <option value="gestor">Gestor (painel completo)</option>
-        <option value="tecnico">Técnico (campo)</option>
-      </select>
+      <label>E-mail</label>
+      <input type="email" id="loginEmail" placeholder="voce@empresa.com" autocomplete="username">
     </div>
-    <div class="fg login-field" id="loginTecnicoWrap" style="display:none">
-      <label>Selecione seu nome</label>
-      <select id="loginTecnico">
-        <option value="">Escolha...</option>
-      </select>
-    </div>
-    <div class="fg login-field" id="loginTecSenhaWrap" style="display:none">
-      <label>Sua senha</label>
-      <input type="password" id="loginTecSenha" placeholder="••••" autocomplete="off">
-    </div>
-    <div class="fg login-field" id="loginUserWrap">
-      <label>Usuário</label>
-      <input type="text" id="loginUser" placeholder="confortelite" autocomplete="off">
-    </div>
-    <div class="fg login-field" id="loginPassWrap">
+    <div class="fg login-field">
       <label>Senha</label>
-      <input type="password" id="loginPass" placeholder="••••••••" autocomplete="off">
+      <input type="password" id="loginPass" placeholder="••••••••" autocomplete="current-password">
     </div>
     <button class="btn-entrar" onclick="fazerLogin()">Entrar →</button>
-    <div class="login-hint" id="loginHint">Gestor: use suas credenciais.<br>Técnico: selecione seu nome na lista.</div>
+    <div class="login-hint" id="loginHint">Gestor ou técnico: use a sua conta MAPPO.<br>
+      <a href="#" onclick="event.preventDefault();mostrarCadastroEmpresa()" style="color:#fff;text-decoration:underline">Cadastrar minha empresa</a>
+      &nbsp;·&nbsp;
+      <a href="#" id="linkCriarContaTecnico" onclick="event.preventDefault();criarContaTecnico()" style="color:#fff;text-decoration:underline">Sou técnico convidado, criar minha conta</a>
+    </div>
+  </div>
+
+  <div class="login-box" id="cadastroBox" style="display:none">
+    <h2>Cadastrar empresa</h2>
+    <div class="fg login-field"><label>Nome da empresa</label><input type="text" id="cadEmpresa" placeholder="Ex.: Elite Ar"></div>
+    <div class="fg login-field"><label>Seu nome</label><input type="text" id="cadNome" placeholder="Seu nome completo"></div>
+    <div class="fg login-field"><label>E-mail</label><input type="email" id="cadEmail" placeholder="voce@empresa.com" autocomplete="username"></div>
+    <div class="fg login-field"><label>Senha</label><input type="password" id="cadSenha" placeholder="Mínimo 6 caracteres" autocomplete="new-password"></div>
+    <button class="btn-entrar" onclick="cadastrarEmpresa()">Criar empresa →</button>
+    <div class="login-hint">Você vira o gestor desta empresa.<br><a href="#" onclick="event.preventDefault();mostrarLogin()" style="color:#fff;text-decoration:underline">Já tenho conta — entrar</a></div>
+  </div>
+
+  <div class="login-box" id="semAcessoBox" style="display:none">
+    <h2>Conta criada</h2>
+    <div class="login-hint" style="margin-top:0">Sua conta foi autenticada, mas ainda não está vinculada a nenhuma empresa. Envie o código abaixo para o seu gestor te adicionar na equipe.</div>
+    <div class="fg login-field" style="margin-top:16px"><label>Seu código de acesso</label><input type="text" id="semAcessoUid" readonly onclick="this.select()"></div>
+    <button class="btn-entrar" onclick="_tentarNovamenteAcesso()">Já fui adicionado — tentar de novo</button>
+    <div class="login-hint"><a href="#" onclick="event.preventDefault();_sairSemAcesso()" style="color:#fff;text-decoration:underline">Sair</a></div>
+  </div>
+
+  <div class="login-box" id="pendenteBox" style="display:none">
+    <h2>Aguardando aprovação</h2>
+    <div class="login-hint" style="margin-top:0">Sua empresa foi cadastrada e está aguardando aprovação. Assim que for liberada, você já poderá usar o MAPPO normalmente.</div>
+    <button class="btn-entrar" onclick="_tentarNovamenteAcesso()">Já fui aprovado — tentar de novo</button>
+    <div class="login-hint"><a href="#" onclick="event.preventDefault();_sairSemAcesso()" style="color:#fff;text-decoration:underline">Sair</a></div>
   </div>
 </div>
 
@@ -921,7 +933,8 @@ const firebaseConfig = {
 
 /* Estado da nuvem */
 let fbApp=null, fbDB=null, fbReady=false, fbSyncing=false;
-const WORKSPACE='elite-ar'; // isolamento: todos os dados desta empresa sob este ID
+let WORKSPACE=null; // isolamento multi-tenant: resolvido por uid (userWorkspaces+members) antes de fbReady=true -- AD-3/AD-11
+let _signupInProgress=false; // suprime a resolução automática de workspace enquanto cadastrarEmpresa() grava o lote atomicamente
 
 /* Mapa das coleções sincronizadas: chave localStorage → doc no Firestore */
 const SYNC_KEYS=[
@@ -1084,29 +1097,246 @@ function _startPolling(){
   },3000);
 }
 
-/* Inicializa Firebase e autentica anonimamente; se falhar, app segue offline com localStorage.
-   Nenhuma leitura/escrita no Firestore pode rodar antes do onAuthStateChanged confirmar o
-   usuário — por isso fbReady só vira true ali dentro, e não logo após initializeApp(). */
-function fbInit(onAuthReady,onAuthFail){
+/* Inicializa Firebase. Dois modos:
+   - modo app (opts.anon ausente): espera uma conta REAL (signInWithEmailAndPassword, disparado
+     por fazerLogin()/cadastrarEmpresa()) e só então resolve workspace+papel (_resolverWorkspace)
+     antes de fbReady=true. Nenhuma leitura/escrita no Firestore roda antes disso -- fbReady só
+     vira true depois que auth + membership + workspace resolverem juntos (AD-3/AD-11).
+   - modo público (opts.anon=true): autentica anonimamente só para ler o link público de um
+     cliente (workspace já vem na própria URL, não depende de membership nenhum). */
+function fbInit(opts){
+  opts=opts||{};
   try{
     if(!window.firebase){fbLog('Firebase SDK não carregou — modo offline','erro');return false;}
     if(fbApp){
-      if(fbReady)(onAuthReady||initSync)(); // já autenticado (ex.: nova tentativa de conexão)
+      if(fbReady)initSync(); // já autenticado (ex.: nova tentativa de conexão)
       return true;
     }
     fbApp=firebase.initializeApp(firebaseConfig);
     fbDB=firebase.firestore();
     firebase.auth().onAuthStateChanged(user=>{
-      if(user){
+      if(!user){
+        // modo público: signInAnonymously() ainda não resolveu -- não é falha, só aguarda
+        // (a falha real é tratada no .catch() dela); a própria promise chama onNoUser se der errado.
+        if(!opts.anon&&opts.onNoUser)opts.onNoUser();
+        return;
+      }
+      if(opts.anon){
+        if(!user.isAnonymous){
+          // sessão real persistida neste navegador: link público sempre roda sob identidade anônima, nunca a real
+          firebase.auth().signInAnonymously()
+            .catch(e=>{fbLog('Falha na autenticação: '+e.code+' — '+e.message,'erro');if(opts.onNoUser)opts.onNoUser();});
+          return;
+        }
         fbReady=true;
         fbLog('Autenticado na nuvem (uid: '+user.uid+')','ok');
-        (onAuthReady||initSync)();
+        if(opts.onReady)opts.onReady();
+        return;
       }
+      if(user.isAnonymous){if(opts.onNoUser)opts.onNoUser();return;} // sessão anônima remanescente não dá acesso ao app autenticado
+      if(_signupInProgress)return; // cadastrarEmpresa() resolve manualmente depois do lote gravar
+      _resolverWorkspace(user,opts.onReady,opts.onNoAccess);
     });
-    firebase.auth().signInAnonymously()
-      .catch(e=>{fbLog('Falha na autenticação: '+e.code+' — '+e.message,'erro');if(onAuthFail)onAuthFail();});
+    if(opts.anon){
+      firebase.auth().signInAnonymously()
+        .catch(e=>{fbLog('Falha na autenticação: '+e.code+' — '+e.message,'erro');if(opts.onNoUser)opts.onNoUser();});
+    }
     return true;
   }catch(e){fbLog('Falha ao iniciar Firebase: '+e.message,'erro');return false;}
+}
+
+/* Resolve workspace + papel a partir do uid autenticado (AD-2/AD-11). Só chama onReady depois
+   que WORKSPACE + role estiverem confirmados. Sem rede (ou qualquer falha que não seja "de fato
+   sem acesso"), reusa o cache do MESMO uid -- continuidade offline-first, revalida quando a rede volta. */
+async function _resolverWorkspace(user,onReady,onNoAccess){
+  try{
+    const uwSnap=await fbDB.collection('userWorkspaces').doc(user.uid).get();
+    const wsId=uwSnap.exists?uwSnap.data().workspaceId:null;
+    if(!wsId)throw{code:'sem-workspace',message:'uid sem userWorkspaces'};
+    const memSnap=await fbDB.collection('workspaces').doc(wsId).collection('members').doc(user.uid).get();
+    if(!memSnap.exists||!memSnap.data().role)throw{code:'sem-membership',message:'uid sem members'};
+    const role=memSnap.data().role, nome=memSnap.data().nome||'';
+    // status do workspace (gate de aprovação manual, piloto privado): membership por si só
+    // não libera sync -- só workspace 'ativo' libera. wsSnap pode falhar por regra (isMember
+    // já é true aqui, então só falta o proprio doc existir) -- default pendente se não ler.
+    let status='pendente';
+    try{const wsSnap=await fbDB.collection('workspaces').doc(wsId).get();status=(wsSnap.exists&&wsSnap.data().status)||'pendente';}catch(e){}
+    WORKSPACE=wsId;
+    fbReady=true; // só agora: auth + membership + workspace resolveram juntos (AD-3/AD-11)
+    _cacheWorkspace(user.uid,wsId,role,nome,status);
+    fbLog('Autenticado (uid: '+user.uid+') — workspace '+wsId+' — perfil '+role+' — status '+status,'ok');
+    if(onReady)onReady({uid:user.uid,workspaceId:wsId,role,nome,status});
+  }catch(e){
+    const semAcessoReal=(e.code==='sem-workspace'||e.code==='sem-membership');
+    if(!semAcessoReal){
+      const cache=_lerCacheWorkspace(user.uid);
+      if(cache){
+        WORKSPACE=cache.workspaceId;
+        fbReady=true;
+        fbLog('Sem rede — usando workspace em cache ('+cache.workspaceId+')','info');
+        if(onReady)onReady(cache);
+        return;
+      }
+    }
+    fbLog(semAcessoReal?('Conta sem acesso a nenhum workspace (uid: '+user.uid+')'):('Falha ao resolver acesso: '+e.code+' — '+(e.message||'')),'erro');
+    if(onNoAccess)onNoAccess(user);
+  }
+}
+function _cacheWorkspace(uid,workspaceId,role,nome,status){
+  try{localStorage.setItem('mappo_ws_cache',JSON.stringify({uid,workspaceId,role,nome,status:status||'ativo'}));}catch(e){}
+}
+function _lerCacheWorkspace(uid){
+  try{const c=JSON.parse(localStorage.getItem('mappo_ws_cache')||'null');return(c&&c.uid===uid)?c:null;}catch(e){return null;}
+}
+
+/* Workspace + role resolvidos → vira sessão da aplicação e libera a sincronização.
+   Se o uid resolvido pertence a um workspace DIFERENTE do último usado neste aparelho,
+   limpa os dados locais antes de puxar a nuvem nova -- sem isso, um dispositivo
+   compartilhado entre duas empresas vazaria dado de uma pra outra (AD-1). */
+function _aplicarSessaoResolvida(info){
+  if((info.status||'ativo')!=='ativo'){_mostrarPendente(info);return;} // gate de aprovação manual: membership não basta
+  let wsAnterior=null;
+  try{wsAnterior=localStorage.getItem('mappo_last_ws');}catch(e){}
+  if(wsAnterior&&wsAnterior!==info.workspaceId){
+    SYNC_KEYS.forEach(k=>{try{localStorage.removeItem(k);}catch(e){}});
+    try{localStorage.removeItem('mappo_touch');}catch(e){}
+    _pend={};_localTouch={};
+    fbLog('Troca de workspace neste aparelho — dado local anterior descartado','info');
+  }
+  try{localStorage.setItem('mappo_last_ws',info.workspaceId);}catch(e){}
+  session={perfil:info.role,nome:info.nome||info.uid,uid:info.uid,role:info.role==='gestor'?'Gestor':'Técnico de Campo'};
+  saveSession();
+  initSync();
+  if(!document.getElementById('app').classList.contains('active'))entrarApp();
+}
+
+/* ── Telas de login/cadastro ── */
+function _mostrarBoxLogin(id){
+  ['loginBox','cadastroBox','semAcessoBox','pendenteBox'].forEach(b=>{
+    const el=document.getElementById(b);if(el)el.style.display=(b===id)?'':'none';
+  });
+}
+function mostrarLogin(){_mostrarBoxLogin('loginBox');}
+function mostrarCadastroEmpresa(){_mostrarBoxLogin('cadastroBox');}
+function _mostrarSemAcesso(user){
+  document.getElementById('app').classList.remove('active');
+  document.body.classList.remove('has-rail');
+  const lg=document.getElementById('loginScreen');if(lg)lg.classList.remove('hidden');
+  _mostrarBoxLogin('semAcessoBox');
+  const i=document.getElementById('semAcessoUid');if(i&&user)i.value=user.uid;
+}
+/* Membership existe mas o workspace ainda não foi aprovado (status!=='ativo') -- não é
+   "sem acesso" (a pessoa está corretamente vinculada), é "aguardando aprovação manual". */
+function _mostrarPendente(info){
+  document.getElementById('app').classList.remove('active');
+  document.body.classList.remove('has-rail');
+  const lg=document.getElementById('loginScreen');if(lg)lg.classList.remove('hidden');
+  _mostrarBoxLogin('pendenteBox');
+}
+let _tentandoNovamente=false;
+async function _tentarNovamenteAcesso(){
+  if(_tentandoNovamente)return; // trava contra clique repetido -- evita _resolverWorkspace concorrente
+  const u=firebase.auth().currentUser;
+  if(!u){mostrarLogin();return;}
+  _tentandoNovamente=true;
+  toast('Verificando acesso…','info');
+  try{await _resolverWorkspace(u,_aplicarSessaoResolvida,_mostrarSemAcesso);}
+  finally{_tentandoNovamente=false;}
+}
+function _sairSemAcesso(){
+  if(window.firebase&&firebase.auth)firebase.auth().signOut().catch(()=>{});
+  mostrarLogin();
+}
+
+function _slugify(s){
+  return(s||'').toString().normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,40);
+}
+function _mensagemErroAuth(code){
+  if(code==='auth/invalid-credential'||code==='auth/wrong-password'||code==='auth/user-not-found')return'E-mail ou senha incorretos';
+  if(code==='auth/invalid-email')return'E-mail inválido';
+  if(code==='auth/too-many-requests')return'Muitas tentativas — aguarde um instante';
+  if(code==='auth/email-already-in-use')return'Este e-mail já tem conta — faça login';
+  if(code==='auth/weak-password')return'Senha muito fraca — use pelo menos 6 caracteres';
+  return'Não foi possível continuar — verifique sua conexão';
+}
+
+/* Cadastro do primeiro gestor de uma empresa nova: cria a conta, o workspace,
+   members/{uid} (bootstrap) e userWorkspaces/{uid} atomicamente (AD-2/AD-11). */
+async function cadastrarEmpresa(){
+  const empresa=(document.getElementById('cadEmpresa').value||'').trim();
+  const nome=(document.getElementById('cadNome').value||'').trim();
+  const email=(document.getElementById('cadEmail').value||'').trim();
+  const senha=document.getElementById('cadSenha').value||'';
+  if(!empresa||!nome){toast('Preencha o nome da empresa e o seu nome','warn');return;}
+  if(!email||!senha){toast('Informe e-mail e senha','warn');return;}
+  if(senha.length<6){toast('Senha precisa de pelo menos 6 caracteres','warn');return;}
+  const wsId=_slugify(empresa);
+  if(!wsId||wsId.length<2){toast('Nome de empresa inválido — use pelo menos 2 letras ou números','warn');return;}
+  if(!fbApp||!fbDB){toast('Sem conexão com a nuvem — tente novamente em instantes','error');return;}
+  const btn=document.querySelector('#cadastroBox .btn-entrar');
+  if(btn){btn.disabled=true;btn.textContent='Criando…';}
+  _signupInProgress=true;
+  let cred=null;
+  try{
+    // sem pré-checagem de leitura (exigiria abrir workspaces/{wsId} sem membership --
+    // não vale o custo de superfície nova). Colisão de slug é descoberta pelo próprio
+    // batch abaixo (grava como 'update' num doc que já existe, regra nega) e tratada
+    // no catch: mensagem clara + limpeza da conta órfã, sem deixar o usuário travado.
+    cred=await firebase.auth().createUserWithEmailAndPassword(email,senha);
+    const uid=cred.user.uid;
+    const batch=fbDB.batch();
+    // status 'pendente': gate de aprovação manual (piloto privado) -- só o dono do projeto
+    // aprova, direto no Firebase Console, fora do alcance destas regras (ver firestore.rules).
+    batch.set(fbDB.collection('workspaces').doc(wsId),{criado:true,nome:empresa,status:'pendente',criadoEm:firebase.firestore.FieldValue.serverTimestamp()});
+    batch.set(fbDB.collection('workspaces').doc(wsId).collection('members').doc(uid),{role:'gestor',nome,criadoEm:firebase.firestore.FieldValue.serverTimestamp()});
+    batch.set(fbDB.collection('userWorkspaces').doc(uid),{workspaceId:wsId});
+    await batch.commit();
+    _signupInProgress=false;
+    fbLog('Empresa criada: '+wsId,'ok');
+    await _resolverWorkspace(cred.user,_aplicarSessaoResolvida,_mostrarSemAcesso);
+  }catch(e){
+    _signupInProgress=false;
+    fbLog('Falha no cadastro: '+e.code+' — '+e.message,'erro');
+    // conta criada mas o resto falhou (colisão de slug numa corrida, queda de rede): não deixa
+    // uma conta órfã sem workspace parada no Firebase Auth, sem forma de tentar de novo
+    if(cred&&cred.user){
+      try{await cred.user.delete();}
+      catch(delErr){fbLog('Falha ao limpar conta órfã: '+delErr.code+' — '+(delErr.message||''),'erro');}
+    }
+    toast(e.code==='permission-denied'?'Este nome de empresa já está em uso — escolha outro':_mensagemErroAuth(e.code),'error');
+  }
+  if(btn){btn.disabled=false;btn.textContent='Criar empresa →';}
+}
+
+/* Conta de acesso do técnico: só cria a conta no Firebase Auth, sem workspace nenhum.
+   O gestor concede o acesso de verdade depois, vinculando o uid em Configurações → Equipe. */
+async function criarContaTecnico(){
+  const emailEl=document.getElementById('loginEmail');
+  const passEl=document.getElementById('loginPass');
+  const email=(emailEl.value||'').trim();
+  const senha=passEl.value||'';
+  if(!email||!senha){toast('Informe e-mail e senha para criar sua conta','warn');return;}
+  if(senha.length<6){toast('Senha precisa de pelo menos 6 caracteres','warn');return;}
+  if(!fbApp||!fbDB){toast('Sem conexão com a nuvem — tente novamente em instantes','error');return;}
+  const link=document.getElementById('linkCriarContaTecnico');
+  if(link){
+    if(link.dataset.busy==='1')return; // clique duplo não dispara duas contas
+    link.dataset.busy='1';link.style.opacity='.5';link.style.pointerEvents='none';
+  }
+  // campo reaproveitado do login: aqui é criação de conta, não autenticação de uma já existente
+  const autocompleteAntigo=passEl.getAttribute('autocomplete');
+  passEl.setAttribute('autocomplete','new-password');
+  try{
+    await firebase.auth().createUserWithEmailAndPassword(email,senha);
+    toast('Conta criada — envie o código de acesso pro seu gestor','success');
+  }catch(e){
+    fbLog('Falha ao criar conta de técnico: '+e.code+' — '+e.message,'erro');
+    toast(_mensagemErroAuth(e.code),'error');
+  }finally{
+    passEl.setAttribute('autocomplete',autocompleteAntigo||'current-password');
+    if(link){link.dataset.busy='0';link.style.opacity='';link.style.pointerEvents='';}
+  }
 }
 
 /* Envia uma chave pro Firestore */
@@ -1487,9 +1717,13 @@ async function initSync(){
   _startPolling();        // 4. vigilância contínua (rede de segurança p/ qualquer navegador)
 }
 
-/* Boot da nuvem: autentica e, quando confirmado, chama initSync() */
+/* Boot da nuvem: registra o listener de auth. Sem sessão real ainda (usuário não logado),
+   só destrava o monitor local -- fazerLogin()/cadastrarEmpresa() disparam o resto quando
+   a pessoa autenticar de verdade. */
 async function fbBoot(){
-  if(!fbInit(initSync,()=>{_bootDone=true;_testInterceptor();})){_bootDone=true;_testInterceptor();return;}
+  if(!fbInit({onReady:_aplicarSessaoResolvida,onNoUser:()=>{_bootDone=true;_testInterceptor();},onNoAccess:_mostrarSemAcesso})){
+    _bootDone=true;_testInterceptor();
+  }
 }
 
 
@@ -1565,17 +1799,13 @@ async function syncManual(){
 /* (o monitor de alterações agora fica no topo da camada de nuvem,
    via Storage.prototype — compatível com iPhone/Safari) */
 
-/* ── CONFIG ── */
-const CFG = {
-  gestorUser: 'confortelite',
-  gestorPass: 'elitear2024',
-};
-
-/* ── TÉCNICOS DINÂMICOS (gestor gerencia em Configurações) ── */
+/* ── TÉCNICOS DINÂMICOS (gestor gerencia em Configurações) ──
+   Sem senha em texto plano (AD-6): o acesso de cada técnico é o próprio uid do Firebase Auth,
+   vinculado pelo gestor depois que o técnico cria a conta dele (ver criarContaTecnico()). */
 let tecnicos = JSON.parse(localStorage.getItem('mappo_tecnicos')||'null');
 if(!tecnicos||!tecnicos.length){
   tecnicos = ['Carlos Silva','João Pereira','Marcos Souza','Rafael Lima'].map((n,i)=>({
-    id:'tec_'+(i+1), nome:n, senha:'1234',
+    id:'tec_'+(i+1), nome:n, uid:null,
     modulos:{split:true,vrf:false}, ativo:true,
     criadoEm:new Date().toISOString()
   }));
@@ -1768,39 +1998,23 @@ function saveManut(){localStorage.setItem('mappo_manut',JSON.stringify(manutenco
 function saveSettings(){localStorage.setItem('mappo_settings',JSON.stringify(settings));}
 function saveSession(){localStorage.setItem('mappo_session',JSON.stringify(session));}
 
-/* ── LOGIN ── */
-function onPerfilChange(){
-  const perfil=document.getElementById('loginPerfil').value;
-  const isTec=perfil==='tecnico';
-  document.getElementById('loginTecnicoWrap').style.display=isTec?'block':'none';
-  document.getElementById('loginTecSenhaWrap').style.display=isTec?'block':'none';
-  document.getElementById('loginUserWrap').style.display=isTec?'none':'block';
-  document.getElementById('loginPassWrap').style.display=isTec?'none':'block';
-  document.getElementById('loginHint').innerHTML=isTec?'Selecione seu nome e digite a senha que o gestor te passou.':'Use as credenciais de gestor.';
-  if(isTec){
-    const sel=document.getElementById('loginTecnico');
-    sel.innerHTML='<option value="">Escolha...</option>'+nomesTecnicos().map(t=>`<option value="${t}">${t}</option>`).join('');
-  }
-}
-
+/* ── LOGIN ──
+   Conta real do Firebase Auth (AD-6) -- sem comparação de credencial no cliente. session só
+   é montada depois que a conta autentica E o workspace/papel resolvem (_aplicarSessaoResolvida),
+   nunca aqui. Perfil (gestor/técnico) não é escolhido no login -- vem do membership no servidor. */
 function fazerLogin(){
-  const perfil=document.getElementById('loginPerfil').value;
-  if(perfil==='gestor'){
-    const u=document.getElementById('loginUser').value.trim();
-    const p=document.getElementById('loginPass').value.trim();
-    if(u!==CFG.gestorUser||p!==CFG.gestorPass){toast('Usuário ou senha incorretos','error');return;}
-    session={perfil:'gestor',nome:'Elite Ar',role:'Gestor'};
-  }else{
-    const t=document.getElementById('loginTecnico').value;
-    if(!t){toast('Selecione seu nome','warn');return;}
-    const tec=getTecnico(t);
-    if(!tec||tec.ativo===false){toast('Técnico não encontrado. Fale com o gestor.','error');return;}
-    const senha=document.getElementById('loginTecSenha').value;
-    if(senha!==(tec.senha||'1234')){toast('Senha incorreta','error');return;}
-    session={perfil:'tecnico',nome:t,tecId:tec.id,role:'Técnico de Campo'};
-  }
-  saveSession();
-  entrarApp();
+  const email=(document.getElementById('loginEmail').value||'').trim();
+  const senha=document.getElementById('loginPass').value||'';
+  if(!email||!senha){toast('Informe e-mail e senha','warn');return;}
+  if(!fbApp||!fbDB){toast('Sem conexão com a nuvem — tente novamente em instantes','error');return;}
+  const btn=document.querySelector('#loginBox .btn-entrar');
+  if(btn){btn.disabled=true;btn.textContent='Entrando…';}
+  firebase.auth().signInWithEmailAndPassword(email,senha)
+    .catch(e=>{
+      fbLog('Falha no login: '+e.code+' — '+e.message,'erro');
+      toast(_mensagemErroAuth(e.code),'error');
+    })
+    .finally(()=>{if(btn){btn.disabled=false;btn.textContent='Entrar →';}});
 }
 
 function entrarApp(){
@@ -2007,12 +2221,16 @@ function toggleFloatMenu(force){
 function logout(){
   if(!confirm('Deseja sair do MAPPO?'))return;
   if(session&&session.perfil==='tecnico'&&typeof liveAtivo==='function'&&liveAtivo())pararLive(null); // encerra o GPS ao vivo ao sair
+  fbStopListeners();
+  fbReady=false;
   session=null;localStorage.removeItem('mappo_session');
   document.body.classList.remove('has-rail');
   document.getElementById('app').classList.remove('active');
   document.getElementById('loginScreen').classList.remove('hidden');
-  const sen=document.getElementById('loginTecSenha');if(sen)sen.value='';
-  onPerfilChange(); // recarrega a lista de técnicos atualizada
+  const em=document.getElementById('loginEmail');if(em)em.value='';
+  const ps=document.getElementById('loginPass');if(ps)ps.value='';
+  mostrarLogin();
+  if(window.firebase&&firebase.auth)firebase.auth().signOut().catch(()=>{}); // encerra a conta real do Firebase Auth (AD-6)
 }
 
 /* ── NAVEGAÇÃO ── */
@@ -3429,7 +3647,7 @@ function renderEquipeConfig(){
       <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:180px">
         <div class="tech-av">${t.nome.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase()}</div>
         <div><div style="font-size:15px;font-weight:600;color:var(--gray-800)">${t.nome}</div>
-        <div style="font-size:12px;color:var(--gray-400)">Senha: ${t.senha||'1234'}</div></div>
+        <div style="font-size:12px;color:var(--gray-400)">${t.uid?'Acesso vinculado':'Aguardando código de acesso'}</div></div>
       </div>
       <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
         <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;user-select:none">
@@ -3450,8 +3668,8 @@ function openModalTecnico(id){
     <div class="modal-head"><h2>${t?'✏️ Editar técnico':'👷 Novo técnico'}</h2></div>
     <div class="modal-body">
       <div class="fg"><label>Nome completo</label><input type="text" id="tNome" value="${t?t.nome:''}" placeholder="Nome do técnico"></div>
-      <div class="fg"><label>Senha de acesso</label><input type="text" id="tSenha" value="${t?(t.senha||'1234'):''}" placeholder="Senha que ele usa no login">
-      <p style="font-size:12px;color:var(--gray-400);margin-top:5px">Passe essa senha pro técnico. Só ele acessa a própria conta.</p></div>
+      <div class="fg"><label>Código de acesso do técnico (UID)</label><input type="text" id="tUid" value="${t?(t.uid||''):''}" placeholder="Cole aqui o código que ele te enviou">
+      <p style="font-size:12px;color:var(--gray-400);margin-top:5px">Peça pro técnico abrir a tela de login e clicar em "Sou técnico convidado, criar minha conta" — ele te envia o código mostrado depois. Sem esse código, ele não consegue entrar.</p></div>
       <div class="fg"><label>Módulos liberados</label>
         <div class="mod-grid">
           <label class="mod-card" id="modCardSplit">
@@ -3479,18 +3697,59 @@ function openModalTecnico(id){
   if(m.vrf)document.getElementById('modCardVrf').classList.add('on');
 }
 
-function salvarTecnico(id){
+/* Concede acesso real ao workspace pro uid que o técnico enviou (AD-2/AD-11) -- só um
+   gestor autenticado chega aqui (é o que a regra do Firestore exige pra este write).
+   Só deve ser chamada quando o uid é NOVO/mudou de verdade: userWorkspaces/{uid} é
+   create-only na regra (allow update:false) -- chamar de novo pro MESMO uid já vinculado
+   faria esse set() virar "update" e derrubar o batch inteiro (inclusive o resto do save). */
+async function _vincularAcessoTecnico(uid,nome){
+  if(!fbReady||!WORKSPACE){toast('Sem conexão com a nuvem — conecte-se para vincular o acesso','error');return false;}
+  try{
+    const batch=fbDB.batch();
+    batch.set(fbDB.collection('workspaces').doc(WORKSPACE).collection('members').doc(uid),
+      {role:'tecnico',nome,convidadoPor:(session&&session.nome)||'',criadoEm:firebase.firestore.FieldValue.serverTimestamp()},{merge:true});
+    batch.set(fbDB.collection('userWorkspaces').doc(uid),{workspaceId:WORKSPACE});
+    await batch.commit();
+    return true;
+  }catch(e){
+    fbLog('Falha ao vincular acesso do técnico: '+e.code+' — '+e.message,'erro');
+    toast('Não foi possível vincular o acesso — confira o código e tente de novo','error');
+    return false;
+  }
+}
+
+/* Só troca o nome em members/{uid} -- update() leve e best-effort (nunca bloqueia nem
+   desfaz o save local se falhar: fica dessincronizado até o próximo save bem-sucedido,
+   não pior que hoje). Usada quando o uid do técnico NÃO mudou -- ver salvarTecnico(). */
+function _atualizarNomeMembro(uid,nome){
+  if(!fbReady||!WORKSPACE)return; // offline: sem tentativa, sem bloquear o save local
+  fbDB.collection('workspaces').doc(WORKSPACE).collection('members').doc(uid).update({nome})
+    .catch(e=>fbLog('Não foi possível sincronizar o nome do técnico no servidor: '+e.code+' — '+(e.message||''),'erro'));
+}
+
+async function salvarTecnico(id){
   const nome=document.getElementById('tNome').value.trim();
-  const senha=document.getElementById('tSenha').value.trim();
+  const uid=(document.getElementById('tUid').value||'').trim();
   const mods={split:document.getElementById('tSplit').checked,vrf:document.getElementById('tVrf').checked};
   if(!nome){toast('Informe o nome','warn');return;}
-  if(!senha){toast('Defina uma senha','warn');return;}
   if(!mods.split&&!mods.vrf){toast('Libere pelo menos um módulo','warn');return;}
   if(id){
     const t=tecnicos.find(x=>x.id===id);if(!t)return;
     if(tecnicos.some(x=>x.id!==id&&x.nome.toLowerCase()===nome.toLowerCase())){toast('Já existe técnico com esse nome','warn');return;}
     const nomeAntigo=t.nome;
-    t.nome=nome;t.senha=senha;t.modulos=mods;
+    const uidFinal=uid||t.uid;
+    const uidMudou=uidFinal&&uidFinal!==t.uid;
+    if(uidMudou){
+      // uid novo (primeiro vínculo) ou trocado de verdade -- é a concessão de acesso em si,
+      // então só avança se o servidor confirmar (e já grava o members/{uid} com o nome atual)
+      const ok=await _vincularAcessoTecnico(uidFinal,nome);
+      if(!ok)return;
+      t.uid=uidFinal;
+    }
+    // grava local sempre, sem depender de rede -- um rename de técnico já vinculado
+    // não pode ficar refém de conexão só porque tenta sincronizar o nome no servidor
+    t.nome=nome;t.modulos=mods;
+    if(!uidMudou&&uidFinal&&nome!==nomeAntigo)_atualizarNomeMembro(uidFinal,nome);
     // renomeia em OS, manutenções e GPS
     if(nomeAntigo!==nome){
       osList.forEach(o=>{if(o.tecnico===nomeAntigo)o.tecnico=nome;});saveOS();
@@ -3501,19 +3760,35 @@ function salvarTecnico(id){
     toast('Técnico atualizado','success');
   }else{
     if(tecnicos.some(x=>x.nome.toLowerCase()===nome.toLowerCase())){toast('Já existe técnico com esse nome','warn');return;}
-    tecnicos.push({id:'tec_'+Date.now(),nome,senha,modulos:mods,ativo:true,criadoEm:new Date().toISOString()});
-    toast('Técnico adicionado — já pode fazer login','success');
+    if(uid){
+      const ok=await _vincularAcessoTecnico(uid,nome);
+      if(!ok)return;
+    }
+    tecnicos.push({id:'tec_'+Date.now(),nome,uid:uid||null,modulos:mods,ativo:true,criadoEm:new Date().toISOString()});
+    toast(uid?'Técnico adicionado — já pode fazer login':'Técnico adicionado — cole o código de acesso dele depois para liberar o login','success');
   }
   saveTecnicos();closeModal();renderView('config');
 }
 
-function removerTecnico(id){
+async function removerTecnico(id){
   const t=tecnicos.find(x=>x.id===id);if(!t)return;
   const abertas=osList.filter(o=>o.tecnico===t.nome&&o.status!=='concluida').length;
   const msg=abertas?`${t.nome} tem ${abertas} OS em aberto. Remover mesmo assim? (Reatribua as OS depois)`:`Remover ${t.nome} da equipe? Ele perde o acesso na hora.`;
   if(!confirm(msg))return;
   tecnicos=tecnicos.filter(x=>x.id!==id);saveTecnicos();
   renderView('config');toast('Técnico removido');
+  if(t.uid){
+    if(!fbReady||!WORKSPACE){
+      toast('Removido localmente, mas sem conexão — o acesso dele no servidor NÃO foi revogado ainda','warn');
+      return;
+    }
+    try{
+      await fbDB.collection('workspaces').doc(WORKSPACE).collection('members').doc(t.uid).delete();
+    }catch(e){
+      fbLog('Falha ao revogar acesso no servidor: '+e.code+' — '+e.message,'erro');
+      toast('Removido localmente, mas não foi possível revogar o acesso dele no servidor — tente de novo depois','warn');
+    }
+  }
 }
 
 function toggleModuloTec(id,mod,val){
@@ -4690,7 +4965,7 @@ function _pubToken(){
   let t='';for(let i=0;i<10;i++)t+=c[Math.floor(Math.random()*c.length)];
   return t;
 }
-function pubURL(token){return location.origin+location.pathname+'#/ac/'+token;}
+function pubURL(token){return location.origin+location.pathname+'#/ac/'+WORKSPACE+'/'+token;}
 function _thumbKey(d){return d.length+'|'+d.slice(24,88);}
 
 /* reduz a foto para o tamanho do acompanhamento (leve, cabe na nuvem) */
@@ -4807,6 +5082,9 @@ async function publicarAcompanhamento(token,payload){
 
 /* ── gera (ou reaproveita) o link de uma OS ── */
 async function gerarLinkOS(id){
+  // WORKSPACE pode ainda estar null logo após entrarApp() otimista (sessão em cache, rede
+  // ainda resolvendo) -- sem essa trava, pubURL() geraria um link quebrado (#/ac/null/{token})
+  if(!WORKSPACE||!fbReady){toast('Aguarde a sincronização terminar antes de gerar o link','warn');return;}
   const os=osList.find(o=>o.id===id);if(!os)return;
   if(!os.pubToken){os.pubToken=_pubToken();saveOS();}
   toast('Preparando o link...');
@@ -4815,6 +5093,7 @@ async function gerarLinkOS(id){
 }
 /* ── gera (ou reaproveita) o link de um andar da obra ── */
 async function gerarLinkObra(andarId){
+  if(!WORKSPACE||!fbReady){toast('Aguarde a sincronização terminar antes de gerar o link','warn');return;}
   const andar=(vrfObra.andares||[]).find(a=>a.id===andarId);if(!andar)return;
   if(!andar.pubToken){andar.pubToken=_pubToken();saveVrfObra();}
   toast('Preparando o link...');
@@ -4870,12 +5149,30 @@ async function republicarAtivos(){
   }catch(e){/* republicação é best-effort */}
 }
 
-/* ════════ PÁGINA PÚBLICA (o que o cliente vê) ════════ */
+/* ════════ PÁGINA PÚBLICA (o que o cliente vê) ════════
+   A rota agora carrega o workspaceId (WORKSPACE deixou de ser fixo, AD-3) --
+   sem ele, um visitante anônimo não teria como saber em qual workspace ler o link.
+   Detecta especificamente o formato ANTIGO (#/ac/{token}, sem workspace) pra avisar
+   com uma mensagem clara -- em vez de cair silenciosamente na tela de login normal. */
 function _pubRotaToken(){
-  const m=(location.hash||'').match(/^#\/ac\/([a-z0-9]{6,20})$/i);
-  return m?m[1]:null;
+  const h=location.hash||'';
+  const novo=h.match(/^#\/ac\/([a-z0-9-]{2,40})\/([a-z0-9]{6,20})$/i);
+  if(novo)return{ws:novo[1],token:novo[2]};
+  const antigo=h.match(/^#\/ac\/([a-z0-9]{6,20})$/i);
+  if(antigo)return{legacy:true};
+  return null;
 }
-function iniciarModoPublico(token){
+function _mostrarLinkAntigo(){
+  document.body.classList.add('modo-publico');
+  const sp=document.getElementById('splashScreen');if(sp)sp.remove();
+  const lg=document.getElementById('loginScreen');if(lg)lg.remove();
+  const ap=document.getElementById('app');if(ap)ap.remove();
+  const box=document.createElement('div');
+  box.id='pubScreen';
+  box.innerHTML=`<div class="pub-wrap"><div class="pub-erro"><b>Link desatualizado</b><span>Este link de acompanhamento é de uma versão antiga do sistema e não funciona mais. Peça um novo link à empresa.</span></div></div>`;
+  document.body.appendChild(box);
+}
+function iniciarModoPublico(wsId,token){
   document.body.classList.add('modo-publico');
   const sp=document.getElementById('splashScreen');if(sp)sp.remove();
   const lg=document.getElementById('loginScreen');if(lg)lg.remove();
@@ -4886,10 +5183,10 @@ function iniciarModoPublico(token){
   document.body.appendChild(box);
   const erroConexao=()=>{box.innerHTML=`<div class="pub-wrap"><div class="pub-erro"><b>Não foi possível conectar</b><span>Verifique sua internet e atualize a página.</span></div></div>`;};
   // só consulta o Firestore depois que fbInit confirmar o login anônimo (onAuthStateChanged)
-  if(!fbInit(()=>_pubOuvirToken(token),erroConexao))erroConexao();
+  if(!fbInit({onReady:()=>_pubOuvirToken(wsId,token),onNoUser:erroConexao,anon:true}))erroConexao();
 }
-function _pubOuvirToken(token){
-  const ref=fbDB.collection('workspaces').doc(WORKSPACE).collection('data').doc('pub_'+token);
+function _pubOuvirToken(wsId,token){
+  const ref=fbDB.collection('workspaces').doc(wsId).collection('data').doc('pub_'+token);
   let recebeu=false;
   ref.onSnapshot(snap=>{
     if(!snap.exists){
@@ -4977,13 +5274,14 @@ function pubZoom(src){
 }
 
 /* ── BOOT ── */
-const _pubTok=_pubRotaToken();
-if(_pubTok){
-  iniciarModoPublico(_pubTok); // visitante: só lê o documento daquele serviço
+const _pubRota=_pubRotaToken();
+if(_pubRota&&_pubRota.legacy){
+  _mostrarLinkAntigo(); // formato antigo de link (#/ac/{token}, sem workspace) -- avisa em vez de cair no login normal
+}else if(_pubRota){
+  iniciarModoPublico(_pubRota.ws,_pubRota.token); // visitante: só lê o documento daquele serviço
 }else{
-fbBoot(); // conecta à nuvem, sincroniza e liga listeners em tempo real
-if(session){entrarApp();}
-else{onPerfilChange();}
+fbBoot(); // registra o listener de auth; fazerLogin()/cadastrarEmpresa() disparam a sincronização de verdade
+if(session)entrarApp(); // sessão em cache: mostra a UI na hora (offline-first), a nuvem confirma em paralelo
 updateDate();
 if('Notification'in window&&Notification.permission==='default'){/* pede permissão no primeiro login */}
 }

@@ -1,0 +1,85 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /* ── Helpers ──────────────────────────────────────────────
+       Autorização sempre via documento de membership (AD-2) --
+       nunca via campo enviado pelo cliente (session.perfil etc). */
+    function isRealAuth() {
+      return request.auth != null
+        && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+    function isMember(wsId) {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/workspaces/$(wsId)/members/$(request.auth.uid));
+    }
+    function myRole(wsId) {
+      return get(/databases/$(database)/documents/workspaces/$(wsId)/members/$(request.auth.uid)).data.role;
+    }
+    function isGestor(wsId) {
+      return isMember(wsId) && myRole(wsId) == 'gestor';
+    }
+    /* Gate de aprovação manual (piloto privado): todo workspace novo nasce 'pendente'.
+       Só o dono do projeto no Firebase Console aprova (edita fora das regras, via
+       Console/Admin SDK -- não é uma operação de cliente). Sem isso, qualquer pessoa
+       autenticada poderia se auto-cadastrar e usar dados sem curadoria nenhuma. */
+    function isAtivo(wsId) {
+      return get(/databases/$(database)/documents/workspaces/$(wsId)).data.status == 'ativo';
+    }
+
+    /* ── Descoberta de workspace por uid (AD-11) ──────────────
+       Só um ponteiro {workspaceId}; não concede acesso a dado
+       nenhum por si só -- quem autoriza de fato é members/{uid}.
+       Sem update/delete: reatribuição de workspace não é modelada
+       nesta espinha (assunção: uma pessoa pertence a 1 workspace). */
+    match /userWorkspaces/{uid} {
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow create: if isRealAuth() && (
+        request.auth.uid == uid ||
+        isGestor(request.resource.data.workspaceId)
+      );
+      allow update, delete: if false;
+    }
+
+    /* ── Metadado do workspace: só o marcador de bootstrap (AD-2) ──
+       O predicado de bootstrap de members/{uid} abaixo depende da
+       ausência deste documento -- por isso ele nunca é editável. */
+    match /workspaces/{wsId} {
+      allow read: if isMember(wsId);
+      // status só pode nascer 'pendente' -- cliente nunca se auto-aprova; a aprovação
+      // (pendente -> ativo) só acontece fora das regras (Console/Admin SDK do dono).
+      allow create: if isRealAuth() && request.resource.data.criado == true
+        && request.resource.data.status == 'pendente';
+      allow update, delete: if false;
+    }
+
+    /* ── Membership: autorização por papel via get(), nunca por claim do cliente (AD-2) ── */
+    match /workspaces/{wsId}/members/{uid} {
+      allow read: if isMember(wsId);
+      allow create: if isRealAuth() && (
+        isGestor(wsId) ||
+        ( // bootstrap do primeiro gestor: só antes do marcador do workspace existir
+          request.auth.uid == uid &&
+          request.resource.data.role == 'gestor' &&
+          !exists(/databases/$(database)/documents/workspaces/$(wsId))
+        )
+      );
+      allow update: if isRealAuth() && isGestor(wsId);
+      // gestor nunca remove o próprio membership (evita workspace órfão sem gestor)
+      allow delete: if isRealAuth() && isGestor(wsId) && request.auth.uid != uid;
+    }
+
+    /* ── Dados sincronizados do workspace (envelope {json,updatedAt,by}, AD-8) ──
+       pub_{token} é o único documento lido sem membership -- é o link
+       público do cliente (preserva o comportamento existente, FR-13); pub_* também
+       exige workspace ativo, senão um link gerado durante a aprovação vazaria dado.
+       mappo_tecnicos só é escrito por gestor -- convite/gestão de equipe
+       é operação exclusiva de gestor, aplicada aqui e não só na UI.
+       Membro de workspace pendente autentica e vê o próprio status (isMember, acima)
+       mas não lê nem grava nenhum dado até o dono do projeto aprovar. */
+    match /workspaces/{wsId}/data/{docId} {
+      allow read: if request.auth != null && isAtivo(wsId) && (docId.matches('pub_.*') || isMember(wsId));
+      allow write: if isMember(wsId) && isAtivo(wsId) && (docId != 'mappo_tecnicos' || isGestor(wsId));
+    }
+  }
+}
