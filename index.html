@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="MAPPO">
-<link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%20%22MAPPO%20%E2%80%94%20Gest%C3%A3o%20de%20Equipes%20em%20Campo%22%2C%20%22short_name%22%3A%20%22MAPPO%22%2C%20%22description%22%3A%20%22Sistema%20de%20gest%C3%A3o%20de%20ordens%20de%20servi%C3%A7o%20e%20equipes%20em%20campo%20%E2%80%94%20Elite%20Ar%22%2C%20%22display%22%3A%20%22standalone%22%2C%20%22start_url%22%3A%20%22./%22%2C%20%22scope%22%3A%20%22./%22%2C%20%22orientation%22%3A%20%22portrait%22%2C%20%22background_color%22%3A%20%22%23185166%22%2C%20%22theme_color%22%3A%20%22%23185266%22%2C%20%22lang%22%3A%20%22pt-BR%22%2C%20%22icons%22%3A%20%5B%7B%22src%22%3A%20%22https%3A//inteligenciaartificial341-code.github.io/MAPPO/icon-512.png%22%2C%20%22sizes%22%3A%20%22512x512%22%2C%20%22type%22%3A%20%22image/png%22%2C%20%22purpose%22%3A%20%22any%22%7D%2C%20%7B%22src%22%3A%20%22https%3A//inteligenciaartificial341-code.github.io/MAPPO/icon-192.png%22%2C%20%22sizes%22%3A%20%22192x192%22%2C%20%22type%22%3A%20%22image/png%22%2C%20%22purpose%22%3A%20%22any%22%7D%5D%7D">
+<link rel="manifest" href="manifest.json">
 <title>MAPPO — Gestão de Equipes em Campo</title>
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -5565,6 +5565,19 @@ window.addEventListener('load',()=>{
     if(s){s.classList.add('out');setTimeout(()=>s.remove(),600);}
   },4000);
 });
+
+/* Service Worker (Story 7: instalação multiplataforma via PWA) -- registra depois do
+   load pra não competir com o boot do app; silencioso se o navegador não suportar. */
+if('serviceWorker'in navigator){
+  navigator.serviceWorker.addEventListener('message',(event)=>{
+    if(event.data&&event.data.type==='sw-cache-warning')fbLog('Service Worker — item não cacheado: '+event.data.detail,'erro');
+  });
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('sw.js').catch(e=>{
+      fbLog('Service Worker não registrado: '+(e&&e.code)+' — '+(e&&e.message||e),'erro');
+    });
+  });
+}
 </script>
 </body>
 </html>
