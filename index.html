@@ -4347,6 +4347,25 @@ let _liveUltimoReg=0;
 let _liveWakeLock=null;
 let _liveGuardTimer=null;
 
+/* consentimento explícito p/ GPS ao vivo (FR-12) — por uid, em localStorage
+   (não no Firestore: firestore.rules só deixa o gestor gravar em members/{uid}) */
+const GPS_CONSENT_VERSAO=1; // incrementar se o texto do consentimento mudar → reabre p/ todo mundo
+function _temConsentimentoGPS(){
+  if(!session||!session.uid)return false;
+  try{
+    const raw=localStorage.getItem('mappo_gps_consent_'+session.uid);
+    if(!raw)return false;
+    const rec=JSON.parse(raw);
+    return !!rec&&rec.versao===GPS_CONSENT_VERSAO;
+  }catch(e){console.error('[gps-consent] leitura falhou',e.code,e.message);return false;}
+}
+function _gravarConsentimentoGPS(){
+  if(!session||!session.uid)return;
+  try{
+    localStorage.setItem('mappo_gps_consent_'+session.uid,JSON.stringify({versao:GPS_CONSENT_VERSAO,ts:Date.now()}));
+  }catch(e){console.error('[gps-consent] gravação falhou',e.code,e.message);}
+}
+
 /* distância aproximada em metros entre 2 coordenadas */
 function _distM(a,b){
   const R=6371000,rad=x=>x*Math.PI/180;
@@ -4385,6 +4404,28 @@ function fmtDuracaoMs(ms){
 function toggleGPS(){toggleLive();}
 function toggleLive(){
   if(liveAtivo()){pararLive('GPS ao vivo desativado');return;}
+  if(!_temConsentimentoGPS()){_mostrarConsentimentoGPS();return;}
+  iniciarLive();
+}
+
+/* consentimento explícito antes da 1ª ativação do GPS ao vivo (FR-12) */
+function _mostrarConsentimentoGPS(){
+  showModal(`
+    <div class="modal-head"><h2>📍 Ativar GPS ao vivo</h2></div>
+    <div class="modal-body">
+      <p style="font-size:14px;color:var(--gray-600);line-height:1.5">Ao ativar, sua <strong>localização é coletada continuamente</strong> (a cada poucos segundos) e fica visível para o gestor em tempo real, por <strong>até 10 horas</strong> a partir do check-in.</p>
+      <p style="font-size:14px;color:var(--gray-600);line-height:1.5;margin-top:10px">É <strong>opcional</strong>: você pode desativar quando quiser enquanto estiver ativo. O check-in pontual da OS continua funcionando normalmente sem isso.</p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal()">Agora não</button>
+      <button class="btn btn-primary" onclick="_confirmarConsentimentoGPS()">Aceito, ativar GPS</button>
+    </div>
+  `);
+}
+function _confirmarConsentimentoGPS(){
+  _gravarConsentimentoGPS();
+  if(!_temConsentimentoGPS())toast('Não foi possível salvar sua permissão neste navegador — você pode precisar aceitar de novo na próxima vez','warn');
+  closeModal();
   iniciarLive();
 }
 
@@ -4536,7 +4577,7 @@ function liveBlocoHTML(){
   }
   const ck=ultimoCheckinHojeTs();
   const temCkValido=ck&&Date.now()<=ck+LIVE_DURACAO_MS;
-  return `<button class="btn btn-ghost" style="width:100%" onclick="iniciarLive()">${svgIco('mapa','ico-sm')} Ativar GPS ao vivo (até 10h)</button>
+  return `<button class="btn btn-ghost" style="width:100%" onclick="toggleLive()">${svgIco('mapa','ico-sm')} Ativar GPS ao vivo (até 10h)</button>
   <p class="live-hint" style="margin-top:8px">${temCkValido
     ?'Válido por 10h a partir do seu check-in de hoje. Posição atualizada a cada 5s com o app aberto.'
     :'Sua posição é atualizada a cada 5 segundos, por até 10 horas, enquanto o app estiver aberto.'}</p>`;
