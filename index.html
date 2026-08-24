@@ -2185,7 +2185,7 @@ function renderTecnicoHome(){
     <div class="card vrf-dash-card" onclick="nav('vrf')">
       <div class="vrf-dash-left">
         <div class="vrf-dash-tag">${svgIco('vrf','ico-sm')} Obra VRF</div>
-        <div class="vrf-dash-nome">${vrfObra.nome||'Obra em andamento'}</div>
+        <div class="vrf-dash-nome">${escapeHtml(vrfObra.nome||'Obra em andamento')}</div>
         <div class="vrf-bar" style="margin-top:10px"><div class="vrf-bar-fill" style="width:${geral}%;background:${vrfCorProg(geral)}"></div></div>
         <div class="vrf-dash-meta">${vrfObra.andares.length} andar${vrfObra.andares.length!==1?'es':''}</div>
       </div>
@@ -2378,6 +2378,11 @@ function toast(msg,type){
 }
 function fmtDate(d){if(!d)return'';const[y,m,dd]=d.split('-');return`${dd}/${m}/${y}`;}
 function fmtDateShort(d){if(!d)return'';const[y,m,dd]=d.split('-');return`${dd}/${m}`;}
+/* única função de escape do app (AD-12) -- serve tanto pra innerHTML quanto pra atributo
+   value="..." com a mesma chamada; nunca criar um segundo caminho de sanitização ad-hoc. */
+function escapeHtml(s){
+  return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
 function hoje(){return new Date().toISOString().split('T')[0];}
 function openLightbox(src){document.getElementById('lightboxImg').src=src;document.getElementById('lightbox').classList.add('open');}
 function toggleChkFoto(ci){
@@ -2471,7 +2476,7 @@ function renderBemVindoGestor(){
   return `
   <div class="bemvindo">
     <div class="bv-hero">
-      <div class="bv-title">Bem-vindo, ${session.nome||'Gestor'}!</div>
+      <div class="bv-title">Bem-vindo, ${escapeHtml(session.nome||'Gestor')}!</div>
       <div class="bv-sub">Por onde você quer começar hoje?</div>
     </div>
     <div class="bv-cards">
@@ -2505,7 +2510,7 @@ function cardVRFdash(){
   <div class="card vrf-dash-card" onclick="nav('vrf')">
     <div class="vrf-dash-left">
       <div class="vrf-dash-tag">${svgIco('vrf','ico-sm')} Obra VRF</div>
-      <div class="vrf-dash-nome">${vrfObra.nome||'Obra em andamento'}</div>
+      <div class="vrf-dash-nome">${escapeHtml(vrfObra.nome||'Obra em andamento')}</div>
       <div class="vrf-bar" style="margin-top:10px"><div class="vrf-bar-fill" style="width:${geral}%;background:${vrfCorProg(geral)}"></div></div>
       <div class="vrf-dash-meta">${vrfObra.andares.length} andar${vrfObra.andares.length!==1?'es':''}${ultimoRel?` · último relatório: ${fmtDate(ultimoRel.data)}`:''}</div>
     </div>
@@ -2524,7 +2529,7 @@ function renderDashboard(){
 
   return `
   <div class="page-head">
-    <div><div class="page-title">Bom trabalho, ${session.nome.split(' ')[0]}</div>
+    <div><div class="page-title">Bom trabalho, ${escapeHtml(session.nome.split(' ')[0])}</div>
     <div class="page-desc">Aqui está o resumo da operação de hoje.</div></div>
     <button class="btn btn-primary" onclick="openModalOS()">${svgIco('plus','ico-sm')} Nova OS</button>
   </div>
@@ -2542,7 +2547,7 @@ function renderDashboard(){
       ${atrasadas.length?`<div class="card" style="margin-bottom:20px;border-left:4px solid var(--red)">
         <div class="card-head"><h3 style="color:var(--red)">🔴 Atenção — ${atrasadas.length} OS atrasada${atrasadas.length>1?'s':''}</h3></div>
         <div class="card-pad" style="padding-top:6px">
-          ${atrasadas.slice(0,3).map(o=>`<div class="os-meta-i" style="padding:8px 0;cursor:pointer" onclick="openDetalhe('${o.id}')"><span>📍</span> <strong>${o.cliente}</strong> — ${o.tecnico} · venceu ${fmtDate(o.data)}</div>`).join('')}
+          ${atrasadas.slice(0,3).map(o=>`<div class="os-meta-i" style="padding:8px 0;cursor:pointer" onclick="openDetalhe('${o.id}')"><span>📍</span> <strong>${escapeHtml(o.cliente)}</strong> — ${escapeHtml(o.tecnico)} · venceu ${fmtDate(o.data)}</div>`).join('')}
         </div></div>`:''}
 
       <div class="card">
@@ -2571,8 +2576,8 @@ function renderEquipeMini(){
     const em=osList.find(o=>o.tecnico===t&&o.status==='andamento');
     const loc=getTecnicoLoc(t);
     return `<div class="tech-row">
-      <div class="tech-av">${t.split(' ').map(w=>w[0]).slice(0,2).join('')}</div>
-      <div class="tech-info"><div class="tech-nm">${t}</div><div class="tech-st">${em?'🔧 '+em.cliente:'Disponível'}</div></div>
+      <div class="tech-av">${escapeHtml(t.split(' ').map(w=>w[0]).slice(0,2).join(''))}</div>
+      <div class="tech-info"><div class="tech-nm">${escapeHtml(t)}</div><div class="tech-st">${em?'🔧 '+escapeHtml(em.cliente):'Disponível'}</div></div>
       <div class="${loc?'tech-live':'tech-off'}" title="${loc?'Online':'Offline'}"></div>
     </div>`;
   }).join('');
@@ -2585,7 +2590,7 @@ function renderManutMini(){
     const dias=diasAte(m.dataAgendada);
     const cor=dias<=7?'var(--red)':dias<=30?'var(--yellow)':'var(--gray-400)';
     return `<div style="padding:10px 0;border-bottom:1px solid var(--gray-100)">
-      <div style="font-size:14px;font-weight:600;color:var(--gray-800)">${m.cliente}</div>
+      <div style="font-size:14px;font-weight:600;color:var(--gray-800)">${escapeHtml(m.cliente)}</div>
       <div style="font-size:12px;color:${cor};margin-top:2px">${dias<0?'Vencida':dias===0?'Hoje':'Em '+dias+' dias'} · ${fmtDate(m.dataAgendada)}</div>
     </div>`;
   }).join('');
@@ -2633,12 +2638,12 @@ function osCardHTML(os){
 
   return `<div class="os-card st-${s}" onclick="openDetalhe('${os.id}')">
     <div class="os-card-top">
-      <div><div class="os-client">${os.cliente}</div><div class="os-addr">${svgIco('pin','ico-sm')} ${os.endereco}</div></div>
+      <div><div class="os-client">${escapeHtml(os.cliente)}</div><div class="os-addr">${svgIco('pin','ico-sm')} ${escapeHtml(os.endereco)}</div></div>
       <span class="badge b-${s}"><span class="dot"></span>${lbl[s]}</span>
     </div>
     <div class="os-meta">
-      <div class="os-meta-i">${svgIco('config','ico-sm')} ${os.tipo}</div>
-      <div class="os-meta-i">${svgIco('user','ico-sm')} ${os.tecnico}</div>
+      <div class="os-meta-i">${svgIco('config','ico-sm')} ${escapeHtml(os.tipo)}</div>
+      <div class="os-meta-i">${svgIco('user','ico-sm')} ${escapeHtml(os.tecnico)}</div>
       <div class="os-meta-i">${svgIco('calendar','ico-sm')} ${fmtDate(os.data)} ${os.hora||''}</div>
       <div class="os-meta-i">${svgIco('splits','ico-sm')} ${splits} split${splits>1?'s':''}</div>
     </div>
@@ -2667,7 +2672,7 @@ function renderClientes(){
     const conc=c.visitas.filter(v=>v.status==='concluida').length;
     return `<div class="os-card" onclick="openHistoricoCliente('${c.nome.replace(/'/g,"\\'")}')">
       <div class="os-card-top">
-        <div><div class="os-client">${c.nome}</div><div class="os-addr">📍 ${c.endereco||'Sem endereço'}</div></div>
+        <div><div class="os-client">${escapeHtml(c.nome)}</div><div class="os-addr">📍 ${escapeHtml(c.endereco||'Sem endereço')}</div></div>
         <span class="badge b-concluida">${total} visita${total!==1?'s':''}</span>
       </div>
       <div class="os-meta">
@@ -2697,14 +2702,14 @@ function manutCardHTML(m){
   const cor=m.concluida?'var(--green)':dias<0?'var(--red)':dias<=7?'var(--red)':dias<=30?'var(--yellow)':'var(--petrol)';
   return `<div class="os-card" style="border-color:${cor}" onclick="openModalManutEdit('${m.id}')">
     <div class="os-card-top">
-      <div><div class="os-client">${m.cliente}</div><div class="os-addr">📍 ${m.endereco||''}</div></div>
+      <div><div class="os-client">${escapeHtml(m.cliente)}</div><div class="os-addr">📍 ${escapeHtml(m.endereco||'')}</div></div>
       <span class="badge" style="background:${cor}22;color:${cor}">${m.concluida?'✓ Feita':dias<0?'Vencida':dias===0?'Hoje':'Em '+dias+'d'}</span>
     </div>
     <div class="os-meta">
       <div class="os-meta-i"><span>📅</span>${fmtDate(m.dataAgendada)}</div>
-      <div class="os-meta-i"><span>🔧</span>${m.tipo||'Preventiva'}</div>
-      <div class="os-meta-i"><span>🔁</span>${m.recorrencia||'Única'}</div>
-      ${m.tecnico?`<div class="os-meta-i"><span>👷</span>${m.tecnico}</div>`:''}
+      <div class="os-meta-i"><span>🔧</span>${escapeHtml(m.tipo||'Preventiva')}</div>
+      <div class="os-meta-i"><span>🔁</span>${escapeHtml(m.recorrencia||'Única')}</div>
+      ${m.tecnico?`<div class="os-meta-i"><span>👷</span>${escapeHtml(m.tecnico)}</div>`:''}
     </div>
   </div>`;
 }
@@ -2838,7 +2843,7 @@ function renderVRFtecnico(){
     </button>
     ${vrfObra.andares.map((an,i)=>{
       const pct=vrfProgAndar(an.id);
-      return `<button class="vrf-tab ${vrfFloorTab===i+1?'on':''}" onclick="vrfSetTab(${i+1})">${an.nome}<small>${pct}%</small></button>`;
+      return `<button class="vrf-tab ${vrfFloorTab===i+1?'on':''}" onclick="vrfSetTab(${i+1})">${escapeHtml(an.nome)}<small>${pct}%</small></button>`;
     }).join('')}`;
 
   // painel ativo
@@ -2847,7 +2852,7 @@ function renderVRFtecnico(){
   else{painelHTML=vrfRenderAndarPainel(vrfObra.andares[vrfFloorTab-1]);}
 
   return `
-  <div class="page-head"><div><div class="page-title">${obraNome}</div><div class="page-desc">Checklist de execução em campo</div></div></div>
+  <div class="page-head"><div><div class="page-title">${escapeHtml(obraNome)}</div><div class="page-desc">Checklist de execução em campo</div></div></div>
 
   <!-- check-in diário do prestador -->
   ${vrfCardCheckin()}
@@ -2866,7 +2871,7 @@ function renderVRFtecnico(){
 
   <!-- rodapé de envio -->
   <div class="card vrf-envio">
-    <div class="fg"><label>Seu nome</label><input type="text" id="vrfRespNome" value="${session.nome||''}" placeholder="Responsável pelo serviço"></div>
+    <div class="fg"><label>Seu nome</label><input type="text" id="vrfRespNome" value="${escapeHtml(session.nome||'')}" placeholder="Responsável pelo serviço"></div>
     <div class="fg"><label>Observações do dia (opcional)</label><textarea id="vrfObs" placeholder="Ex: faltou material, cliente pediu ajuste..."></textarea></div>
     <button class="btn btn-primary btn-block" onclick="vrfEnviarRelatorio()">${svgIco('check')} Enviar relatório ao gestor</button>
   </div>
@@ -2917,7 +2922,7 @@ function vrfRenderMissaoPainel(){
       </div>`;
     }).join('');
     return `<div class="vrf-mis-grupo">
-      <div class="vrf-mis-grupo-head">${svgIco('splits','ico-sm')} ${an.nome}</div>
+      <div class="vrf-mis-grupo-head">${svgIco('splits','ico-sm')} ${escapeHtml(an.nome)}</div>
       ${steps}
     </div>`;
   }).join('');
@@ -2975,7 +2980,7 @@ function vrfRenderAndarPainel(andar){
         <div class="vrf-step-box" onclick="vrfToggleTec('${andar.id}','${key}',this.closest('.vrf-step'))"><span class="vrf-step-ck">${done?svgIco('check','ico-sm'):''}</span></div>
         <div class="vrf-step-body">
           <span class="vrf-step-txt" onclick="vrfToggleTec('${andar.id}','${key}',this.closest('.vrf-step'))">${isMis?'<span class="vrf-mdot"></span>':''}${txt}</span>
-          ${nota?`<div class="vrf-step-note">${svgIco('edit','ico-sm')} ${nota.replace(/</g,'&lt;')}</div>`:''}
+          ${nota?`<div class="vrf-step-note">${svgIco('edit','ico-sm')} ${escapeHtml(nota)}</div>`:''}
           ${fs.length?`<div class="vrf-step-photos">${fs.map((src,idx)=>`<img src="${src}" onclick="vrfVerFoto('${andar.id}','${key}',${idx},event)">`).join('')}</div>`:''}
           ${expandHTML}
         </div>
@@ -3130,7 +3135,7 @@ function renderVRFgestor(){
     const nFotos=Object.values(vrfFotos[an.id]||{}).reduce((a,arr)=>a+(arr?arr.length:0),0);
     return `<div class="vrf-floor-card" onclick="vrfAbrirAndar('${an.id}')">
       <div class="vrf-fc-head">
-        <span class="vrf-fc-name">${an.nome}</span>
+        <span class="vrf-fc-name">${escapeHtml(an.nome)}</span>
         <span class="vrf-fc-pct" style="color:${cor}">${pct}%</span>
       </div>
       <div class="vrf-bar"><div class="vrf-bar-fill" style="width:${pct}%;background:${cor}"></div></div>
@@ -3151,7 +3156,7 @@ function renderVRFgestor(){
 
   return `
   <div class="page-head">
-    <div><div class="page-title">Obra VRF</div><div class="page-desc">${obraNome||'Configure a obra abaixo para começar'}</div></div>
+    <div><div class="page-title">Obra VRF</div><div class="page-desc">${escapeHtml(obraNome)||'Configure a obra abaixo para começar'}</div></div>
     <button class="btn btn-primary btn-sm" onclick="vrfConfigObra()">${svgIco('config','ico-sm')} Configurar obra</button>
   </div>
 
@@ -3189,7 +3194,7 @@ function renderVRFgestor(){
     ${vrfRelatorios.length?`
       <div class="vrf-rel-resumo-info">
         <strong>${vrfRelatorios.length} relatório${vrfRelatorios.length!==1?'s':''}</strong>
-        <span>Último: ${fmtDate(vrfRelatorios[vrfRelatorios.length-1].data)} · ${vrfRelatorios[vrfRelatorios.length-1].responsavel||'Prestador'}</span>
+        <span>Último: ${fmtDate(vrfRelatorios[vrfRelatorios.length-1].data)} · ${escapeHtml(vrfRelatorios[vrfRelatorios.length-1].responsavel||'Prestador')}</span>
       </div>
       <span class="vrf-rel-resumo-go">Ver todos ${svgIco('arrow-right','ico-sm')}</span>`
     :'<p style="font-size:13px;color:var(--gray-400);text-align:center;padding:12px;width:100%">Nenhum relatório recebido ainda.</p>'}
@@ -3211,7 +3216,7 @@ function renderVRFandares(){
     VRF_FASES.forEach(f=>{if(vrfProgFase(an.id,f.id)>=100)fasesFeitas++;});
     return `<div class="vrf-andar-lista-card" onclick="vrfAbrirAndar('${an.id}')">
       <div class="vrf-al-top">
-        <div class="vrf-al-nome">${an.nome}</div>
+        <div class="vrf-al-nome">${escapeHtml(an.nome)}</div>
         <div class="vrf-al-pct" style="color:${cor}">${pct}%</div>
       </div>
       <div class="vrf-bar" style="margin:10px 0"><div class="vrf-bar-fill" style="width:${pct}%;background:${cor}"></div></div>
@@ -3224,7 +3229,7 @@ function renderVRFandares(){
     </div>`;
   }).join('');
   return `<div class="page-head">
-    <div><div class="page-title">Andares da Obra</div><div class="page-desc">${vrfObra.nome||'Toque em um andar para ver o checklist'}</div></div>
+    <div><div class="page-title">Andares da Obra</div><div class="page-desc">${escapeHtml(vrfObra.nome)||'Toque em um andar para ver o checklist'}</div></div>
     <button class="btn btn-ghost btn-sm" onclick="nav('vrf');setTimeout(vrfConfigObra,150)">${svgIco('config','ico-sm')} Configurar</button>
   </div>
   <div class="vrf-andar-lista">${cards}</div>`;
@@ -3237,7 +3242,7 @@ function renderVRFrelatorios(){
     ${vrfRelatorios.length?vrfRelatorios.slice().reverse().map(r=>`
       <div class="vrf-rel-item">
         <div class="vrf-rel-data">${fmtDate(r.data)}</div>
-        <div class="vrf-rel-info"><strong>${r.responsavel||'Prestador'}</strong>${r.obs?`<span>${r.obs}</span>`:''}</div>
+        <div class="vrf-rel-info"><strong>${escapeHtml(r.responsavel||'Prestador')}</strong>${r.obs?`<span>${escapeHtml(r.obs)}</span>`:''}</div>
         <div class="vrf-rel-pct" style="color:${vrfCorProg(r.pct||0)}">${r.pct||0}%</div>
       </div>`).join(''):emptyState('ordens','Nenhum relatório ainda','Quando o prestador enviar um relatório do campo, ele aparece aqui com data, responsável e progresso.')}
   </div>`;
@@ -3259,7 +3264,7 @@ function renderVRFmapa(){
       <div class="vrf-checkin-item">
         <div class="vrf-ci-badge">${svgIco('mapa','ico-sm')}</div>
         <div class="vrf-ci-item-info">
-          <strong>${c.prestador}</strong>
+          <strong>${escapeHtml(c.prestador)}</strong>
           <span>Check-in às ${c.hora}${c.lat?' · 📍 com localização':' · sem GPS'}</span>
         </div>
         ${c.lat?`<button class="btn btn-ghost btn-sm" onclick="vrfCentralizarMapa(${c.lat},${c.lng})">Ver no mapa</button>`:''}
@@ -3278,8 +3283,8 @@ function initVRFmapa(){
   const pontos=[];
   vrfCheckins.filter(c=>c.data===hoje&&c.lat).forEach(c=>{
     pontos.push([c.lat,c.lng]);
-    const ico=L.divIcon({html:`<div style="background:var(--gold-dark);color:#fff;padding:4px 8px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.3);border:2px solid #fff">🏗️ ${c.prestador.split(' ')[0]}</div>`,className:'',iconSize:[90,24]});
-    L.marker([c.lat,c.lng],{icon:ico}).addTo(vrfMapaInstance).bindPopup(`<b>${c.prestador}</b><br>Check-in: ${c.hora}<br>${fmtDate(c.data)}`);
+    const ico=L.divIcon({html:`<div style="background:var(--gold-dark);color:#fff;padding:4px 8px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.3);border:2px solid #fff">🏗️ ${escapeHtml(c.prestador.split(' ')[0])}</div>`,className:'',iconSize:[90,24]});
+    L.marker([c.lat,c.lng],{icon:ico}).addTo(vrfMapaInstance).bindPopup(`<b>${escapeHtml(c.prestador)}</b><br>Check-in: ${c.hora}<br>${fmtDate(c.data)}`);
   });
   // também mostra posição ao vivo (watchPosition alimenta mappo_locations)
   const locs=JSON.parse(localStorage.getItem('mappo_locations')||'{}');
@@ -3287,8 +3292,8 @@ function initVRFmapa(){
     const l=locs[t];
     if(l&&Date.now()-l.ts<300000){
       pontos.push([l.lat,l.lng]);
-      const ico=L.divIcon({html:`<div style="background:var(--petrol);color:#fff;padding:4px 8px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.3);border:2px solid #fff">📍 ${t.split(' ')[0]}</div>`,className:'',iconSize:[80,24]});
-      L.marker([l.lat,l.lng],{icon:ico}).addTo(vrfMapaInstance).bindPopup(`<b>${t}</b><br>Ao vivo · ${new Date(l.ts).toLocaleTimeString('pt-BR')}`);
+      const ico=L.divIcon({html:`<div style="background:var(--petrol);color:#fff;padding:4px 8px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.3);border:2px solid #fff">📍 ${escapeHtml(t.split(' ')[0])}</div>`,className:'',iconSize:[80,24]});
+      L.marker([l.lat,l.lng],{icon:ico}).addTo(vrfMapaInstance).bindPopup(`<b>${escapeHtml(t)}</b><br>Ao vivo · ${new Date(l.ts).toLocaleTimeString('pt-BR')}`);
     }
   });
   if(pontos.length)vrfMapaInstance.fitBounds(pontos,{padding:[50,50],maxZoom:16});
@@ -3322,16 +3327,16 @@ function renderVRFfotos(){
   todas.forEach(f=>{if(!porAndar[f.andar])porAndar[f.andar]=[];porAndar[f.andar].push(f);});
   return `<div class="page-head"><div><div class="page-title">Fotos da Obra</div><div class="page-desc">${todas.length} foto${todas.length!==1?'s':''} · toque para ampliar</div></div></div>
   ${Object.keys(porAndar).map(andar=>`
-    <div class="vrf-section-label">${andar} · ${porAndar[andar].length} foto${porAndar[andar].length!==1?'s':''}</div>
+    <div class="vrf-section-label">${escapeHtml(andar)} · ${porAndar[andar].length} foto${porAndar[andar].length!==1?'s':''}</div>
     <div class="vrf-fotos-grid">
       ${porAndar[andar].map(f=>`
         <div class="vrf-foto-card" onclick="vrfVerFotoDetalhe('${f.andarId}','${f.key}',${f.idx})">
           <img src="${f.src}" loading="lazy">
           <div class="vrf-foto-cap">
-            ${f.prestador?`<div class="vrf-foto-prest">${svgIco('clientes','ico-sm')} ${f.prestador}</div>`:''}
+            ${f.prestador?`<div class="vrf-foto-prest">${svgIco('clientes','ico-sm')} ${escapeHtml(f.prestador)}</div>`:''}
             <div class="vrf-foto-etapa">${f.etapa||'—'}</div>
             <div class="vrf-foto-fase">${f.fase||''}</div>
-            ${f.nota?`<div class="vrf-foto-nota">${svgIco('edit','ico-sm')} ${f.nota}</div>`:''}
+            ${f.nota?`<div class="vrf-foto-nota">${svgIco('edit','ico-sm')} ${escapeHtml(f.nota)}</div>`:''}
           </div>
         </div>`).join('')}
     </div>`).join('')}`;
@@ -3348,11 +3353,11 @@ function vrfVerFotoDetalhe(andarId,key,idx){
     <div class="modal-body" style="padding:0">
       <img src="${src}" style="width:100%;border-radius:12px 12px 0 0;display:block">
       <div style="padding:16px">
-        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--petrol);margin-bottom:4px">${an?an.nome:''}</div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--petrol);margin-bottom:4px">${an?escapeHtml(an.nome):''}</div>
         <div style="font-size:15px;font-weight:600;color:var(--gray-800)">${fase?fase.etapas[+ei]:''}</div>
         <div style="font-size:12.5px;color:var(--gray-500);margin-top:2px">${fase?fase.nome:''}</div>
-        ${prestador?`<div style="font-size:12.5px;color:var(--gray-600);margin-top:8px;display:flex;align-items:center;gap:6px">${svgIco('clientes','ico-sm')} Registrada por <strong>${prestador}</strong></div>`:''}
-        ${nota?`<div style="margin-top:10px;padding:10px;background:var(--gray-50);border-radius:8px;font-size:13px;color:var(--gray-600);font-style:italic">${svgIco('edit','ico-sm')} ${nota}</div>`:''}
+        ${prestador?`<div style="font-size:12.5px;color:var(--gray-600);margin-top:8px;display:flex;align-items:center;gap:6px">${svgIco('clientes','ico-sm')} Registrada por <strong>${escapeHtml(prestador)}</strong></div>`:''}
+        ${nota?`<div style="margin-top:10px;padding:10px;background:var(--gray-50);border-radius:8px;font-size:13px;color:var(--gray-600);font-style:italic">${svgIco('edit','ico-sm')} ${escapeHtml(nota)}</div>`:''}
       </div>
     </div>
     <div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal()">Fechar</button></div>`,'wide');
@@ -3364,7 +3369,7 @@ function vrfMissaoResumo(){
       const keys=vrfMissaoAndar(an.id);
       if(!keys.length)return'';
       return `<div style="margin-bottom:10px">
-        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--petrol);margin-bottom:4px">${an.nome} · ${keys.length} tarefa${keys.length!==1?'s':''}</div>
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--petrol);margin-bottom:4px">${escapeHtml(an.nome)} · ${keys.length} tarefa${keys.length!==1?'s':''}</div>
         ${keys.slice(0,3).map(key=>{
           const [fid,idx]=key.split('_');
           const fase=VRF_FASES.find(f=>f.id===fid);
@@ -3380,13 +3385,13 @@ function vrfMissaoResumo(){
 function vrfConfigObra(){
   const andaresHTML=vrfObra.andares.map((an,i)=>`
     <div class="vrf-andar-row" data-i="${i}">
-      <input type="text" value="${an.nome}" onchange="vrfRenomearAndar(${i},this.value)" placeholder="Nome do andar">
+      <input type="text" value="${escapeHtml(an.nome)}" onchange="vrfRenomearAndar(${i},this.value)" placeholder="Nome do andar">
       <button class="vrf-andar-del" onclick="vrfRemoverAndar(${i})" title="Remover">${svgIco('trash','ico-sm')}</button>
     </div>`).join('');
   showModal(`
     <div class="modal-head"><h2>Configurar obra VRF</h2></div>
     <div class="modal-body">
-      <div class="fg"><label>Nome da obra</label><input type="text" id="vrfNome" value="${vrfObra.nome}" placeholder="Ex: Edifício Solar — Centro"></div>
+      <div class="fg"><label>Nome da obra</label><input type="text" id="vrfNome" value="${escapeHtml(vrfObra.nome)}" placeholder="Ex: Edifício Solar — Centro"></div>
       <div class="fg"><label>Data alvo de conclusão</label><input type="date" id="vrfMeta" value="${vrfObra.metaData}"></div>
       <div class="fg"><label>Andares / Ambientes</label>
         <div id="vrfAndaresList" style="display:flex;flex-direction:column;gap:8px;margin-top:6px">${andaresHTML}</div>
@@ -3424,7 +3429,7 @@ function vrfConfigMissao(){
   _vrfMissaoAndarIdx=0;
   const tabs=vrfObra.andares.map((an,i)=>{
     const n=vrfMissaoAndar(an.id).length;
-    return `<button class="fbtn ${i===0?'active':''}" onclick="vrfMissaoTab(${i})">${an.nome}${n?` <span class="fbtn-badge">${n}</span>`:''}</button>`;
+    return `<button class="fbtn ${i===0?'active':''}" onclick="vrfMissaoTab(${i})">${escapeHtml(an.nome)}${n?` <span class="fbtn-badge">${n}</span>`:''}</button>`;
   }).join('');
   showModal(`
     <div class="modal-head"><h2>Missão da Semana</h2></div>
@@ -3449,7 +3454,7 @@ function vrfRenderMissaoSteps(){
   const cont=document.getElementById('vrfMissaoSteps');if(!cont)return;
   const andar=vrfObra.andares[_vrfMissaoAndarIdx];if(!andar)return;
   const lbl=document.getElementById('vrfMissaoAndarAtual');
-  if(lbl)lbl.innerHTML=`${svgIco('splits','ico-sm')} Definindo missão de: <strong>${andar.nome}</strong>`;
+  if(lbl)lbl.innerHTML=`${svgIco('splits','ico-sm')} Definindo missão de: <strong>${escapeHtml(andar.nome)}</strong>`;
   const missaoDoAndar=vrfMissaoAndar(andar.id);
   cont.innerHTML=VRF_FASES.map(f=>`
     <div class="vrf-mfase">
@@ -3475,7 +3480,7 @@ function vrfToggleMissao(andarId,key,el){
   if(tab){
     const n=arr.length;
     const nome=vrfObra.andares[_vrfMissaoAndarIdx].nome;
-    tab.innerHTML=nome+(n?` <span class="fbtn-badge">${n}</span>`:'');
+    tab.innerHTML=escapeHtml(nome)+(n?` <span class="fbtn-badge">${n}</span>`:'');
   }
 }
 function vrfSalvarMissao(){
@@ -3503,7 +3508,7 @@ function vrfAbrirAndar(andarId){
           <span class="vrf-etapa-lbl">${et}</span>
           ${fs.length?`<span class="vrf-etapa-fotos">${svgIco('camera','ico-sm')} ${fs.length}</span>`:''}
         </div>
-        ${nota?`<div class="vrf-etapa-nota">${svgIco('edit','ico-sm')} ${nota}</div>`:''}
+        ${nota?`<div class="vrf-etapa-nota">${svgIco('edit','ico-sm')} ${escapeHtml(nota)}</div>`:''}
         ${fs.length?`<div class="vrf-etapa-gallery">${fs.map(src=>`<img src="${src}" onclick="openLightbox('${src}')">`).join('')}</div>`:''}
       </div>`;
     }).join('');
@@ -3517,7 +3522,7 @@ function vrfAbrirAndar(andarId){
   }).join('');
   const pct=vrfProgAndar(andarId);
   showModal(`
-    <div class="modal-head"><h2>${an.nome}</h2></div>
+    <div class="modal-head"><h2>${escapeHtml(an.nome)}</h2></div>
     <div class="modal-body">
       <div class="vrf-andar-prog">
         <div class="vrf-bar" style="flex:1"><div class="vrf-bar-fill" style="width:${pct}%;background:${vrfCorProg(pct)}"></div></div>
@@ -3753,7 +3758,7 @@ function renderChecklistConfig(){
     <div style="margin-bottom:16px">
       <div style="font-size:13px;font-weight:600;color:var(--gray-600);margin-bottom:6px">${titulo}</div>
       ${(itens||[]).map((it,idx)=>`<div class="set-row">
-        <div class="set-info"><div class="st">${it.label}</div>${it.critico?'<div class="sd">Item crítico</div>':''}</div>
+        <div class="set-info"><div class="st">${escapeHtml(it.label)}</div>${it.critico?'<div class="sd">Item crítico</div>':''}</div>
         <div style="display:flex;gap:8px">
           <button class="btn btn-ghost btn-sm" onclick="editarItemChecklist('${chave}',${idx})">${svgIco('edit','ico-sm')}</button>
           <button class="btn btn-danger btn-sm" onclick="removerItemChecklist('${chave}',${idx})">${svgIco('trash','ico-sm')}</button>
@@ -3810,7 +3815,7 @@ function renderEquipeConfig(){
     return `<div class="set-row" style="flex-wrap:wrap;gap:12px">
       <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:180px">
         <div class="tech-av">${t.nome.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase()}</div>
-        <div><div style="font-size:15px;font-weight:600;color:var(--gray-800)">${t.nome}</div>
+        <div><div style="font-size:15px;font-weight:600;color:var(--gray-800)">${escapeHtml(t.nome)}</div>
         <div style="font-size:12px;color:var(--gray-400)">${t.uid?'Acesso vinculado':'Aguardando código de acesso'}</div></div>
       </div>
       <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
@@ -3831,8 +3836,8 @@ function openModalTecnico(id){
   showModal(`
     <div class="modal-head"><h2>${t?'✏️ Editar técnico':'👷 Novo técnico'}</h2></div>
     <div class="modal-body">
-      <div class="fg"><label>Nome completo</label><input type="text" id="tNome" value="${t?t.nome:''}" placeholder="Nome do técnico"></div>
-      <div class="fg"><label>Código de acesso do técnico (UID)</label><input type="text" id="tUid" value="${t?(t.uid||''):''}" placeholder="Cole aqui o código que ele te enviou">
+      <div class="fg"><label>Nome completo</label><input type="text" id="tNome" value="${t?escapeHtml(t.nome):''}" placeholder="Nome do técnico"></div>
+      <div class="fg"><label>Código de acesso do técnico (UID)</label><input type="text" id="tUid" value="${t?escapeHtml(t.uid||''):''}" placeholder="Cole aqui o código que ele te enviou">
       <p style="font-size:12px;color:var(--gray-400);margin-top:5px">Peça pro técnico abrir a tela de login e clicar em "Sou técnico convidado, criar minha conta" — ele te envia o código mostrado depois. Sem esse código, ele não consegue entrar.</p></div>
       <div class="fg"><label>Módulos liberados</label>
         <div class="mod-grid">
@@ -3980,7 +3985,7 @@ function openModalOS(){
     <div class="modal-head"><h2>📋 Nova Ordem de Serviço</h2></div>
     <div class="modal-body">
       <div class="fg"><label>Cliente / Local</label><input type="text" id="oCliente" placeholder="Ex: Prefeitura Municipal" list="clientesList"></div>
-      <datalist id="clientesList">${[...new Set(osList.map(o=>o.cliente))].map(c=>`<option value="${c}">`).join('')}</datalist>
+      <datalist id="clientesList">${[...new Set(osList.map(o=>o.cliente))].map(c=>`<option value="${escapeHtml(c)}">`).join('')}</datalist>
       <div class="fg"><label>Endereço</label><input type="text" id="oEndereco" placeholder="Rua, número, bairro, cidade"></div>
       <div class="frow">
         <div class="fg"><label>Tipo de serviço</label><select id="oTipo">
@@ -4033,7 +4038,7 @@ function openDetalhe(id){
   const equipHTML=(os.equipamentos||[]).map((e,i)=>`
     <div class="card" style="box-shadow:none;border:1px solid var(--gray-200);margin-bottom:10px">
       <div class="card-pad" style="padding:14px">
-        <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--gray-400);margin-bottom:10px">Split ${i+1} ${e.marca?'· '+e.marca:''} ${e.modelo||''}</div>
+        <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--gray-400);margin-bottom:10px">Split ${i+1} ${e.marca?'· '+escapeHtml(e.marca):''} ${escapeHtml(e.modelo||'')}</div>
         <div class="frow" style="gap:10px">
           <div><div style="font-size:11px;color:var(--gray-400);margin-bottom:4px">Evaporadora</div>${e.fotoEvap?`<img src="${e.fotoEvap}" onclick="openLightbox('${e.fotoEvap}')" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid var(--green)">`:`<div style="aspect-ratio:4/3;background:var(--gray-100);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px">📷</div>`}</div>
           <div><div style="font-size:11px;color:var(--gray-400);margin-bottom:4px">Condensadora</div>${e.fotoCond?`<img src="${e.fotoCond}" onclick="openLightbox('${e.fotoCond}')" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid var(--green)">`:`<div style="aspect-ratio:4/3;background:var(--gray-100);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px">📷</div>`}</div>
@@ -4047,7 +4052,7 @@ function openDetalhe(id){
     return `<div class="chk-item ${c.status==='nok'?'nok':''}">
       <div class="chk-row" ${temFoto?`onclick="toggleChkFoto(${ci})"`:''} style="${temFoto?'cursor:pointer':''}">
         <span style="font-size:17px">${ico}</span>
-        <span style="flex:1;font-size:13px">${c.label} ${c.critico?'<span style="font-size:10px;background:#fee2e2;color:#991b1b;padding:1px 6px;border-radius:8px;font-weight:600">CRÍTICO</span>':''}</span>
+        <span style="flex:1;font-size:13px">${escapeHtml(c.label)} ${c.critico?'<span style="font-size:10px;background:#fee2e2;color:#991b1b;padding:1px 6px;border-radius:8px;font-weight:600">CRÍTICO</span>':''}</span>
         ${temFoto?`<span class="chk-cam">${svgIco('camera','ico-sm')}</span><span class="chk-arrow" id="chkArrow${ci}">${svgIco('back','ico-sm')}</span>`:'<span style="font-size:11px;color:var(--gray-400)">sem foto</span>'}
       </div>
       ${temFoto?`<div class="chk-foto" id="chkFoto${ci}"><img src="${c.foto}" onclick="openLightbox('${c.foto}')" style="width:100%;border-radius:10px;cursor:pointer;display:block"></div>`:''}
@@ -4056,19 +4061,19 @@ function openDetalhe(id){
 
   const podeRevisar=os.status==='concluida';
   showModal(`
-    <div class="modal-head"><h2>📋 ${os.cliente}</h2></div>
+    <div class="modal-head"><h2>📋 ${escapeHtml(os.cliente)}</h2></div>
     <div class="modal-body">
       <div class="frow" style="margin-bottom:6px">
         <div class="fg" style="margin-bottom:10px"><label>Status</label><div style="font-size:15px">${lbl[s]}</div></div>
-        <div class="fg" style="margin-bottom:10px"><label>Técnico</label><div style="font-size:15px">👷 ${os.tecnico}</div></div>
+        <div class="fg" style="margin-bottom:10px"><label>Técnico</label><div style="font-size:15px">👷 ${escapeHtml(os.tecnico)}</div></div>
         <div class="fg" style="margin-bottom:10px"><label>Data / Hora</label><div style="font-size:15px">📅 ${fmtDate(os.data)} ${os.hora||''}</div></div>
         <div class="fg" style="margin-bottom:10px"><label>Splits</label><div style="font-size:15px">❄️ ${splits}</div></div>
       </div>
-      <div class="fg" style="margin-bottom:12px"><label>Endereço</label><div style="font-size:14px">📍 ${os.endereco}</div></div>
-      ${os.obs?`<div class="fg" style="margin-bottom:12px"><label>Observações</label><div style="font-size:14px">${os.obs}</div></div>`:''}
+      <div class="fg" style="margin-bottom:12px"><label>Endereço</label><div style="font-size:14px">📍 ${escapeHtml(os.endereco)}</div></div>
+      ${os.obs?`<div class="fg" style="margin-bottom:12px"><label>Observações</label><div style="font-size:14px">${escapeHtml(os.obs)}</div></div>`:''}
 
       <div class="fg"><label>📝 Nota do gestor (o técnico vê)</label>
-        <textarea id="notaGestor" placeholder="Ex: confirmar horário pelo WhatsApp antes de ir">${os.notaGestor||''}</textarea>
+        <textarea id="notaGestor" placeholder="Ex: confirmar horário pelo WhatsApp antes de ir">${escapeHtml(os.notaGestor||'')}</textarea>
         <button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="salvarNota('${os.id}')">Salvar nota</button>
       </div>
 
@@ -4096,12 +4101,12 @@ function openModalManut(prefill){
   showModal(`
     <div class="modal-head"><h2>🔄 Agendar manutenção</h2></div>
     <div class="modal-body">
-      <div class="fg"><label>Cliente / Local</label><input type="text" id="mCliente" value="${p.cliente||''}" list="clientesList" placeholder="Cliente"></div>
-      <datalist id="clientesList">${[...new Set(osList.map(o=>o.cliente))].map(c=>`<option value="${c}">`).join('')}</datalist>
-      <div class="fg"><label>Endereço</label><input type="text" id="mEndereco" value="${p.endereco||''}" placeholder="Endereço"></div>
+      <div class="fg"><label>Cliente / Local</label><input type="text" id="mCliente" value="${escapeHtml(p.cliente||'')}" list="clientesList" placeholder="Cliente"></div>
+      <datalist id="clientesList">${[...new Set(osList.map(o=>o.cliente))].map(c=>`<option value="${escapeHtml(c)}">`).join('')}</datalist>
+      <div class="fg"><label>Endereço</label><input type="text" id="mEndereco" value="${escapeHtml(p.endereco||'')}" placeholder="Endereço"></div>
       <div class="frow">
         <div class="fg"><label>Data da manutenção</label><input type="date" id="mData" value="${p.dataAgendada||''}"></div>
-        <div class="fg"><label>Técnico (opcional)</label><select id="mTecnico"><option value="">A definir</option>${nomesTecnicos().map(t=>`<option ${p.tecnico===t?'selected':''}>${t}</option>`).join('')}</select></div>
+        <div class="fg"><label>Técnico (opcional)</label><select id="mTecnico"><option value="">A definir</option>${nomesTecnicos().map(t=>`<option ${p.tecnico===t?'selected':''}>${escapeHtml(t)}</option>`).join('')}</select></div>
       </div>
       <div class="frow">
         <div class="fg"><label>Tipo</label><select id="mTipo"><option>Preventiva</option><option>Corretiva</option><option>Limpeza</option></select></div>
@@ -4140,16 +4145,16 @@ function openModalManutEdit(id){
   const m=manutencoes.find(x=>x.id===id);if(!m)return;
   const dias=diasAte(m.dataAgendada);
   showModal(`
-    <div class="modal-head"><h2>🔄 ${m.cliente}</h2></div>
+    <div class="modal-head"><h2>🔄 ${escapeHtml(m.cliente)}</h2></div>
     <div class="modal-body">
       <div class="frow">
         <div class="fg"><label>Data</label><div style="font-size:15px">📅 ${fmtDate(m.dataAgendada)} ${dias>=0?'(em '+dias+' dias)':'(vencida)'}</div></div>
-        <div class="fg"><label>Tipo</label><div style="font-size:15px">${m.tipo}</div></div>
-        <div class="fg"><label>Recorrência</label><div style="font-size:15px">${m.recorrencia}</div></div>
-        <div class="fg"><label>Técnico</label><div style="font-size:15px">${m.tecnico||'A definir'}</div></div>
+        <div class="fg"><label>Tipo</label><div style="font-size:15px">${escapeHtml(m.tipo)}</div></div>
+        <div class="fg"><label>Recorrência</label><div style="font-size:15px">${escapeHtml(m.recorrencia)}</div></div>
+        <div class="fg"><label>Técnico</label><div style="font-size:15px">${escapeHtml(m.tecnico||'A definir')}</div></div>
       </div>
-      ${m.endereco?`<div class="fg"><label>Endereço</label><div style="font-size:14px">📍 ${m.endereco}</div></div>`:''}
-      ${m.obs?`<div class="fg"><label>Observações</label><div style="font-size:14px">${m.obs}</div></div>`:''}
+      ${m.endereco?`<div class="fg"><label>Endereço</label><div style="font-size:14px">📍 ${escapeHtml(m.endereco)}</div></div>`:''}
+      ${m.obs?`<div class="fg"><label>Observações</label><div style="font-size:14px">${escapeHtml(m.obs)}</div></div>`:''}
     </div>
     <div class="modal-foot">
       <button class="btn btn-danger" onclick="excluirManut('${m.id}')">🗑 Excluir</button>
@@ -4197,10 +4202,10 @@ function criarCliente(){
 function openHistoricoCliente(nome){
   const visitas=osList.filter(o=>o.cliente===nome).sort((a,b)=>b.data.localeCompare(a.data));
   showModal(`
-    <div class="modal-head"><h2>🏢 ${nome}</h2></div>
+    <div class="modal-head"><h2>🏢 ${escapeHtml(nome)}</h2></div>
     <div class="modal-body">
       <label style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--gray-500);display:block;margin-bottom:12px">Histórico de visitas (${visitas.length})</label>
-      ${visitas.length?visitas.map(o=>{const s=statusReal(o);const lbl={pendente:'Pendente',andamento:'Em andamento',concluida:'Concluída',atrasada:'Atrasada',revisao:'Revisão'};return `<div class="os-card st-${s}" style="cursor:pointer;margin-bottom:8px" onclick="closeModal();setTimeout(()=>openDetalhe('${o.id}'),250)"><div class="os-card-top"><div><div style="font-weight:600">${o.tipo}</div><div class="os-addr">${fmtDate(o.data)} · ${o.tecnico}</div></div><span class="badge b-${s}">${lbl[s]}</span></div></div>`}).join(''):'<p style="font-size:14px;color:var(--gray-400)">Nenhuma visita registrada.</p>'}
+      ${visitas.length?visitas.map(o=>{const s=statusReal(o);const lbl={pendente:'Pendente',andamento:'Em andamento',concluida:'Concluída',atrasada:'Atrasada',revisao:'Revisão'};return `<div class="os-card st-${s}" style="cursor:pointer;margin-bottom:8px" onclick="closeModal();setTimeout(()=>openDetalhe('${o.id}'),250)"><div class="os-card-top"><div><div style="font-weight:600">${escapeHtml(o.tipo)}</div><div class="os-addr">${fmtDate(o.data)} · ${escapeHtml(o.tecnico)}</div></div><span class="badge b-${s}">${lbl[s]}</span></div></div>`}).join(''):'<p style="font-size:14px;color:var(--gray-400)">Nenhuma visita registrada.</p>'}
     </div>
     <div class="modal-foot"><button class="btn btn-primary" onclick="closeModal()">Fechar</button></div>`);
 }
@@ -4245,10 +4250,10 @@ function atualizarMarcadores(){
       pontos.push([l.lat,l.lng]);
       const cor=semSinal?'#94a3b8':'#dc2626';
       const rotulo=semSinal?('sem sinal '+fmtDuracaoMs(Date.now()-lv.atual.ts)):'AO VIVO';
-      const ico=L.divIcon({html:`<div class="mk-live${semSinal?' off':''}"><span class="mk-live-dot"></span>${nome} · ${rotulo}</div>`,className:'',iconSize:[130,26]});
+      const ico=L.divIcon({html:`<div class="mk-live${semSinal?' off':''}"><span class="mk-live-dot"></span>${escapeHtml(nome)} · ${rotulo}</div>`,className:'',iconSize:[130,26]});
       if(mapaMarkers[t]){mapaMarkers[t].setLatLng([l.lat,l.lng]);mapaMarkers[t].setIcon(ico);}
       else mapaMarkers[t]=L.marker([l.lat,l.lng],{icon:ico}).addTo(mapaInstance);
-      mapaMarkers[t].bindPopup(`<b>${t}</b><br>${semSinal?'Último sinal':'Ao vivo'} · ${new Date(lv.atual.ts).toLocaleTimeString('pt-BR')}<br>Expira em ${fmtDuracaoMs(Math.max(0,lv.fimTs-Date.now()))}${lv.atual.acc?'<br>Precisão: ~'+lv.atual.acc+'m':''}`);
+      mapaMarkers[t].bindPopup(`<b>${escapeHtml(t)}</b><br>${semSinal?'Último sinal':'Ao vivo'} · ${new Date(lv.atual.ts).toLocaleTimeString('pt-BR')}<br>Expira em ${fmtDuracaoMs(Math.max(0,lv.fimTs-Date.now()))}${lv.atual.acc?'<br>Precisão: ~'+lv.atual.acc+'m':''}`);
       // rastro do caminho percorrido
       const caminho=(lv.pontos||[]).map(p=>[p.lat,p.lng]);
       if(caminho.length>1){
@@ -4262,10 +4267,10 @@ function atualizarMarcadores(){
     if(mapaTrails[t]){mapaInstance.removeLayer(mapaTrails[t]);delete mapaTrails[t];}
     if(l&&Date.now()-l.ts<300000){
       pontos.push([l.lat,l.lng]);
-      const ico=L.divIcon({html:`<div style="background:var(--petrol);color:#fff;padding:4px 8px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.3);border:2px solid #fff">👷 ${nome}</div>`,className:'',iconSize:[80,24]});
+      const ico=L.divIcon({html:`<div style="background:var(--petrol);color:#fff;padding:4px 8px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.3);border:2px solid #fff">👷 ${escapeHtml(nome)}</div>`,className:'',iconSize:[80,24]});
       if(mapaMarkers[t]){mapaMarkers[t].setLatLng([l.lat,l.lng]);mapaMarkers[t].setIcon(ico);}
       else mapaMarkers[t]=L.marker([l.lat,l.lng],{icon:ico}).addTo(mapaInstance);
-      mapaMarkers[t].bindPopup(`<b>${t}</b><br>Atualizado: ${new Date(l.ts).toLocaleTimeString('pt-BR')}${l.acc?'<br>Precisão: ~'+l.acc+'m':''}`);
+      mapaMarkers[t].bindPopup(`<b>${escapeHtml(t)}</b><br>Atualizado: ${new Date(l.ts).toLocaleTimeString('pt-BR')}${l.acc?'<br>Precisão: ~'+l.acc+'m':''}`);
     }else if(mapaMarkers[t]){
       mapaInstance.removeLayer(mapaMarkers[t]);delete mapaMarkers[t];
     }
@@ -4322,10 +4327,10 @@ function secTec(titulo,list){
   <div class="os-grid">${list.map(o=>{
     const atual=etapaAtual(o);
     return `<div class="os-card st-${statusReal(o)}" onclick="abrirExecucao('${o.id}')">
-      <div class="os-card-top"><div><div class="os-client">${o.cliente}</div><div class="os-addr">🔧 ${o.tipo} · ❄️ ${o.qtdSplits||1} split${(o.qtdSplits||1)>1?'s':''}</div></div></div>
-      ${o.notaGestor?`<div style="margin-top:8px;padding:8px 10px;background:var(--yellow-bg);border-radius:8px;font-size:12px;color:#92600e">📝 ${o.notaGestor}</div>`:''}
-      ${o.status==='revisao'&&o.motivoRevisao?`<div style="margin-top:8px;padding:8px 10px;background:#fdf6e3;border-radius:8px;font-size:12px;color:var(--gold-dark)">↩ Revisar: ${o.motivoRevisao}</div>`:''}
-      <div class="os-meta"><div class="os-meta-i"><span>📍</span>${o.endereco.substring(0,30)}</div><div class="os-meta-i"><span>📅</span>${fmtDate(o.data)}</div></div>
+      <div class="os-card-top"><div><div class="os-client">${escapeHtml(o.cliente)}</div><div class="os-addr">🔧 ${escapeHtml(o.tipo)} · ❄️ ${o.qtdSplits||1} split${(o.qtdSplits||1)>1?'s':''}</div></div></div>
+      ${o.notaGestor?`<div style="margin-top:8px;padding:8px 10px;background:var(--yellow-bg);border-radius:8px;font-size:12px;color:#92600e">📝 ${escapeHtml(o.notaGestor)}</div>`:''}
+      ${o.status==='revisao'&&o.motivoRevisao?`<div style="margin-top:8px;padding:8px 10px;background:#fdf6e3;border-radius:8px;font-size:12px;color:var(--gold-dark)">↩ Revisar: ${escapeHtml(o.motivoRevisao)}</div>`:''}
+      <div class="os-meta"><div class="os-meta-i"><span>📍</span>${escapeHtml(o.endereco.substring(0,30))}</div><div class="os-meta-i"><span>📅</span>${fmtDate(o.data)}</div></div>
     </div>`;
   }).join('')}</div></div>`;
 }
@@ -4601,10 +4606,10 @@ function renderTarefasGestor(){
   const card=t=>{
     const nf=(t.fotos||[]).length;
     return `<div class="tf-item">
-      <div class="tf-top"><div class="tf-nome">${t.nome}</div><span class="tf-status ${t.status}">${TF_LABEL[t.status]||t.status}</span></div>
-      ${t.descricao?`<div class="tf-desc">${t.descricao}</div>`:''}
+      <div class="tf-top"><div class="tf-nome">${escapeHtml(t.nome)}</div><span class="tf-status ${t.status}">${TF_LABEL[t.status]||t.status}</span></div>
+      ${t.descricao?`<div class="tf-desc">${escapeHtml(t.descricao)}</div>`:''}
       <div class="tf-meta">
-        <span>${svgIco('user','ico-sm')} ${t.tecnico||'Sem técnico'}</span>
+        <span>${svgIco('user','ico-sm')} ${escapeHtml(t.tecnico||'Sem técnico')}</span>
         <span>${svgIco('camera','ico-sm')} ${nf}/${t.maxFotos} foto${t.maxFotos!==1?'s':''}</span>
         ${t.temNotas?`<span>${svgIco('edit','ico-sm')} Notas${t.nota?' recebidas':''}</span>`:''}
         ${t.checkinHora?`<span>${svgIco('pin','ico-sm')} Check-in às ${t.checkinHora}</span>`:''}
@@ -4631,9 +4636,9 @@ function openModalTarefa(id){
   showModal(`
     <div class="modal-head"><h2>${t?'Editar tarefa':'Nova tarefa adicional'}</h2></div>
     <div class="modal-body">
-      <div class="fg"><label>Nome da tarefa</label><input type="text" id="tfNome" value="${t?t.nome.replace(/"/g,'&quot;'):''}" placeholder="Ex.: Limpeza de dutos do auditório"></div>
-      <div class="fg"><label>Descrição (opcional)</label><textarea id="tfDesc" rows="3" placeholder="Detalhes do que deve ser executado" style="width:100%;border:1px solid var(--gray-200);border-radius:10px;padding:11px 13px;font-family:inherit;font-size:14px;resize:vertical">${t?(t.descricao||''):''}</textarea></div>
-      <div class="fg"><label>Técnico responsável</label><select id="tfTec">${tecs.map(x=>`<option ${t&&t.tecnico===x.nome?'selected':''}>${x.nome}</option>`).join('')||'<option value="">Nenhum técnico cadastrado</option>'}</select></div>
+      <div class="fg"><label>Nome da tarefa</label><input type="text" id="tfNome" value="${t?escapeHtml(t.nome):''}" placeholder="Ex.: Limpeza de dutos do auditório"></div>
+      <div class="fg"><label>Descrição (opcional)</label><textarea id="tfDesc" rows="3" placeholder="Detalhes do que deve ser executado" style="width:100%;border:1px solid var(--gray-200);border-radius:10px;padding:11px 13px;font-family:inherit;font-size:14px;resize:vertical">${t?escapeHtml(t.descricao||''):''}</textarea></div>
+      <div class="fg"><label>Técnico responsável</label><select id="tfTec">${tecs.map(x=>`<option ${t&&t.tecnico===x.nome?'selected':''}>${escapeHtml(x.nome)}</option>`).join('')||'<option value="">Nenhum técnico cadastrado</option>'}</select></div>
       <div class="fg"><label>Máximo de fotos</label><input type="number" id="tfMax" min="1" max="20" value="${t?t.maxFotos:5}"></div>
       <div class="set-row"><div class="set-info"><div class="st">Bloco de notas</div><div class="sd">Prestador escreve o que foi executado</div></div>
         <label class="switch"><input type="checkbox" id="tfNotas" ${!t||t.temNotas?'checked':''}><span class="slider"></span></label></div>
@@ -4672,20 +4677,20 @@ function verTarefaDetalhe(id){
   const t=tarefas.find(x=>x.id===id);if(!t)return;
   const nf=(t.fotos||[]).length;
   showModal(`
-    <div class="modal-head"><h2>${t.nome}</h2></div>
+    <div class="modal-head"><h2>${escapeHtml(t.nome)}</h2></div>
     <div class="modal-body">
       <span class="tf-status ${t.status}" style="display:inline-block;margin-bottom:12px">${TF_LABEL[t.status]||t.status}</span>
-      ${t.descricao?`<p style="font-size:14px;color:var(--gray-600);line-height:1.55;margin-bottom:12px">${t.descricao}</p>`:''}
+      ${t.descricao?`<p style="font-size:14px;color:var(--gray-600);line-height:1.55;margin-bottom:12px">${escapeHtml(t.descricao)}</p>`:''}
       <div class="tf-meta" style="margin-bottom:14px">
-        <span>${svgIco('user','ico-sm')} ${t.tecnico||'Sem técnico'}</span>
+        <span>${svgIco('user','ico-sm')} ${escapeHtml(t.tecnico||'Sem técnico')}</span>
         ${(t.checkins&&t.checkins.length)?`<span>${svgIco('pin','ico-sm')} ${t.checkins.length} check-in${t.checkins.length!==1?'s':''}</span>`:`<span>${svgIco('pin','ico-sm')} Sem check-in ainda</span>`}
       </div>
       ${(t.checkins&&t.checkins.length)?`<div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--gray-400);margin-bottom:8px">Presença na obra</div>
-      <div class="tf-checkin-hist" style="margin-bottom:14px">${t.checkins.slice().reverse().map(c=>`<div class="tf-checkin-dia">${svgIco('pin','ico-sm')} ${fmtDate(c.data)} — ${c.hora}${c.lat?` · <span style="color:var(--petrol);cursor:pointer" onclick="abrirMapaCoord(${c.lat},${c.lng},'${(t.tecnico||'Técnico')} — ${fmtDate(c.data)}')">ver no mapa</span>`:' <span style="color:var(--gray-400)">(sem GPS)</span>'}</div>`).join('')}</div>`:''}
+      <div class="tf-checkin-hist" style="margin-bottom:14px">${t.checkins.slice().reverse().map(c=>`<div class="tf-checkin-dia">${svgIco('pin','ico-sm')} ${fmtDate(c.data)} — ${c.hora}${c.lat?` · <span style="color:var(--petrol);cursor:pointer" onclick="abrirMapaCoord(${c.lat},${c.lng},'${(t.tecnico||'Técnico').replace(/'/g,"\\'")} — ${fmtDate(c.data)}')">ver no mapa</span>`:' <span style="color:var(--gray-400)">(sem GPS)</span>'}</div>`).join('')}</div>`:''}
       <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--gray-400);margin-bottom:8px">Fotos (${nf}/${t.maxFotos})</div>
       ${nf?`<div class="tf-fotos-grid">${t.fotos.map(f=>`<div class="tf-foto"><img src="${f}" onclick="openLightbox('${f}')"></div>`).join('')}</div>`:'<p style="font-size:13px;color:var(--gray-400)">Nenhuma foto enviada ainda.</p>'}
       ${t.temNotas?`<div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--gray-400);margin:14px 0 8px">Notas do prestador</div>
-      ${t.nota?`<div style="padding:12px;background:var(--gray-50);border-radius:10px;font-size:13.5px;color:var(--gray-700);line-height:1.55">${t.nota}</div>`:'<p style="font-size:13px;color:var(--gray-400)">Nenhuma nota escrita ainda.</p>'}`:''}
+      ${t.nota?`<div style="padding:12px;background:var(--gray-50);border-radius:10px;font-size:13.5px;color:var(--gray-700);line-height:1.55">${escapeHtml(t.nota)}</div>`:'<p style="font-size:13px;color:var(--gray-400)">Nenhuma nota escrita ainda.</p>'}`:''}
     </div>
     <div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal()">Fechar</button></div>`,'wide');
 }
@@ -4698,8 +4703,8 @@ function renderTarefasTecnico(){
   const ativas=minhas.filter(t=>t.status!=='concluida');
   const done=minhas.filter(t=>t.status==='concluida');
   const card=t=>`<div class="tf-item" onclick="abrirTarefa('${t.id}')" style="cursor:pointer">
-    <div class="tf-top"><div class="tf-nome">${t.nome}</div><span class="tf-status ${t.status}">${TF_LABEL[t.status]||t.status}</span></div>
-    ${t.descricao?`<div class="tf-desc">${t.descricao}</div>`:''}
+    <div class="tf-top"><div class="tf-nome">${escapeHtml(t.nome)}</div><span class="tf-status ${t.status}">${TF_LABEL[t.status]||t.status}</span></div>
+    ${t.descricao?`<div class="tf-desc">${escapeHtml(t.descricao)}</div>`:''}
     <div class="tf-meta">
       <span>${svgIco('camera','ico-sm')} ${(t.fotos||[]).length}/${t.maxFotos} fotos</span>
       ${t.temNotas?`<span>${svgIco('edit','ico-sm')} Notas</span>`:''}
@@ -4728,11 +4733,11 @@ function renderExecTarefa(t){
   <div class="card" style="margin-bottom:16px"><div class="card-pad">
     <h3 style="font-family:'Inter',sans-serif;letter-spacing:-.02em;font-size:18px;margin-bottom:4px">3. Notas do serviço</h3>
     <p style="font-size:13px;color:var(--gray-400);margin-bottom:14px">Descreva o que foi executado</p>
-    <textarea id="tarefaNota" rows="4" placeholder="Escreva aqui o que foi feito, materiais usados, pendências..." style="width:100%;border:1px solid var(--gray-200);border-radius:10px;padding:12px 14px;font-family:inherit;font-size:14px;resize:vertical" onchange="tarefaSalvarNota(this.value)">${t.nota||''}</textarea>
+    <textarea id="tarefaNota" rows="4" placeholder="Escreva aqui o que foi feito, materiais usados, pendências..." style="width:100%;border:1px solid var(--gray-200);border-radius:10px;padding:12px 14px;font-family:inherit;font-size:14px;resize:vertical" onchange="tarefaSalvarNota(this.value)">${escapeHtml(t.nota||'')}</textarea>
   </div></div>`:'';
   return `
   <button class="btn btn-ghost btn-sm" style="margin-bottom:16px" onclick="voltarTarefa()">${svgIco('back','ico-sm')} Voltar</button>
-  <div class="page-head"><div><div class="page-title">${t.nome}</div><div class="page-desc">${t.descricao||'Tarefa adicional'}</div></div></div>
+  <div class="page-head"><div><div class="page-title">${escapeHtml(t.nome)}</div><div class="page-desc">${escapeHtml(t.descricao||'Tarefa adicional')}</div></div></div>
 
   <div class="card" style="margin-bottom:16px"><div class="card-pad">
     <h3 style="font-family:'Inter',sans-serif;letter-spacing:-.02em;font-size:18px;margin-bottom:4px">1. Check-in diário</h3>
@@ -4839,7 +4844,7 @@ function tarefaFinalizarCheckin(pos){
 /* abre um modal com o mapa focado numa coordenada de check-in */
 function abrirMapaCoord(lat,lng,titulo){
   showModal(`
-    <div class="modal-head"><h2>${titulo||'Localização'}</h2></div>
+    <div class="modal-head"><h2>${escapeHtml(titulo||'Localização')}</h2></div>
     <div class="modal-body" style="padding:0">
       <div id="coordMapaBox" style="width:100%;height:340px;background:var(--gray-100)"></div>
       <div style="padding:12px 16px;font-size:12.5px;color:var(--gray-500)">${svgIco('pin','ico-sm')} ${lat.toFixed(5)}, ${lng.toFixed(5)}</div>
@@ -4854,7 +4859,7 @@ function abrirMapaCoord(lat,lng,titulo){
       if(!box)return;
       const m=L.map('coordMapaBox').setView([lat,lng],16);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(m);
-      L.marker([lat,lng]).addTo(m).bindPopup(titulo||'Check-in').openPopup();
+      L.marker([lat,lng]).addTo(m).bindPopup(escapeHtml(titulo||'Check-in')).openPopup();
       setTimeout(()=>m.invalidateSize(),100);
     },150);
   });
@@ -4894,7 +4899,7 @@ function renderExecucao(){
   const c=document.getElementById('contentArea');
   c.innerHTML=`
     <button class="btn btn-ghost btn-sm" style="margin-bottom:16px" onclick="voltarExec()">${svgIco('back','ico-sm')} Voltar</button>
-    <div class="page-head"><div><div class="page-title">${os.cliente}</div><div class="page-desc">📍 ${os.endereco} · ❄️ ${os.qtdSplits||1} split${(os.qtdSplits||1)>1?'s':''}</div></div></div>
+    <div class="page-head"><div><div class="page-title">${escapeHtml(os.cliente)}</div><div class="page-desc">📍 ${escapeHtml(os.endereco)} · ❄️ ${os.qtdSplits||1} split${(os.qtdSplits||1)>1?'s':''}</div></div></div>
 
     <!-- 1 CHECK-IN -->
     <div class="card" style="margin-bottom:16px"><div class="card-pad">
@@ -4940,8 +4945,8 @@ function switchEquipTab(i){
   document.querySelectorAll('[id^="etab"]').forEach((t,idx)=>t.classList.toggle('active',idx===i&&!(execOS.equipamentos[idx].fotoEvap&&execOS.equipamentos[idx].fotoCond)));
   const area=document.getElementById('equipPanelArea');
   area.innerHTML=`
-    <div class="fg"><label>Marca</label><input type="text" value="${e.marca||''}" oninput="updEquip(${i},'marca',this.value)" placeholder="LG, Daikin, Midea..."></div>
-    <div class="fg"><label>Modelo</label><input type="text" value="${e.modelo||''}" oninput="updEquip(${i},'modelo',this.value)" placeholder="Modelo do aparelho"></div>
+    <div class="fg"><label>Marca</label><input type="text" value="${escapeHtml(e.marca||'')}" oninput="updEquip(${i},'marca',this.value)" placeholder="LG, Daikin, Midea..."></div>
+    <div class="fg"><label>Modelo</label><input type="text" value="${escapeHtml(e.modelo||'')}" oninput="updEquip(${i},'modelo',this.value)" placeholder="Modelo do aparelho"></div>
     <div class="fg"><label>📷 Etiqueta — Evaporadora</label>
       <button class="btn ${e.fotoEvap?'btn-gold':'btn-ghost'}" style="width:100%" onclick="document.getElementById('fEvap${i}').click()">${e.fotoEvap?'✅ Foto enviada — trocar':'📷 Tirar foto'}</button>
       <input type="file" id="fEvap${i}" accept="image/*" style="display:none" onchange="onEquipFoto(event,${i},'evap')">
@@ -4981,7 +4986,7 @@ function renderChecklistExec(){
       return `<div style="border:2px solid ${sc};border-radius:10px;margin-bottom:10px;overflow:hidden;background:${bg}">
         <div style="display:flex;align-items:center;gap:12px;padding:14px" onclick="toggleCheck(${i})">
           <div style="width:30px;height:30px;border-radius:8px;border:2.5px solid ${sc};background:${item.status==='pending'?'#fff':sc};color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">${ico}</div>
-          <div style="flex:1;font-size:14px;font-weight:500">${item.label}</div>
+          <div style="flex:1;font-size:14px;font-weight:500">${escapeHtml(item.label)}</div>
           ${item.critico?'<span style="font-size:10px;background:#fee2e2;color:#991b1b;padding:2px 7px;border-radius:10px;font-weight:700">CRÍTICO</span>':''}
         </div>
         ${showFoto?`<div style="padding:0 14px 14px">
@@ -5086,12 +5091,12 @@ function renderManutTecnico(){
     const dias=diasAte(mn.dataAgendada);
     const cor=dias<0?'var(--red)':dias<=7?'var(--red)':dias<=30?'var(--yellow)':'var(--petrol)';
     return `<div class="os-card" style="border-color:${cor}">
-      <div class="os-card-top"><div><div class="os-client">${mn.cliente}</div><div class="os-addr">${svgIco('pin','ico-sm')} ${mn.endereco||'Endereço a definir'}</div></div>
+      <div class="os-card-top"><div><div class="os-client">${escapeHtml(mn.cliente)}</div><div class="os-addr">${svgIco('pin','ico-sm')} ${escapeHtml(mn.endereco||'Endereço a definir')}</div></div>
       <span class="badge" style="background:${cor}22;color:${cor}">${dias<0?'Vencida':dias===0?'Hoje':'Em '+dias+'d'}</span></div>
       <div class="os-meta">
         <div class="os-meta-i">${svgIco('calendar','ico-sm')} ${fmtDate(mn.dataAgendada)}</div>
-        <div class="os-meta-i">${svgIco('config','ico-sm')} ${mn.tipo||'Preventiva'}</div>
-        ${mn.obs?`<div class="os-meta-i">${svgIco('edit','ico-sm')} ${mn.obs}</div>`:''}
+        <div class="os-meta-i">${svgIco('config','ico-sm')} ${escapeHtml(mn.tipo||'Preventiva')}</div>
+        ${mn.obs?`<div class="os-meta-i">${svgIco('edit','ico-sm')} ${escapeHtml(mn.obs)}</div>`:''}
       </div>
     </div>`;
   }).join('')}</div>`:emptyState('manutencoes','Nenhuma manutenção sua','Quando o gestor agendar uma manutenção pra você, ela aparece aqui.')}`;
@@ -5161,6 +5166,9 @@ function enviarSMSManut(m){console.log('[SMS preparado] Para:',settings.telGesto
    daquele serviço — nenhum outro cliente fica exposto.
    ════════════════════════════════════════ */
 const PUB_LIMITE_BYTES=700000;  // margem segura do limite de 1MB por documento
+/* [ASSUMPTION] nenhuma fonte (PRD/espinha) define prazo padrão -- 30 dias é valor
+   conservador pra um link de acompanhamento de serviço já concluído/em andamento. */
+const PUB_VALIDADE_MS=30*24*60*60*1000;
 const _thumbCache={};
 const _pubUltimo={};            // token → último conteúdo publicado (evita reescrever igual)
 
@@ -5271,19 +5279,25 @@ async function pubPayloadObra(andarId){
   };
 }
 
-/* ── publica/atualiza o documento público de um token ── */
-async function publicarAcompanhamento(token,payload){
+/* ── publica/atualiza o documento público de um token ──
+   pubExpira (ms, opcional) é o valor estável gravado em os.pubExpira/andar.pubExpira na
+   criação do link (AD-10) -- republicado como campo próprio "expiraEm" no documento (fora
+   do json), pra dar pra checar tanto no cliente (_pubOuvirToken) quanto em firestore.rules
+   sem precisar desserializar o payload. Sem pubExpira (link antigo, pré-story), o campo
+   simplesmente não é gravado -- ausência = nunca expira (comportamento preservado). */
+async function publicarAcompanhamento(token,payload,pubExpira){
   if(!token||!payload)return false;
   const txt=JSON.stringify(payload);
-  const semData=txt.replace(/"atualizadoEm":\d+/,'');
+  const semData=txt.replace(/"atualizadoEm":\d+/,'')+'|'+(pubExpira||'');
   if(_pubUltimo[token]===semData)return true; // nada mudou: não gasta escrita
   if(!fbReady)return false;
   try{
-    await fbDB.collection('workspaces').doc(WORKSPACE).collection('data').doc('pub_'+token)
-      .set({json:txt,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+    const doc={json:txt,updatedAt:firebase.firestore.FieldValue.serverTimestamp()};
+    if(pubExpira)doc.expiraEm=pubExpira;
+    await fbDB.collection('workspaces').doc(WORKSPACE).collection('data').doc('pub_'+token).set(doc);
     _pubUltimo[token]=semData;
     return true;
-  }catch(e){fbLog('Falha ao publicar acompanhamento: '+e.message,'erro');return false;}
+  }catch(e){fbLog('Falha ao publicar acompanhamento: '+e.code+' — '+e.message,'erro');return false;}
 }
 
 /* ── gera (ou reaproveita) o link de uma OS ── */
@@ -5292,29 +5306,31 @@ async function gerarLinkOS(id){
   // ainda resolvendo) -- sem essa trava, pubURL() geraria um link quebrado (#/ac/null/{token})
   if(!WORKSPACE||!fbReady){toast('Aguarde a sincronização terminar antes de gerar o link','warn');return;}
   const os=osList.find(o=>o.id===id);if(!os)return;
-  if(!os.pubToken){os.pubToken=_pubToken();saveOS();}
+  // pubExpira só é gravado na criação do token -- republicações (inclusive as automáticas
+  // de agendarRepublicacao) reaproveitam o valor já existente, nunca estendem o prazo.
+  if(!os.pubToken){os.pubToken=_pubToken();os.pubExpira=Date.now()+PUB_VALIDADE_MS;saveOS();}
   toast('Preparando o link...');
-  const ok=await publicarAcompanhamento(os.pubToken,await pubPayloadOS(os));
-  abrirModalLink(os.pubToken,os.cliente,ok);
+  const ok=await publicarAcompanhamento(os.pubToken,await pubPayloadOS(os),os.pubExpira);
+  abrirModalLink(os.pubToken,os.cliente,ok,'os',id);
 }
 /* ── gera (ou reaproveita) o link de um andar da obra ── */
 async function gerarLinkObra(andarId){
   if(!WORKSPACE||!fbReady){toast('Aguarde a sincronização terminar antes de gerar o link','warn');return;}
   const andar=(vrfObra.andares||[]).find(a=>a.id===andarId);if(!andar)return;
-  if(!andar.pubToken){andar.pubToken=_pubToken();saveVrfObra();}
+  if(!andar.pubToken){andar.pubToken=_pubToken();andar.pubExpira=Date.now()+PUB_VALIDADE_MS;saveVrfObra();}
   toast('Preparando o link...');
-  const ok=await publicarAcompanhamento(andar.pubToken,await pubPayloadObra(andarId));
-  abrirModalLink(andar.pubToken,(vrfObra.nome||'Obra')+' — '+andar.nome,ok);
+  const ok=await publicarAcompanhamento(andar.pubToken,await pubPayloadObra(andarId),andar.pubExpira);
+  abrirModalLink(andar.pubToken,(vrfObra.nome||'Obra')+' — '+andar.nome,ok,'obra',andarId);
 }
 
-function abrirModalLink(token,nome,publicado){
+function abrirModalLink(token,nome,publicado,tipo,id){
   const url=pubURL(token);
   const msg=encodeURIComponent('Acompanhe o serviço da '+(WORKSPACE_NOME||'empresa')+' em tempo real: '+url);
   showModal(`
     <div class="modal-head"><h2>Link de acompanhamento</h2></div>
     <div class="modal-body">
       <p style="font-size:13.5px;color:var(--gray-500);line-height:1.55;margin-bottom:14px">
-        Envie este link para <b>${nome}</b>. O cliente abre no navegador do celular, sem instalar nada,
+        Envie este link para <b>${escapeHtml(nome)}</b>. O cliente abre no navegador do celular, sem instalar nada,
         e acompanha as fotos e etapas conforme o técnico vai lançando.
       </p>
       <div class="pub-link-box"><input id="pubLinkInput" readonly value="${url}"></div>
@@ -5324,9 +5340,32 @@ function abrirModalLink(token,nome,publicado){
       </p>
     </div>
     <div class="modal-foot">
+      <button class="btn btn-danger" onclick="revogarLink('${tipo}','${id}')">Revogar link</button>
       <button class="btn btn-ghost" onclick="copiarLinkPub()">Copiar link</button>
       <button class="btn btn-primary" onclick="window.open('https://wa.me/?text=${msg}','_blank')">Enviar no WhatsApp</button>
     </div>`,'wide');
+}
+/* ── revoga um link já gerado: expira agora, sem estado/mensagem novos (mesmo mecanismo
+   da expiração natural -- Design Notes). "tipo" é 'os' ou 'obra'. ── */
+async function revogarLink(tipo,id){
+  if(!confirm('Revogar este link? Quem já tiver o link deixa de conseguir abrir.'))return;
+  let ok=false;
+  if(tipo==='os'){
+    const os=osList.find(o=>o.id===id);
+    if(!os||!os.pubToken){toast('Link não encontrado','warn');return;}
+    os.pubExpira=Date.now();saveOS();
+    ok=await publicarAcompanhamento(os.pubToken,await pubPayloadOS(os),os.pubExpira);
+  }else if(tipo==='obra'){
+    const andar=(vrfObra.andares||[]).find(a=>a.id===id);
+    if(!andar||!andar.pubToken){toast('Link não encontrado','warn');return;}
+    andar.pubExpira=Date.now();saveVrfObra();
+    const p=await pubPayloadObra(id);
+    ok=p?await publicarAcompanhamento(andar.pubToken,p,andar.pubExpira):false;
+  }else{return;}
+  // não fecha o modal nem afirma sucesso se a escrita falhou (offline/erro) -- senão o
+  // gestor acredita que revogou e o link continua ativo pra quem já o tiver.
+  if(ok){closeModal();toast('Link revogado','success');}
+  else toast('Não foi possível revogar — verifique sua conexão e tente de novo','error');
 }
 function copiarLinkPub(){
   const i=document.getElementById('pubLinkInput');if(!i)return;
@@ -5347,12 +5386,14 @@ async function republicarAtivos(){
   if(!fbReady)return;
   try{
     for(const os of osList){
-      if(os.pubToken)await publicarAcompanhamento(os.pubToken,await pubPayloadOS(os));
+      // repassa os.pubExpira (não recalcula) -- senão o .set() do próximo republish
+      // apagaria o campo expiraEm do documento e "des-revogaria"/"des-expiraria" o link
+      if(os.pubToken)await publicarAcompanhamento(os.pubToken,await pubPayloadOS(os),os.pubExpira);
     }
     for(const a of (vrfObra.andares||[])){
-      if(a.pubToken){const p=await pubPayloadObra(a.id);if(p)await publicarAcompanhamento(a.pubToken,p);}
+      if(a.pubToken){const p=await pubPayloadObra(a.id);if(p)await publicarAcompanhamento(a.pubToken,p,a.pubExpira);}
     }
-  }catch(e){/* republicação é best-effort */}
+  }catch(e){fbLog('Falha na republicação automática: '+(e&&e.code)+' — '+(e&&e.message),'erro');/* best-effort: não bloqueia nem propaga */}
 }
 
 /* ════════ PÁGINA PÚBLICA (o que o cliente vê) ════════
@@ -5394,15 +5435,40 @@ function iniciarModoPublico(wsId,token){
 function _pubOuvirToken(wsId,token){
   const ref=fbDB.collection('workspaces').doc(wsId).collection('data').doc('pub_'+token);
   let recebeu=false;
+  // aba deixada aberta sem nenhum snapshot novo: sem esse timer, um doc que não é
+  // reescrito de novo depois de lido nunca reavalia a expiração -- a aba continuaria
+  // mostrando dado válido indefinidamente além do prazo real. Reagendado a cada
+  // snapshot novo (limpo no topo do callback) pra nunca disparar depois de um dado
+  // legitimamente mais recente.
+  let expiraTimer=null;
   ref.onSnapshot(snap=>{
+    clearTimeout(expiraTimer);
     if(!snap.exists){
       if(!recebeu)renderPublicoErro('Link não encontrado','Confira se o endereço está completo ou peça um novo link.');
       return;
     }
     const d=snap.data();
-    try{recebeu=true;renderPublico(JSON.parse(d.json));}
+    // ausência de expiraEm = link antigo (pré-story), nunca expira (comportamento preservado).
+    // presença + no passado = expirado ou revogado (mesmo mecanismo, mesma mensagem).
+    if(d.expiraEm&&d.expiraEm<=Date.now()){
+      recebeu=true;renderPublicoErro('Link expirado','Peça um novo link à empresa.');
+      return;
+    }
+    try{
+      recebeu=true;renderPublico(JSON.parse(d.json));
+      if(d.expiraEm)expiraTimer=setTimeout(()=>{renderPublicoErro('Link expirado','Peça um novo link à empresa.');},Math.max(0,d.expiraEm-Date.now()));
+    }
     catch(e){renderPublicoErro('Não foi possível carregar','Tente atualizar a página em instantes.');}
   },err=>{
+    clearTimeout(expiraTimer);
+    // permission-denied é o que a regra do Firestore devolve pra um pub_ com expiraEm no
+    // passado (uma vez que a regra nova estiver publicada) -- mesma mensagem do caminho acima.
+    if(err&&err.code==='permission-denied'){
+      recebeu=true;renderPublicoErro('Link expirado','Peça um novo link à empresa.');
+      fbLog('Link público negado (expirado/revogado): '+err.code+' — '+err.message,'erro');
+      return;
+    }
+    fbLog('Falha ao ouvir link público: '+((err&&err.code)||'?')+' — '+((err&&err.message)||''),'erro');
     if(!recebeu)renderPublicoErro('Não foi possível carregar','Verifique sua internet e atualize a página.');
   });
   setTimeout(()=>{if(!recebeu)renderPublicoErro('Link não encontrado','Confira se o endereço está completo ou peça um novo link.');},12000);
@@ -5423,9 +5489,9 @@ function renderPublico(d){
     <div class="pub-et ${e.ok?'ok':e.prob?'prob':''}">
       <div class="pub-et-top">
         <span class="pub-et-mk">${e.ok?'&#10003;':e.prob?'!':''}</span>
-        <span class="pub-et-lbl">${e.label}</span>
+        <span class="pub-et-lbl">${escapeHtml(e.label)}</span>
       </div>
-      ${e.nota?`<p class="pub-et-nota">${e.nota}</p>`:''}
+      ${e.nota?`<p class="pub-et-nota">${escapeHtml(e.nota)}</p>`:''}
       ${e.foto?`<img class="pub-et-img" src="${e.foto}" loading="lazy" onclick="pubZoom(this.src)">`:''}
       ${e.maisFotos?`<span class="pub-et-mais">+${e.maisFotos} foto${e.maisFotos>1?'s':''} no relatório final</span>`:''}
     </div>`;
@@ -5434,7 +5500,7 @@ function renderPublico(d){
   if(d.tipo==='obra'){
     corpo=(d.fases||[]).map(f=>`
       <section class="pub-fase">
-        <header class="pub-fase-h"><h3>${f.nome}</h3><span>${f.pct}%</span></header>
+        <header class="pub-fase-h"><h3>${escapeHtml(f.nome)}</h3><span>${f.pct}%</span></header>
         <div class="pub-fase-bar"><i style="width:${f.pct}%"></i></div>
         ${f.etapas.map(cardEtapa).join('')}
       </section>`).join('');
@@ -5448,19 +5514,19 @@ function renderPublico(d){
   box.innerHTML=`
   <div class="pub-top">
     <div class="pub-top-in">
-      <div class="pub-marca"><span class="pub-marca-n">${d.empresa||'MAPPO'}</span><span class="pub-marca-s">Acompanhamento do serviço</span></div>
+      <div class="pub-marca"><span class="pub-marca-n">${escapeHtml(d.empresa||'MAPPO')}</span><span class="pub-marca-s">Acompanhamento do serviço</span></div>
       <span class="pub-live"><i></i>ao vivo</span>
     </div>
   </div>
   <div class="pub-wrap">
     <div class="pub-card">
       <span class="pub-pill ${concl?'ok':d.status==='andamento'?'and':''}">${_pubStatusLbl(d.status)}</span>
-      <h1>${d.titulo}</h1>
-      <p class="pub-sub">${d.servico}</p>
+      <h1>${escapeHtml(d.titulo)}</h1>
+      <p class="pub-sub">${escapeHtml(d.servico)}</p>
       <div class="pub-info">
-        ${d.endereco?`<span>${d.endereco}</span>`:''}
+        ${d.endereco?`<span>${escapeHtml(d.endereco)}</span>`:''}
         ${d.data?`<span>${fmtDate(d.data)}</span>`:''}
-        ${d.tecnico?`<span>Técnico: ${d.tecnico}</span>`:''}
+        ${d.tecnico?`<span>Técnico: ${escapeHtml(d.tecnico)}</span>`:''}
         ${d.checkin?`<span>Equipe no local desde ${d.checkin}</span>`:''}
       </div>
       <div class="pub-prog">
@@ -5469,7 +5535,7 @@ function renderPublico(d){
       </div>
     </div>
     ${corpo}
-    ${d.cortadas?`<p class="pub-nota-corte">Este serviço tem mais ${d.cortadas} foto${d.cortadas>1?'s':''} registrada${d.cortadas>1?'s':''}. Todas entram no relatório final entregue pela ${d.empresa||'empresa'}.</p>`:''}
+    ${d.cortadas?`<p class="pub-nota-corte">Este serviço tem mais ${d.cortadas} foto${d.cortadas>1?'s':''} registrada${d.cortadas>1?'s':''}. Todas entram no relatório final entregue pela ${escapeHtml(d.empresa||'empresa')}.</p>`:''}
     <p class="pub-foot">Atualizado às ${hora} · esta página se atualiza sozinha</p>
   </div>
   <div id="pubZoom" class="pub-zoom" onclick="this.classList.remove('on')"><img id="pubZoomImg"></div>`;

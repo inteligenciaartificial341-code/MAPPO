@@ -73,12 +73,21 @@ service cloud.firestore {
        pub_{token} é o único documento lido sem membership -- é o link
        público do cliente (preserva o comportamento existente, FR-13); pub_* também
        exige workspace ativo, senão um link gerado durante a aprovação vazaria dado.
+       pub_* também exige expiraEm no futuro (ou ausente -- link antigo, pré-story, nunca
+       expira) -- revogar (Story 5) grava expiraEm=agora, mesmo mecanismo da expiração
+       natural; só se aplica ao ramo público, membro sempre lê os próprios docs pub_.
        mappo_tecnicos só é escrito por gestor -- convite/gestão de equipe
        é operação exclusiva de gestor, aplicada aqui e não só na UI.
        Membro de workspace pendente autentica e vê o próprio status (isMember, acima)
        mas não lê nem grava nenhum dado até o dono do projeto aprovar. */
     match /workspaces/{wsId}/data/{docId} {
-      allow read: if request.auth != null && isAtivo(wsId) && (docId.matches('pub_.*') || isMember(wsId));
+      // resource==null cobre o GET de um pub_{token} que nunca existiu/foi digitado errado --
+      // sem essa checagem, resource.data erraria na avaliação da regra (nega por erro), e um
+      // link nunca-emitido virava "Link expirado" em vez do "Link não encontrado" correto.
+      allow read: if request.auth != null && isAtivo(wsId) && (
+        (docId.matches('pub_.*') && (resource==null || !('expiraEm' in resource.data) || resource.data.expiraEm > request.time.toMillis())) ||
+        isMember(wsId)
+      );
       allow write: if isMember(wsId) && isAtivo(wsId) && (docId != 'mappo_tecnicos' || isGestor(wsId));
     }
   }
