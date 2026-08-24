@@ -1,0 +1,34 @@
+# Sprint Status — MAPPO
+#
+# Gerado à mão (fallback documentado em bmad-sprint-planning/references/generate-tracking.md):
+# a origem é _bmad-output/specs/spec-mappo/stories.yaml (formato bmad-spec), não um epics.md
+# no formato "## Epic N: / ### Story N.M:" que o script sprint_plan.py sabe parsear.
+# Rerodar bmad-sprint-planning (intent: sprint-planning) depois de qualquer mudança em
+# stories.yaml para atualizar isto -- vai continuar caindo no mesmo fallback manual.
+
+generated: 08-22-2026 16:20
+last_updated: 08-24-2026 11:20
+project: mappo
+project_key: MAPPO
+tracking_system: file-system
+story_location: "_bmad-output/implementation-artifacts/stories"
+
+development_status:
+  epic-1: in-progress
+  1-1-autenticacao-real-isolamento-multi-tenant: done
+  1-2-onboarding-ramo-template-checklist: review
+  1-3-compressao-foto-consistente: review
+  1-4-gps-vivo-consentimento-explicito: review
+  1-5-link-publico-expiracao-revogacao-xss: review
+  1-6-verificacao-nao-regressao-sincronizacao: review
+  1-7-instalacao-multiplataforma-pwa: review
+  1-8-aba-financeira-servico-prestador: review
+  1-9-vrf-restrito-ramo-checklist-editavel: review
+  1-10-mapa-painel-avatar-historico-localizacao: review
+  1-11-convite-prestador-gerado-gestor: review
+  1-12-pontos-entrada-whatsapp-compartilhar: backlog
+  1-13-multi-obra-vrf: backlog
+  1-14-avaliacao-app-feedback: backlog
+  epic-1-retrospective: optional
+
+action_items: []

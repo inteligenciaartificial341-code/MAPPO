@@ -706,6 +706,23 @@
   .mk-live .mk-live-dot{width:7px;height:7px;border-radius:50%;background:#fff;animation:livePulse 1.6s infinite;}
   .mk-live.off{background:#94a3b8;box-shadow:0 2px 8px rgba(0,0,0,.25);}
   .mk-live.off .mk-live-dot{animation:none;opacity:.7;}
+  /* Story 10: avatar do prestador no marcador do mapa + animação de "andando" (GPS ao vivo) */
+  .avatar-marker{display:flex;flex-direction:column;align-items:center;gap:2px;}
+  .avatar-marker-svg svg{width:34px;height:34px;display:block;filter:drop-shadow(0 2px 4px rgba(0,0,0,.35));}
+  .avatar-marker-tag{background:var(--petrol);color:#fff;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:600;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.3);border:1.5px solid #fff;}
+  @keyframes avatarWalkL{0%{transform:rotate(-22deg)}100%{transform:rotate(22deg)}}
+  @keyframes avatarWalkR{0%{transform:rotate(22deg)}100%{transform:rotate(-22deg)}}
+  .avatar-andando .avatar-leg-l{animation:avatarWalkL .55s ease-in-out infinite alternate;}
+  .avatar-andando .avatar-leg-r{animation:avatarWalkR .55s ease-in-out infinite alternate;}
+  /* Story 10: painel de info do prestador no mapa -- elemento próprio do app, não o popup nativo
+     do Leaflet (esse não tinha estado controlável e podia cobrir controles ao abrir perto da borda) */
+  .mapa-painel{position:absolute;top:12px;right:12px;z-index:900;background:var(--white);border-radius:12px;box-shadow:0 4px 20px rgba(0,0,0,.28);max-width:min(250px,calc(100% - 24px));min-width:160px;overflow:hidden;}
+  .mapa-painel-head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:9px 10px 9px 14px;background:var(--petrol);color:#fff;font-size:13px;font-weight:700;cursor:pointer;}
+  .mapa-painel-acoes{display:flex;gap:4px;}
+  .mapa-painel-btn{width:22px;height:22px;border:none;border-radius:6px;background:rgba(255,255,255,.16);color:#fff;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+  .mapa-painel-btn:hover{background:rgba(255,255,255,.3);}
+  .mapa-painel-body{padding:11px 14px;font-size:12.5px;color:var(--gray-700);line-height:1.7;}
+  .mapa-painel.colapsado .mapa-painel-body{display:none;}
   /* caixa do link no modal do gestor */
   .pub-link-box input{width:100%;padding:12px 14px;border:2px solid var(--gray-200);border-radius:10px;font-size:13px;font-family:ui-monospace,Menlo,monospace;background:var(--gray-50);color:var(--gray-600);}
   /* ── PÁGINA PÚBLICA DO CLIENTE ── */
@@ -785,7 +802,7 @@
     <div class="login-hint" id="loginHint">Gestor ou técnico: use a sua conta MAPPO.<br>
       <a href="#" onclick="event.preventDefault();mostrarCadastroEmpresa()" style="color:#fff;text-decoration:underline">Cadastrar minha empresa</a>
       &nbsp;·&nbsp;
-      <a href="#" id="linkCriarContaTecnico" onclick="event.preventDefault();criarContaTecnico()" style="color:#fff;text-decoration:underline">Sou técnico convidado, criar minha conta</a>
+      <a href="#" id="linkCriarContaTecnico" onclick="event.preventDefault();criarContaTecnico()" style="color:#fff;text-decoration:underline">Sou prestador de serviço</a>
       <span style="display:block;opacity:.75;font-size:12px;margin-top:4px">(preencha e-mail e senha aqui em cima antes de clicar)</span>
     </div>
   </div>
@@ -809,9 +826,17 @@
 
   <div class="login-box" id="semAcessoBox" style="display:none">
     <h2>Conta criada</h2>
-    <div class="login-hint" style="margin-top:0">Sua conta foi autenticada, mas ainda não está vinculada a nenhuma empresa. Envie o código abaixo para o seu gestor te adicionar na equipe.</div>
-    <div class="fg login-field" style="margin-top:16px"><label>Seu código de acesso</label><input type="text" id="semAcessoUid" readonly onclick="this.select()"></div>
-    <button class="btn-entrar" onclick="_tentarNovamenteAcesso()">Já fui adicionado — tentar de novo</button>
+    <div class="login-hint" style="margin-top:0">Sua conta foi autenticada. Informe seu nome e o código de convite que o seu gestor te enviou pra entrar direto.</div>
+    <div class="fg login-field" style="margin-top:16px"><label>Seu nome</label><input type="text" id="conviteNome" placeholder="Seu nome completo"></div>
+    <div class="fg login-field"><label>Código de convite</label><input type="text" id="conviteCodigo" placeholder="Ex.: A1B2C3D4" autocapitalize="characters"></div>
+    <button class="btn-entrar" onclick="_consumirConviteTecnico()">Entrar com o código →</button>
+    <div class="login-hint" style="margin-top:14px">
+      Ainda sem código? Peça pro seu gestor gerar um convite pra sua vaga em Configurações → Equipe.<br>
+      <a href="#" onclick="event.preventDefault();_mostrarUidManual()" style="color:#fff;text-decoration:underline">Avançado: já mandei meu código de acesso pro gestor colar manualmente</a>
+    </div>
+    <div class="fg login-field" id="semAcessoUidWrap" style="margin-top:14px;display:none"><label>Seu código de acesso (fallback manual)</label><input type="text" id="semAcessoUid" readonly onclick="this.select()">
+      <button class="btn-entrar" style="margin-top:10px" onclick="_tentarNovamenteAcesso()">Já fui adicionado — tentar de novo</button>
+    </div>
     <div class="login-hint"><a href="#" onclick="event.preventDefault();_sairSemAcesso()" style="color:#fff;text-decoration:underline">Sair</a></div>
   </div>
 
@@ -869,7 +894,10 @@
         <span class="nav-ico" id="navico-vrf"></span> Sistema VRF
       </button>
       <button class="nav-item" data-view="tarefas" onclick="nav('tarefas')">
-        <span class="nav-ico" id="navico-tarefas"></span> Tarefa Adicional
+        <span class="nav-ico" id="navico-tarefas"></span> <span id="navLblTarefas">Tarefa Adicional</span>
+      </button>
+      <button class="nav-item" data-view="financeiro" onclick="nav('financeiro')">
+        <span class="nav-ico" id="navico-financeiro"></span> Financeiro
       </button>
 
       <div class="nav-section-label">Conta</div>
@@ -946,12 +974,26 @@ let WORKSPACE_RAMO=null; // ramo do workspace resolvido (Story 2) -- null em wor
 let WORKSPACE_NOME=null; // nome real da empresa (adendo Story 2 -- substitui o "Elite Ar" hardcoded); null antes de resolver
 let _signupInProgress=false; // suprime a resolução automática de workspace enquanto cadastrarEmpresa() grava o lote atomicamente
 
+/* Gate do Sistema VRF por Ramo (Story 9): só workspace de Ramo Refrigeração/Climatização
+   vê o módulo VRF -- outros Ramos (ex.: Predial) usam Tarefa Adicional como está.
+   WORKSPACE_RAMO==null (workspace anterior à Story 2, ex.: Elite Ar) cai no mesmo
+   fallback de "mostra" que _fallbackChecklistRamo/_templateRamoFallback já usam pra
+   checklist/preço -- sem regressão. Único ponto de verdade: TODO ponto de entrada
+   (menu, navbar, cards de atalho, módulos de técnico) E toda TELA/escrita do módulo
+   (renderView, cardVRFdash, editor do checklist VRF) precisa checar isto -- gate de UI
+   sozinho não basta, nav('vrf')/toggleModuloTec/etc. direto (console, ou qualquer
+   código futuro) tem que respeitar o mesmo gate. Não fixar aqui uma contagem de "N
+   pontos": ela desatualiza a cada patch -- o que importa é que NENHUM call site
+   relacionado a VRF pule esta função. */
+function ramoTemVRF(){return WORKSPACE_RAMO==null||WORKSPACE_RAMO==='refrigeracao';}
+
 /* Mapa das coleções sincronizadas: chave localStorage → doc no Firestore */
 const SYNC_KEYS=[
   'mappo_tecnicos','mappo_os','mappo_clientes','mappo_manut','mappo_settings',
   'mappo_vrf_obra','mappo_vrf_progresso','mappo_vrf_fotos','mappo_vrf_notas',
   'mappo_vrf_relatorios','mappo_vrf_checkins','mappo_vrf_fotos_meta','mappo_locations','mappo_tarefas','mappo_live',
-  'mappo_checklist_config'
+  'mappo_checklist_config','mappo_preco_config','mappo_financeiro_notas','mappo_vrf_fases_config',
+  'mappo_localizacao_historico','mappo_avatares'
 ];
 
 /* ── Estado do monitor de alterações ── */
@@ -1219,6 +1261,17 @@ function _aplicarSessaoResolvida(info){
     SYNC_KEYS.forEach(k=>{try{localStorage.removeItem(k);}catch(e){}});
     try{localStorage.removeItem('mappo_touch');}catch(e){}
     _pend={};_localTouch={};
+    // limpar só o localStorage não basta (code review): as variáveis em memória
+    // (vrfFasesConfig e as 3 config "objeto único" irmãs -- checklistConfig, precoConfig,
+    // financeiroNotas -- e, desde a Story 10, avataresTecnicos/localizacaoHistorico)
+    // continuam com o valor do workspace ANTERIOR até algo repopulá-las.
+    // Se o workspace novo ainda não tem o doc correspondente na nuvem (ex.: Predial nunca
+    // teve vrfFasesConfig, ou qualquer workspace que nunca salvou), _aplicarNaMemoria pra
+    // essa chave nunca dispara e o valor antigo vaza pro workspace novo (mesmo AD-1 do
+    // comentário acima, só que em memória em vez de localStorage). Reseta pro "vazio"
+    // correto de cada uma (mesmo shape da inicialização no boot).
+    vrfFasesConfig=null;checklistConfig=null;precoConfig=null;financeiroNotas=[];
+    avataresTecnicos={};localizacaoHistorico=[];
     fbLog('Troca de workspace neste aparelho — dado local anterior descartado','info');
   }
   try{localStorage.setItem('mappo_last_ws',info.workspaceId);}catch(e){}
@@ -1242,6 +1295,13 @@ function _mostrarSemAcesso(user){
   const lg=document.getElementById('loginScreen');if(lg)lg.classList.remove('hidden');
   _mostrarBoxLogin('semAcessoBox');
   const i=document.getElementById('semAcessoUid');if(i&&user)i.value=user.uid;
+  const wrap=document.getElementById('semAcessoUidWrap');if(wrap)wrap.style.display='none'; // fallback recolhido por padrão (Story 11)
+}
+/* Story 11: expõe o fallback de UID manual, escondido por padrão -- fluxo principal agora é
+   nome+código (_consumirConviteTecnico). Continua existindo como saída pra quando o gestor
+   prefere colar o UID direto (ver _vincularAcessoTecnico/salvarTecnico). */
+function _mostrarUidManual(){
+  const wrap=document.getElementById('semAcessoUidWrap');if(wrap)wrap.style.display='';
 }
 /* Membership existe mas o workspace ainda não foi aprovado (status!=='ativo') -- não é
    "sem acesso" (a pessoa está corretamente vinculada), é "aguardando aprovação manual". */
@@ -1317,6 +1377,15 @@ async function cadastrarEmpresa(){
     // _resolverWorkspace->initSync roda logo a seguir (ver nota em fbSeedFromLocal)
     checklistConfig=JSON.parse(JSON.stringify(RAMO_TEMPLATES[ramo]));
     saveChecklistConfig();
+    precoConfig=JSON.parse(JSON.stringify(PRECO_TEMPLATES[ramo]));
+    savePrecoConfig();
+    // VRF é exclusivo do Ramo refrigeração (Story 9) -- só clona o checklist editável
+    // pra quem de fato usa o módulo; Predial nunca chega a lê-lo (vrfFasesAtuais() nem
+    // é chamado, já que a UI toda é escondida por ramoTemVRF()).
+    if(ramo==='refrigeracao'){
+      vrfFasesConfig=JSON.parse(JSON.stringify(VRF_FASES));
+      saveVrfFasesConfig();
+    }
     _signupInProgress=false;
     fbLog('Empresa criada: '+wsId,'ok');
     await _resolverWorkspace(cred.user,_aplicarSessaoResolvida,_mostrarSemAcesso);
@@ -1341,7 +1410,7 @@ async function criarContaTecnico(){
   const passEl=document.getElementById('loginPass');
   const email=(emailEl.value||'').trim();
   const senha=passEl.value||'';
-  if(!email||!senha){toast('Preencha e-mail e senha aqui em cima e clique de novo em "criar minha conta"','warn');emailEl.focus();return;}
+  if(!email||!senha){toast('Preencha e-mail e senha aqui em cima e clique de novo em "Sou prestador de serviço"','warn');emailEl.focus();return;}
   if(senha.length<6){toast('Senha precisa de pelo menos 6 caracteres','warn');passEl.focus();return;}
   if(!fbApp||!fbDB){toast('Sem conexão com a nuvem — tente novamente em instantes','error');return;}
   const link=document.getElementById('linkCriarContaTecnico');
@@ -1354,7 +1423,7 @@ async function criarContaTecnico(){
   passEl.setAttribute('autocomplete','new-password');
   try{
     await firebase.auth().createUserWithEmailAndPassword(email,senha);
-    toast('Conta criada — envie o código de acesso pro seu gestor','success');
+    toast('Conta criada — informe seu nome e o código de convite do seu gestor','success');
   }catch(e){
     fbLog('Falha ao criar conta de técnico: '+e.code+' — '+e.message,'erro');
     toast(_mensagemErroAuth(e.code),'error');
@@ -1364,15 +1433,59 @@ async function criarContaTecnico(){
   }
 }
 
+/* Story 11: fluxo principal do prestador pra entrar sem o gestor colar UID nenhum --
+   troca nome+código por um vínculo real, via runTransaction() (nunca batch: precisa
+   reler o convite no commit e falhar se outra conta já consumiu no meio do caminho,
+   ver Design Notes da story). Consome convites/{codigo} e cria members/{uid} do próprio
+   uid autenticado na MESMA transação -- firestore.rules exige as duas coisas juntas. */
+let _consumindoConvite=false;
+async function _consumirConviteTecnico(){
+  if(_consumindoConvite)return; // trava contra duplo clique/duas transações da mesma conta
+  const nomeEl=document.getElementById('conviteNome');
+  const codigoEl=document.getElementById('conviteCodigo');
+  const nome=(nomeEl.value||'').trim();
+  const codigo=(codigoEl.value||'').trim().toUpperCase();
+  if(!nome){toast('Informe seu nome','warn');nomeEl.focus();return;}
+  if(!codigo){toast('Informe o código de convite','warn');codigoEl.focus();return;}
+  if(!fbApp||!fbDB){toast('Sem conexão com a nuvem — tente novamente em instantes','error');return;}
+  const user=firebase.auth().currentUser;
+  if(!user){toast('Sessão perdida — saia e entre de novo','error');return;}
+  const btn=document.querySelector('#semAcessoBox .btn-entrar');
+  _consumindoConvite=true;
+  if(btn){btn.disabled=true;btn.textContent='Entrando…';}
+  try{
+    const conviteRef=fbDB.collection('convites').doc(codigo);
+    await fbDB.runTransaction(async tx=>{
+      const snap=await tx.get(conviteRef);
+      if(!snap.exists)throw{code:'convite-invalido',message:'convite não encontrado: '+codigo};
+      const d=snap.data();
+      if(d.usado||d.revogadoEm)throw{code:'convite-invalido',message:'convite já usado ou revogado: '+codigo};
+      const memberRef=fbDB.collection('workspaces').doc(d.workspaceId).collection('members').doc(user.uid);
+      const uwRef=fbDB.collection('userWorkspaces').doc(user.uid);
+      tx.set(memberRef,{role:'tecnico',nome,tecnicoId:d.tecnicoId||null,convite:codigo,criadoEm:firebase.firestore.FieldValue.serverTimestamp()});
+      tx.set(uwRef,{workspaceId:d.workspaceId});
+      tx.update(conviteRef,{usado:true,usadoPor:user.uid,usadoEm:firebase.firestore.FieldValue.serverTimestamp()});
+    });
+    toast('Vínculo feito — entrando…','success');
+    await _resolverWorkspace(user,_aplicarSessaoResolvida,_mostrarSemAcesso);
+  }catch(e){
+    fbLog('Falha ao consumir convite: '+(e.code||'')+' — '+(e.message||''),'erro');
+    toast('Código inválido ou já utilizado','error');
+  }finally{
+    _consumindoConvite=false;
+    if(btn){btn.disabled=false;btn.textContent='Entrar com o código →';}
+  }
+}
+
 /* Envia uma chave pro Firestore */
 const _pushTimers={};
 /* chaves que são listas append-only: merge por conteúdo, nunca sobrescreve */
-const APPEND_LISTS=['mappo_vrf_checkins','mappo_vrf_relatorios'];
+const APPEND_LISTS=['mappo_vrf_checkins','mappo_vrf_relatorios','mappo_financeiro_notas','mappo_localizacao_historico'];
 /* chaves que são mapas por técnico: merge por pessoa, a entrada mais recente vence
    (permite vários técnicos compartilhando localização ao mesmo tempo sem conflito) */
-const MERGE_MAPS=['mappo_locations','mappo_live'];
+const MERGE_MAPS=['mappo_locations','mappo_live','mappo_avatares'];
 /* chaves críticas: sobem na hora, sem delay */
-const IMMEDIATE_KEYS=['mappo_vrf_checkins','mappo_vrf_relatorios','mappo_vrf_progresso','mappo_vrf_fotos','mappo_vrf_notas','mappo_vrf_fotos_meta','mappo_os','mappo_manut','mappo_tarefas'];
+const IMMEDIATE_KEYS=['mappo_vrf_checkins','mappo_vrf_relatorios','mappo_vrf_progresso','mappo_vrf_fotos','mappo_vrf_notas','mappo_vrf_fotos_meta','mappo_os','mappo_manut','mappo_tarefas','mappo_localizacao_historico'];
 
 function fbPush(key){
   _lastPushKey=key; // diagnóstico do auto-teste
@@ -1449,11 +1562,19 @@ async function _doPush(key){
   }
 }
 
-/* Une duas listas de check-ins/relatórios sem duplicar (por prestador+data+hora) */
+/* Une duas listas de check-ins/relatórios/notas de adiantamento sem duplicar (por
+   prestador+data+hora+responsável+obs+valor). item.valor entra por causa de
+   mappo_financeiro_notas (Story 8): sem ele, duas notas do mesmo prestador no mesmo
+   minuto com a mesma obs (em branco, o caso comum) colidiam e uma sumia no merge. Pros
+   dois consumidores anteriores (checkins/relatórios) item.valor é sempre undefined ->
+   contribui '' pro id, idêntico ao comportamento de antes. */
 function _mergeLista(a,b){
   const vistos={};const out=[];
   [...a,...b].forEach(item=>{
-    const id=(item.prestador||'')+'|'+(item.data||'')+'|'+(item.hora||'')+'|'+(item.responsavel||'')+'|'+(item.obs||'');
+    // 'tipo' entra no id pra não perder entrada quando duas listas diferentes de eventos no
+    // mesmo minuto colidiriam (ex.: check-in e início de GPS ao vivo em mappo_localizacao_historico) --
+    // itens de outras APPEND_LISTS não têm campo 'tipo', então isto não muda o id deles.
+    const id=(item.prestador||'')+'|'+(item.data||'')+'|'+(item.hora||'')+'|'+(item.responsavel||'')+'|'+(item.obs||'')+'|'+(item.valor||'')+'|'+(item.tipo||'');
     if(!vistos[id]){vistos[id]=true;out.push(item);}
   });
   return out;
@@ -1558,6 +1679,8 @@ function _aplicarNaMemoria(key,val){
     case'mappo_manut':manutencoes=val;break;
     case'mappo_settings':settings=val;break;
     case'mappo_checklist_config':checklistConfig=val;break;
+    case'mappo_preco_config':precoConfig=val;break;
+    case'mappo_vrf_fases_config':vrfFasesConfig=val;break;
     case'mappo_vrf_obra':vrfObra=val;break;
     case'mappo_vrf_progresso':vrfProgresso=val;break;
     case'mappo_vrf_fotos':vrfFotos=val;break;
@@ -1567,6 +1690,9 @@ function _aplicarNaMemoria(key,val){
     case'mappo_vrf_fotos_meta':vrfFotosMeta=val;break;
     case'mappo_tarefas':tarefas=val;break;
     case'mappo_live':liveTracks=val;break;
+    case'mappo_financeiro_notas':financeiroNotas=val;break;
+    case'mappo_localizacao_historico':localizacaoHistorico=val;break;
+    case'mappo_avatares':avataresTecnicos=val;break;
   }
 }
 
@@ -1666,7 +1792,11 @@ function fbOnRemoteChange(key){
     'mappo_vrf_notas':['vrf'],
     'mappo_vrf_relatorios':['vrf','vrf-relatorios','dashboard'],
     'mappo_vrf_checkins':['vrf','vrf-mapa'],
-    'mappo_tarefas':['tarefas','home','dashboard']
+    'mappo_tarefas':['tarefas','home','dashboard'],
+    'mappo_preco_config':['financeiro'],
+    'mappo_financeiro_notas':['financeiro'],
+    'mappo_vrf_fases_config':['vrf','vrf-andares','config'],
+    'mappo_localizacao_historico':['mapa']
   };
   const views=reRender[key]||[];
   if(views.includes(currentView)&&typeof renderView==='function'){
@@ -1842,6 +1972,28 @@ function saveTecnicos(){localStorage.setItem('mappo_tecnicos',JSON.stringify(tec
 function nomesTecnicos(){return tecnicos.filter(t=>t.ativo!==false).map(t=>t.nome);}
 function getTecnico(nome){return tecnicos.find(t=>t.nome===nome);}
 
+/* ── AVATAR DO PRESTADOR NO MAPA (Story 10) ──
+   Guardado em mappo_avatares ({nome:{avatar,ts}}), NÃO em mappo_tecnicos: firestore.rules
+   só deixa o GESTOR escrever mappo_tecnicos (convite/gestão de equipe é operação exclusiva
+   dele); o técnico precisa poder escolher e salvar o próprio avatar sem passar pelo gestor,
+   então isto usa o mesmo padrão já existente de mappo_locations/mappo_live -- um mapa por
+   técnico, cada um só escreve a própria chave, merge por "mais recente vence" (MERGE_MAPS).
+   Avatar é o id de um dos 6 SVGs estáticos já existentes na raiz (avatar-1.svg..avatar-6.svg).
+   Campo opcional: sem escolha, o marcador cai no emoji 👷 de sempre -- ver atualizarMarcadores(). */
+const AVATAR_IDS=['avatar-1','avatar-2','avatar-3','avatar-4','avatar-5','avatar-6'];
+let avataresTecnicos=JSON.parse(localStorage.getItem('mappo_avatares')||'{}'); // {nome:{avatar,ts}}
+function avatarDoTecnico(nome){const a=avataresTecnicos[nome];return (a&&a.avatar)?a.avatar:null;}
+function setMeuAvatar(id){
+  if(!session||!session.nome)return;
+  // NUNCA apagar a chave (code review, Story 10): mappo_avatares é MERGE_MAPS, e _mergeMapa só
+  // troca a entrada de alguém quando o outro lado é falsy -- sem chave aqui, um push logo em
+  // seguida mescla contra a nuvem (que ainda tem o avatar antigo) e ele "ressuscita". Gravar
+  // avatar:null com um ts novo passa a remoção pelo mesmo "ts mais recente vence" que já
+  // funciona certo pra posição -- sem precisar de lógica nova no merge.
+  avataresTecnicos[session.nome]={avatar:id||null,ts:Date.now()};
+  localStorage.setItem('mappo_avatares',JSON.stringify(avataresTecnicos));
+}
+
 /* ── ÍCONES SVG (Feather-style, contorno) ── */
 const ICONS={
   tarefas:'<rect x="3" y="3" width="18" height="18" rx="3"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>',
@@ -1873,6 +2025,7 @@ const ICONS={
   back:'<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>',
   bell:'<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
   power:'<path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/>',
+  financeiro:'<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
 };
 function svgIco(name,cls){return `<svg class="ico ${cls||''}" viewBox="0 0 24 24">${ICONS[name]||''}</svg>`;}
 function ico(name,cls){return svgIco(name,cls);} // alias
@@ -1901,6 +2054,27 @@ const VRF_FASES=[
 ];
 const VRF_TOTAL_ETAPAS=VRF_FASES.reduce((a,f)=>a+f.etapas.length,0);
 
+/* Clone editável do checklist VRF por workspace (Story 9), mesmo padrão de
+   checklistConfig: VRF_FASES acima é só a fonte-padrão -- nunca mutada -- clonada por
+   JSON.parse(JSON.stringify(...)) em cadastrarEmpresa() (Ramo refrigeração) e sob
+   demanda em _garantirVrfFasesConfig(). null == workspace sem clone ainda (anterior a
+   esta story, ou refrigeração recém-criado antes do fbSeedFromLocal descer
+   mappo_vrf_fases_config): vrfFasesAtuais() cai no fallback de VRF_FASES, sem exigir
+   recadastro. Preserva a estrutura de fases (10 fases fixas nesta story, f1..f10) --
+   editável é só adicionar/remover/renomear etapa dentro de uma fase, nunca a fase em si. */
+let vrfFasesConfig=JSON.parse(localStorage.getItem('mappo_vrf_fases_config')||'null');
+function saveVrfFasesConfig(){localStorage.setItem('mappo_vrf_fases_config',JSON.stringify(vrfFasesConfig));}
+function _garantirVrfFasesConfig(){
+  if(!vrfFasesConfig)vrfFasesConfig=JSON.parse(JSON.stringify(VRF_FASES));
+}
+/* Accessor único das fases/etapas do VRF -- todo call site (progresso, painéis, PDF,
+   link público) lê daqui, nunca de VRF_FASES direto, pra respeitar a edição por
+   workspace sem mutar a fonte-padrão. */
+function vrfFasesAtuais(){return vrfFasesConfig||VRF_FASES;}
+/* Total de etapas do checklist ATIVO (reflete etapas adicionadas/removidas) -- nunca o
+   VRF_TOTAL_ETAPAS fixo, que descreve só a fonte-padrão. */
+function vrfTotalEtapasAtuais(){return vrfFasesAtuais().reduce((a,f)=>a+f.etapas.length,0);}
+
 // estado da obra VRF (persistido)
 let vrfObra=JSON.parse(localStorage.getItem('mappo_vrf_obra')||'null')||{
   nome:'', andares:[{id:'a1',nome:'Térreo'}], metaData:'', missao:{porAndar:{},andarIdx:0}
@@ -1910,6 +2084,26 @@ let vrfFotos=JSON.parse(localStorage.getItem('mappo_vrf_fotos')||'{}'); // {anda
 let vrfNotas=JSON.parse(localStorage.getItem('mappo_vrf_notas')||'{}'); // {andarId:{faseId_etapaIdx:texto}}
 let vrfRelatorios=JSON.parse(localStorage.getItem('mappo_vrf_relatorios')||'[]');
 let vrfCheckins=JSON.parse(localStorage.getItem('mappo_vrf_checkins')||'[]'); // [{prestador,data,hora,lat,lng}]
+
+/* ── HISTÓRICO DE LOCALIZAÇÃO (Story 10) ──
+   Append-only, mesmo padrão de vrfCheckins/APPEND_LISTS: só eventos DISCRETOS
+   (check-in fixo, início de sessão de GPS ao vivo) -- nunca um ping de 5s do live,
+   senão o log cresce sem controle. */
+let localizacaoHistorico=JSON.parse(localStorage.getItem('mappo_localizacao_historico')||'[]'); // [{prestador,data,hora,tipo:'fixo'|'ao_vivo'}]
+function registrarHistoricoLocalizacao(tipo){
+  if(!session||!session.nome)return;
+  const agora=new Date();
+  localizacaoHistorico.push({
+    prestador:session.nome,
+    data:agora.toISOString().split('T')[0],
+    // segundo incluído (não só HH:MM): dois eventos 'fixo' do mesmo técnico no mesmo minuto
+    // (ex.: check-in de tarefa + check-in de OS quase juntos) não podem colidir no id de
+    // dedup de _mergeLista, senão o segundo evento some no próximo merge (Story 10, code review)
+    hora:agora.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit',second:'2-digit'}),
+    tipo
+  });
+  localStorage.setItem('mappo_localizacao_historico',JSON.stringify(localizacaoHistorico));
+}
 let tarefas=JSON.parse(localStorage.getItem('mappo_tarefas')||'[]'); // tarefas adicionais personalizadas
 function saveTarefas(){localStorage.setItem('mappo_tarefas',JSON.stringify(tarefas));}
 let liveTracks=JSON.parse(localStorage.getItem('mappo_live')||'{}'); // GPS em tempo real por técnico
@@ -1945,8 +2139,8 @@ function saveVrfNotas(){localStorage.setItem('mappo_vrf_notas',JSON.stringify(vr
 function vrfProgAndar(andarId){
   const p=vrfProgresso[andarId]||{};
   let feitas=0;
-  VRF_FASES.forEach(f=>f.etapas.forEach((_,i)=>{if(p[f.id+'_'+i])feitas++;}));
-  return Math.round((feitas/VRF_TOTAL_ETAPAS)*100);
+  vrfFasesAtuais().forEach(f=>f.etapas.forEach((_,i)=>{if(p[f.id+'_'+i])feitas++;}));
+  return Math.round((feitas/vrfTotalEtapasAtuais())*100);
 }
 function vrfProgGeral(){
   if(!vrfObra.andares.length)return 0;
@@ -1955,7 +2149,7 @@ function vrfProgGeral(){
 }
 function vrfProgFase(andarId,faseId){
   const p=vrfProgresso[andarId]||{};
-  const fase=VRF_FASES.find(f=>f.id===faseId);if(!fase)return 0;
+  const fase=vrfFasesAtuais().find(f=>f.id===faseId);if(!fase)return 0;
   let feitas=0;fase.etapas.forEach((_,i)=>{if(p[faseId+'_'+i])feitas++;});
   return Math.round((feitas/fase.etapas.length)*100);
 }
@@ -2054,6 +2248,71 @@ function corrigirChecklistSeVazio(os){
   return true;
 }
 
+/* ═══ TABELA DE PREÇO (Story 8) ═══
+   Mesmo padrão de RAMO_TEMPLATES/checklistConfig acima: clonada por Ramo (nunca por
+   referência) no cadastro do workspace, editável depois, objeto único sincronizado
+   (mais recente vence, sem merge por campo -- ver _aplicarNaMemoria/SYNC_KEYS).
+   Categorias nascem com os mesmos rótulos do dropdown "Tipo de Serviço" -- vocabulário
+   ainda fixo pra qualquer Ramo (ver Known pitfalls em AGENTS.md) -- pra que o
+   pré-preenchimento em criarOS()/criarOSdeManut() funcione de cara nos dois Ramos do
+   MVP; "Outro / Serviço avulso" é a categoria livre pra quando um valor não bate com
+   tipo nenhum (Design Notes da story). valor nasce null: tabela "vazia" até o gestor
+   lançar um preço. */
+const PRECO_TEMPLATES = {
+  refrigeracao:[
+    {id:'inst_split',nome:'Instalação Split',valor:null},
+    {id:'manut_prev',nome:'Manutenção Preventiva',valor:null},
+    {id:'manut_corr',nome:'Manutenção Corretiva',valor:null},
+    {id:'manut_limp',nome:'Manutenção Limpeza',valor:null},
+    {id:'visita_tec',nome:'Visita Técnica',valor:null},
+    {id:'livre',nome:'Outro / Serviço avulso',valor:null},
+  ],
+  predial:[
+    {id:'inst_split',nome:'Instalação Split',valor:null},
+    {id:'manut_prev',nome:'Manutenção Preventiva',valor:null},
+    {id:'manut_corr',nome:'Manutenção Corretiva',valor:null},
+    {id:'manut_limp',nome:'Manutenção Limpeza',valor:null},
+    {id:'visita_tec',nome:'Visita Técnica',valor:null},
+    {id:'livre',nome:'Outro / Serviço avulso',valor:null},
+  ],
+};
+
+/* Clone do template do workspace, carregado uma vez no boot (mesmo padrão de
+   checklistConfig) e sincronizado como objeto único. null == workspace ainda sem
+   tabela de preço (qualquer um anterior a esta story): valorDoTipo cai no fallback
+   por Ramo, sem exigir recadastro e sem bloquear a criação de OS. */
+let precoConfig = JSON.parse(localStorage.getItem('mappo_preco_config')||'null');
+function savePrecoConfig(){localStorage.setItem('mappo_preco_config',JSON.stringify(precoConfig));}
+
+/* Fonte da tabela quando precoConfig ainda não chegou neste aparelho: usa
+   PRECO_TEMPLATES[WORKSPACE_RAMO] quando o Ramo é conhecido, só cai no de
+   refrigeração quando o Ramo é mesmo desconhecido (workspace anterior à Story 2).
+   Só leitura: nunca muta PRECO_TEMPLATES nem o array retornado. */
+function _fallbackPrecoRamo(){
+  const tpl=WORKSPACE_RAMO&&PRECO_TEMPLATES[WORKSPACE_RAMO];
+  return tpl||PRECO_TEMPLATES.refrigeracao;
+}
+/* Workspace sem precoConfig ainda: só cria o clone no momento em que o gestor edita de
+   verdade (nunca no boot, sem migração forçada). Sempre clona (JSON.parse(JSON.stringify(...))):
+   nunca aponta pras constantes globais. */
+function _garantirPrecoConfig(){
+  if(!precoConfig)precoConfig=JSON.parse(JSON.stringify(_fallbackPrecoRamo()));
+}
+/* Só para exibição: se ainda não há clone, mostra o fallback vigente sem persistir nada */
+function _precoCfgExibicao(){
+  return precoConfig||_fallbackPrecoRamo();
+}
+function _normTipo(s){return(s||'').toString().normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().trim();}
+/* Valor pré-configurado pro tipo de serviço escolhido na OS, ou null se nenhuma
+   categoria da tabela bate com o tipo (tabela ainda vazia, ou tipo sem categoria
+   correspondente) -- a OS nasce sem valor e o gestor lança manualmente depois, sem
+   bloquear a criação (I/O matrix da story). */
+function valorDoTipo(tipo){
+  const fonte=_precoCfgExibicao();
+  const item=(fonte||[]).find(c=>_normTipo(c.nome)===_normTipo(tipo));
+  return(item&&item.valor!=null)?item.valor:null;
+}
+
 const ETAPAS = ['checkin','equipamentos','checklist','assinatura'];
 const ETAPA_LBL = {checkin:'Check-in',equipamentos:'Equip.',checklist:'Checklist',assinatura:'Assin.'};
 
@@ -2063,6 +2322,7 @@ let osList = JSON.parse(localStorage.getItem('mappo_os')||'[]');
 let clientes = JSON.parse(localStorage.getItem('mappo_clientes')||'[]');
 let manutencoes = JSON.parse(localStorage.getItem('mappo_manut')||'[]');
 let settings = JSON.parse(localStorage.getItem('mappo_settings')||'{"notifPlataforma":true,"notifEmail":false,"notifSMS":false,"emailGestor":"","telGestor":""}');
+let financeiroNotas = JSON.parse(localStorage.getItem('mappo_financeiro_notas')||'[]'); // [{prestador,data,hora,valor,obs,responsavel}] -- adiantamentos, nunca soma no pago/a pagar por OS
 let currentView = 'dashboard';
 let currentFilter = 'todas';
 let currentDetailId = null;
@@ -2076,6 +2336,7 @@ function saveClientes(){localStorage.setItem('mappo_clientes',JSON.stringify(cli
 function saveManut(){localStorage.setItem('mappo_manut',JSON.stringify(manutencoes));}
 function saveSettings(){localStorage.setItem('mappo_settings',JSON.stringify(settings));}
 function saveSession(){localStorage.setItem('mappo_session',JSON.stringify(session));}
+function saveFinanceiroNotas(){localStorage.setItem('mappo_financeiro_notas',JSON.stringify(financeiroNotas));}
 
 /* ── LOGIN ──
    Conta real do Firebase Auth (AD-6) -- sem comparação de credencial no cliente. session só
@@ -2111,6 +2372,11 @@ function entrarApp(){
   injetarIcones();
   // monta a barra de navegação principal conforme perfil/módulos
   montarNavbar();
+  // Sistema VRF só existe pro Ramo Refrigeração/Climatização (Story 9) -- workspace sem
+  // Ramo (pré-Story-2, ex.: Elite Ar) cai no fallback "mostra VRF" de ramoTemVRF().
+  // "Tarefa Adicional" vira o item principal (relabelada) pros demais Ramos.
+  const lblTarefas=document.getElementById('navLblTarefas');
+  if(lblTarefas)lblTarefas.textContent=ramoTemVRF()?'Tarefa Adicional':'Criar Tarefas';
   // técnico vê só os módulos que o gestor liberou
   if(session.perfil==='tecnico'){
     aplicarMenuTecnico();
@@ -2118,6 +2384,10 @@ function entrarApp(){
     retomarLiveSePreciso(); // se o GPS ao vivo estava ativo e ainda vale, religa
   }else{
     document.querySelectorAll('.nav-item').forEach(el=>el.style.display='');
+    if(!ramoTemVRF()){
+      const vrfNavEl=document.querySelector('[data-view="vrf"]');
+      if(vrfNavEl)vrfNavEl.style.display='none';
+    }
     nav('dashboard');
   }
   updateDate();
@@ -2133,7 +2403,7 @@ function renderTecnicoHome(){
   const and=minhas.filter(o=>o.status==='andamento').length;
   const minhasTarefas=tarefas.filter(t=>t.tecnico===session.nome&&t.status!=='concluida');
   const temSplitAtivo=m.split&&minhas.length>0;
-  const temVRFativo=m.vrf&&vrfTemAtividade();
+  const temVRFativo=m.vrf&&ramoTemVRF()&&vrfTemAtividade();
   const temTarefaAtiva=minhasTarefas.length>0;
 
   // nada em andamento → boas-vindas com seletor dos módulos liberados
@@ -2146,7 +2416,7 @@ function renderTecnicoHome(){
         <div class="bv-card-desc">Suas ordens de serviço de instalação e manutenção</div>
         <div class="bv-card-go">Abrir ${svgIco('arrow-right','ico-sm')}</div>
       </div>`);
-    if(m.vrf)cards.push(`
+    if(m.vrf&&ramoTemVRF())cards.push(`
       <div class="bv-card" onclick="nav('vrf')">
         <div class="bv-card-ico">${svgIco('vrf')}</div>
         <div class="bv-card-name">Obra VRF</div>
@@ -2213,7 +2483,7 @@ function renderTecnicoHome(){
 
 /* injeta ícones SVG nos slots fixos (sidebar, topbar, footer) */
 function injetarIcones(){
-  const map={'navico-splits':'splits','navico-vrf':'vrf','navico-config':'config','navico-tarefas':'tarefas'};
+  const map={'navico-splits':'splits','navico-vrf':'vrf','navico-config':'config','navico-tarefas':'tarefas','navico-financeiro':'financeiro'};
   Object.entries(map).forEach(([id,name])=>{const el=document.getElementById(id);if(el)el.innerHTML=svgIco(name);});
   document.querySelectorAll('.nav-ico-slot').forEach(el=>{el.innerHTML=svgIco(el.dataset.ico);});
   const tgD=document.getElementById('tgDesktop'),tgM=document.getElementById('tgMobile');
@@ -2228,7 +2498,7 @@ function getNavItems(){
   if(session.perfil==='tecnico'){
     const tec=getTecnico(session.nome)||{modulos:{split:true,vrf:false}};
     const m=tec.modulos||{split:true,vrf:false};
-    if(navbarContexto==='vrf'){
+    if(navbarContexto==='vrf'&&ramoTemVRF()){
       items=[
         {view:'vrf',icon:'vrf',label:'Checklist'},
         {view:'vrf-mapa',icon:'mapa',label:'Mapa'},
@@ -2240,9 +2510,9 @@ function getNavItems(){
       if(m.split){items.push({view:'ordens',icon:'ordens',label:'Ordens'});}
       items.push({view:'tarefas',icon:'tarefas',label:'Tarefas'});
       items.push({view:'manutencoes',icon:'manutencoes',label:'Manut.'});
-      if(m.vrf){items.push({view:'vrf',icon:'vrf',label:'VRF'});}
+      if(m.vrf&&ramoTemVRF()){items.push({view:'vrf',icon:'vrf',label:'VRF'});}
     }
-  }else if(navbarContexto==='vrf'){
+  }else if(navbarContexto==='vrf'&&ramoTemVRF()){
     items=[
       {view:'vrf',icon:'dashboard',label:'Painel VRF'},
       {view:'vrf-andares',icon:'splits',label:'Andares'},
@@ -2328,10 +2598,15 @@ const VIEW_META={
   vrf:['Sistema VRF','Gestão de obras VRF'],
   config:['Configurações','Preferências do sistema'],
   tarefas:['Tarefas Adicionais','Trabalhos personalizados fora do padrão'],
+  financeiro:['Financeiro','Tabela de preço, valores por prestador e adiantamentos'],
 };
 
 function nav(view){
   currentView=view;
+  // navegação nova pro mapa: começa com o painel de info fechado (recolhido/aberto de uma
+  // sessão anterior não deve "vazar" pra uma entrada nova na tela -- ver renderMapa() pro
+  // porquê disto não mora lá dentro)
+  if(view==='mapa'){mapaPainelAberto=null;mapaPainelColapsado=false;}
   // troca a barra conforme o contexto (VRF do gestor tem barra própria)
   ajustarNavbarContexto(view);
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active',n.dataset.view===view));
@@ -2378,6 +2653,19 @@ function toast(msg,type){
 }
 function fmtDate(d){if(!d)return'';const[y,m,dd]=d.split('-');return`${dd}/${m}/${y}`;}
 function fmtDateShort(d){if(!d)return'';const[y,m,dd]=d.split('-');return`${dd}/${m}`;}
+function fmtMoeda(v){return(v==null||isNaN(v))?'—':Number(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});}
+/* Parse de valor monetário digitado à mão (Story 8, code review). '' -> null (limpeza
+   intencional do campo). Só troca vírgula por ponto quando a string não tem ponto
+   nenhum -- evita estragar "1.234,56" (milhar BR) virando "1.234" por engano; parsing
+   locale-aware completo fica fora de escopo deste patch (registrado como deferred).
+   Não numérico ou negativo -> NaN, nunca um número inválido escapa daqui. */
+function _parseMoeda(raw){
+  const s=(raw||'').toString().trim();
+  if(s==='')return null;
+  const norm=(s.includes(',')&&!s.includes('.'))?s.replace(',','.'):s;
+  const v=parseFloat(norm);
+  return(isNaN(v)||v<0)?NaN:v;
+}
 /* única função de escape do app (AD-12) -- serve tanto pra innerHTML quanto pra atributo
    value="..." com a mesma chamada; nunca criar um segundo caminho de sanitização ad-hoc. */
 function escapeHtml(s){
@@ -2412,8 +2700,8 @@ function aplicarMenuTecnico(){
   if(!session||session.perfil!=='tecnico')return;
   const tec=getTecnico(session.nome)||{modulos:{split:true,vrf:false}};
   const m=tec.modulos||{split:true,vrf:false};
-  document.querySelectorAll('[data-view="dashboard"],[data-view="mapa"],[data-view="clientes"],[data-view="config"],[data-view="manutencoes"],[data-view="splits"]').forEach(el=>el.style.display='none');
-  const vrfEl=document.querySelector('[data-view="vrf"]');if(vrfEl)vrfEl.style.display=m.vrf?'':'none';
+  document.querySelectorAll('[data-view="dashboard"],[data-view="mapa"],[data-view="clientes"],[data-view="config"],[data-view="manutencoes"],[data-view="splits"],[data-view="financeiro"]').forEach(el=>el.style.display='none');
+  const vrfEl=document.querySelector('[data-view="vrf"]');if(vrfEl)vrfEl.style.display=(m.vrf&&ramoTemVRF())?'':'none';
   const ordEl=document.querySelector('[data-view="ordens"]');if(ordEl)ordEl.style.display=m.split?'':'none';
 }
 
@@ -2425,6 +2713,12 @@ function renderView(v){
   // técnico: app de campo (ordens) + VRF se liberado
   if(session.perfil==='tecnico'){
     if(v==='home'){c.innerHTML=renderTecnicoHome();return;}
+    // Sistema VRF só existe pro Ramo Refrigeração (Story 9, code review): este é o gate
+    // de TELA, não só de UI -- os pontos de entrada (menu/navbar/cards) já ficam
+    // escondidos por ramoTemVRF(), mas nav('vrf'/'vrf-mapa'/'vrf-fotos') direto (console,
+    // ou qualquer chamada futura a renderView) não pode continuar renderizando o módulo
+    // pra outro Ramo só porque a UI que levaria até aqui está escondida.
+    if((v==='vrf'||v==='vrf-mapa'||v==='vrf-fotos')&&!ramoTemVRF()){c.innerHTML=renderTecnicoHome();return;}
     if(v==='vrf'){c.innerHTML=renderVRF();setTimeout(vrfSetupCamera,50);return;}
     if(v==='vrf-mapa'){c.innerHTML=renderVRFmapa();setTimeout(()=>initVRFmapa(),60);return;}
     if(v==='vrf-fotos'){c.innerHTML=renderVRFfotos();return;}
@@ -2432,6 +2726,11 @@ function renderView(v){
     if(v==='manutencoes'){c.innerHTML=renderManutTecnico();return;}
     c.innerHTML=renderTecnicoApp();afterTecnicoRender();return;
   }
+  // Mesmo gate de TELA acima, lado gestor (Story 9, code review): cobre de uma vez os 5
+  // cases 'vrf'/'vrf-andares'/'vrf-relatorios'/'vrf-mapa'/'vrf-fotos' -- à prova de
+  // reordenação/adição futura de case (mesmo espírito do que já existe pra
+  // case'financeiro' logo abaixo), sem depender de lembrar de repetir o check em cada um.
+  if((v==='vrf'||v.indexOf('vrf-')===0)&&!ramoTemVRF()){c.innerHTML=renderDashboard();atualizarBadges();return;}
   switch(v){
     case'dashboard':c.innerHTML=renderDashboard();break;
     case'ordens':c.innerHTML=renderOrdens();break;
@@ -2444,7 +2743,14 @@ function renderView(v){
     case'vrf-relatorios':c.innerHTML=renderVRFrelatorios();break;
     case'vrf-mapa':c.innerHTML=renderVRFmapa();setTimeout(initVRFmapa,60);break;
     case'vrf-fotos':c.innerHTML=renderVRFfotos();break;
-    case'config':c.innerHTML=renderConfig();renderDebugLogs();break;
+    case'config':c.innerHTML=renderConfig();renderDebugLogs();_reconciliarEquipe();break;
+    case'financeiro':
+      // defesa extra (Story 8, code review): o ramo técnico acima já retorna antes de
+      // chegar aqui pra qualquer view não mapeada, então isto é redundante hoje -- mas
+      // deixa explícito e à prova de reordenação futura que Financeiro nunca renderiza
+      // pra um técnico, mesmo via nav('financeiro') direto no console.
+      if(session.perfil==='tecnico'){c.innerHTML=renderTecnicoApp();afterTecnicoRender();break;}
+      c.innerHTML=renderFinanceiro();break;
     case'tarefas':c.innerHTML=renderTarefas();setTimeout(setupTarefaCam,60);break;
     default:c.innerHTML='';
   }
@@ -2486,12 +2792,12 @@ function renderBemVindoGestor(){
         <div class="bv-card-desc">Ordens de serviço, instalação e manutenção de splits</div>
         <div class="bv-card-go">Começar ${svgIco('arrow-right','ico-sm')}</div>
       </div>
-      <div class="bv-card" onclick="nav('vrf')">
+      ${ramoTemVRF()?`<div class="bv-card" onclick="nav('vrf')">
         <div class="bv-card-ico">${svgIco('vrf')}</div>
         <div class="bv-card-name">Sistema VRF</div>
         <div class="bv-card-desc">Gestão de obra VRF com checklist técnico por andar</div>
         <div class="bv-card-go">Começar ${svgIco('arrow-right','ico-sm')}</div>
-      </div>
+      </div>`:''}
     </div>
     <div class="bv-links">
       <button class="bv-link" onclick="nav('config')">${svgIco('config','ico-sm')} Configurar equipe</button>
@@ -2503,6 +2809,10 @@ function renderBemVindoGestor(){
 
 /* card VRF no dashboard central */
 function cardVRFdash(){
+  // Story 9, code review: se um workspace Predial tiver atividade VRF legada (dado
+  // antigo, ou qualquer brecha anterior a este patch), o atalho no dashboard não pode
+  // reaparecer só por causa disso -- gate por Ramo primeiro, sempre.
+  if(!ramoTemVRF())return'';
   if(!vrfTemAtividade())return'';
   const geral=vrfProgGeral();
   const ultimoRel=vrfRelatorios.length?vrfRelatorios[vrfRelatorios.length-1]:null;
@@ -2722,6 +3032,11 @@ function renderMapa(){
   const online=nomesTecnicos().filter(t=>{const l=locs[t];return l&&Date.now()-l.ts<300000;}).length;
   const desc=aoVivo?`<span style="color:#dc2626;font-weight:700">${aoVivo} ao vivo agora</span>${online>aoVivo?' · '+online+' com posição recente':''}`
     :(online?online+' técnico'+(online>1?'s':'')+' com posição recente':'Nenhum técnico compartilhando localização');
+  // NÃO resetar mapaPainelAberto/mapaPainelColapsado aqui (code review, Story 10): renderMapa()
+  // roda tanto numa navegação nova quanto num re-render de fundo disparado por sync remoto
+  // (fbOnRemoteChange -> renderView(currentView) quando currentView já é 'mapa') -- resetar
+  // aqui fecharia/recolheria silenciosamente um painel que o gestor tem aberto. O reset de
+  // "entrada nova na view" mora em nav('mapa'), o único ponto que representa navegação real.
   return `
   <div class="page-head">
     <div><div class="page-title">Mapa ao vivo</div><div class="page-desc">${desc}</div></div>
@@ -2730,11 +3045,34 @@ function renderMapa(){
   ${!online?`<div style="background:var(--blue-bg);border-left:4px solid var(--blue);border-radius:var(--radius-sm);padding:14px 18px;margin-bottom:18px;font-size:13.5px;color:#2c5282;line-height:1.55">
     <strong>Como funciona:</strong> quando o técnico faz o check-in, o ponto dele aparece aqui. Se ele tocar em <strong>"Ativar GPS ao vivo"</strong> no app dele, você acompanha a movimentação em tempo real (atualiza a cada 5s, por até 10h após o check-in), com o caminho percorrido desenhado no mapa.
   </div>`:''}
-  <div class="card"><div id="mapaBox"></div></div>
+  <div class="card" style="position:relative">
+    <div id="mapaBox"></div>
+    <div id="mapaPainelInfo" class="mapa-painel" style="display:none"></div>
+  </div>
   <div class="card" style="margin-top:20px">
     <div class="card-head"><h3>Equipe</h3></div>
     <div class="card-pad" style="padding-top:6px">${renderEquipeMini()}</div>
+  </div>
+  <div class="card" style="margin-top:20px">
+    <div class="card-head"><h3>Histórico de localização</h3></div>
+    <div class="card-pad" style="padding-top:6px">${renderHistoricoLocalizacao()}</div>
   </div>`;
+}
+
+/* lista de eventos discretos (check-in fixo / início de GPS ao vivo), mais recente primeiro --
+   mesmo padrão de listagem append-only já usado pra vrfCheckins (Story 10) */
+function renderHistoricoLocalizacao(){
+  if(!localizacaoHistorico||!localizacaoHistorico.length){
+    return `<p style="font-size:13px;color:var(--gray-400);padding:8px 0">Nenhum evento de localização registrado ainda.</p>`;
+  }
+  const diaSemana=d=>{try{return new Date(d+'T00:00:00').toLocaleDateString('pt-BR',{weekday:'short'});}catch(e){console.error('[historico-localizacao] data inválida',e.code,e.message);return '';}};
+  const ordenado=[...localizacaoHistorico].sort((a,b)=>((b.data||'')+(b.hora||'')).localeCompare((a.data||'')+(a.hora||'')));
+  return ordenado.slice(0,40).map(h=>{
+    const tipoLbl=h.tipo==='ao_vivo'?'🔴 Iniciou GPS ao vivo':'📍 Check-in';
+    return `<div class="tech-row">
+      <div class="tech-info"><div class="tech-nm">${escapeHtml(h.prestador||'')}</div><div class="tech-st">${tipoLbl} · ${fmtDate(h.data)} (${diaSemana(h.data)}) · ${escapeHtml(h.hora||'')}</div></div>
+    </div>`;
+  }).join('');
 }
 
 /* ═══════════ SPLITS ═══════════ */
@@ -2797,7 +3135,7 @@ function vrfFazerCheckin(){
   toast('Obtendo localização para o check-in...');
   navigator.geolocation.getCurrentPosition(
     pos=>{
-      salvarPosicao(pos); // registra o ponto do check-in no mapa
+      salvarPosicao(pos,'fixo'); // registra o ponto do check-in no mapa + evento no histórico
       vrfSalvarCheckin(pos);
     },
     err=>{
@@ -2913,7 +3251,7 @@ function vrfRenderMissaoPainel(){
     const p=vrfProgresso[an.id]||{};
     const steps=keys.map(key=>{
       const [fid,ei]=key.split('_');
-      const fase=VRF_FASES.find(f=>f.id===fid);
+      const fase=vrfFasesAtuais().find(f=>f.id===fid);
       if(!fase)return'';
       const done=!!p[key];
       return `<div class="vrf-mis-step ${done?'done':''}" onclick="vrfToggleTec('${an.id}','${key}',this)">
@@ -2948,7 +3286,7 @@ function vrfRenderAndarPainel(andar){
   const fotos=vrfFotos[andar.id]||{};
   const notas=vrfNotas[andar.id]||{};
 
-  const fasesHTML=VRF_FASES.map((f,fi)=>{
+  const fasesHTML=vrfFasesAtuais().map((f,fi)=>{
     let feito=0;f.etapas.forEach((_,ei)=>{if(p[f.id+'_'+ei])feito++;});
     const etapasHTML=f.etapas.map((txt,ei)=>{
       const key=f.id+'_'+ei;
@@ -3141,7 +3479,7 @@ function renderVRFgestor(){
       <div class="vrf-bar"><div class="vrf-bar-fill" style="width:${pct}%;background:${cor}"></div></div>
       <div class="vrf-fc-meta">
         <span>${svgIco('camera','ico-sm')} ${nFotos} foto${nFotos!==1?'s':''}</span>
-        <span>${VRF_FASES.length} fases</span>
+        <span>${vrfFasesAtuais().length} fases</span>
       </div>
     </div>`;
   }).join('');
@@ -3213,7 +3551,7 @@ function renderVRFandares(){
     const cor=vrfCorProg(pct);
     const nFotos=Object.values(vrfFotos[an.id]||{}).reduce((a,arr)=>a+(arr?arr.length:0),0);
     let fasesFeitas=0;
-    VRF_FASES.forEach(f=>{if(vrfProgFase(an.id,f.id)>=100)fasesFeitas++;});
+    vrfFasesAtuais().forEach(f=>{if(vrfProgFase(an.id,f.id)>=100)fasesFeitas++;});
     return `<div class="vrf-andar-lista-card" onclick="vrfAbrirAndar('${an.id}')">
       <div class="vrf-al-top">
         <div class="vrf-al-nome">${escapeHtml(an.nome)}</div>
@@ -3221,7 +3559,7 @@ function renderVRFandares(){
       </div>
       <div class="vrf-bar" style="margin:10px 0"><div class="vrf-bar-fill" style="width:${pct}%;background:${cor}"></div></div>
       <div class="vrf-al-meta">
-        <span>${svgIco('check','ico-sm')} ${fasesFeitas}/${VRF_FASES.length} fases</span>
+        <span>${svgIco('check','ico-sm')} ${fasesFeitas}/${vrfFasesAtuais().length} fases</span>
         <span>${svgIco('camera','ico-sm')} ${nFotos} foto${nFotos!==1?'s':''}</span>
         <span class="vrf-al-abrir">Abrir ${svgIco('arrow-right','ico-sm')}</span>
       </div>
@@ -3312,7 +3650,7 @@ function renderVRFfotos(){
     const notas=vrfNotas[an.id]||{};
     Object.keys(fotos).forEach(key=>{
       const [fid,ei]=key.split('_');
-      const fase=VRF_FASES.find(f=>f.id===fid);
+      const fase=vrfFasesAtuais().find(f=>f.id===fid);
       (fotos[key]||[]).forEach((src,idx)=>{
         todas.push({src,andar:an.nome,andarId:an.id,key,idx,fase:fase?fase.nome:'',etapa:fase?fase.etapas[+ei]:'',nota:notas[key]||'',prestador:vrfFotoPrestador(an.id,key,idx)});
       });
@@ -3346,7 +3684,7 @@ function vrfVerFotoDetalhe(andarId,key,idx){
   const src=fs[idx];if(!src)return;
   const an=vrfObra.andares.find(a=>a.id===andarId);
   const [fid,ei]=key.split('_');
-  const fase=VRF_FASES.find(f=>f.id===fid);
+  const fase=vrfFasesAtuais().find(f=>f.id===fid);
   const nota=(vrfNotas[andarId]||{})[key]||'';
   const prestador=vrfFotoPrestador(andarId,key,idx);
   showModal(`
@@ -3372,7 +3710,7 @@ function vrfMissaoResumo(){
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--petrol);margin-bottom:4px">${escapeHtml(an.nome)} · ${keys.length} tarefa${keys.length!==1?'s':''}</div>
         ${keys.slice(0,3).map(key=>{
           const [fid,idx]=key.split('_');
-          const fase=VRF_FASES.find(f=>f.id===fid);
+          const fase=vrfFasesAtuais().find(f=>f.id===fid);
           return fase?`<div style="padding:5px 0;display:flex;gap:8px;align-items:center;font-size:12.5px"><span style="width:6px;height:6px;border-radius:50%;background:var(--gold);flex-shrink:0"></span> ${fase.etapas[+idx]}</div>`:'';
         }).join('')}
         ${keys.length>3?`<div style="padding:3px 0 0 14px;color:var(--gray-400);font-size:12px">+${keys.length-3} outras neste andar</div>`:''}
@@ -3456,7 +3794,7 @@ function vrfRenderMissaoSteps(){
   const lbl=document.getElementById('vrfMissaoAndarAtual');
   if(lbl)lbl.innerHTML=`${svgIco('splits','ico-sm')} Definindo missão de: <strong>${escapeHtml(andar.nome)}</strong>`;
   const missaoDoAndar=vrfMissaoAndar(andar.id);
-  cont.innerHTML=VRF_FASES.map(f=>`
+  cont.innerHTML=vrfFasesAtuais().map(f=>`
     <div class="vrf-mfase">
       <div class="vrf-mfase-head">${f.nome}</div>
       ${f.etapas.map((et,i)=>{
@@ -3495,7 +3833,7 @@ function vrfAbrirAndar(andarId){
   const p=vrfProgresso[andarId]||{};
   const fotos=vrfFotos[andarId]||{};
   const notas=vrfNotas[andarId]||{};
-  const fasesHTML=VRF_FASES.map(f=>{
+  const fasesHTML=vrfFasesAtuais().map(f=>{
     const pctFase=vrfProgFase(andarId,f.id);
     const etapasHTML=f.etapas.map((et,i)=>{
       const key=f.id+'_'+i;
@@ -3572,7 +3910,7 @@ function gerarPDFandar(andarId){
   const fotos=vrfFotos[andarId]||{};
   const notas=vrfNotas[andarId]||{};
   const pct=vrfProgAndar(andarId);
-  const feito=Math.round(pct/100*VRF_TOTAL_ETAPAS);
+  const feito=Math.round(pct/100*vrfTotalEtapasAtuais());
 
   const doc=new jsPDFLib({unit:'mm',format:'a4'});
   const W=210,M=15;let y=0;
@@ -3595,14 +3933,14 @@ function gerarPDFandar(andarId){
   doc.text('Data do relatorio: '+new Date().toLocaleDateString('pt-BR'),M,y);y+=6;
   doc.setFont('helvetica','bold');doc.setFontSize(13);
   doc.setTextColor(24,81,102);
-  doc.text('Progresso: '+pct+'%  ('+feito+'/'+VRF_TOTAL_ETAPAS+' etapas)',M,y);y+=4;
+  doc.text('Progresso: '+pct+'%  ('+feito+'/'+vrfTotalEtapasAtuais()+' etapas)',M,y);y+=4;
   // barra
   doc.setFillColor(230,230,230);doc.rect(M,y,W-2*M,4,'F');
   doc.setFillColor(201,168,76);doc.rect(M,y,(W-2*M)*pct/100,4,'F');
   y+=12;
 
   // fases e etapas
-  VRF_FASES.forEach((f,fi)=>{
+  vrfFasesAtuais().forEach((f,fi)=>{
     let ff=0;f.etapas.forEach((_,ei)=>{if(p[f.id+'_'+ei])ff++;});
     if(y>260){doc.addPage();y=20;}
     doc.setFillColor(245,243,238);doc.rect(M,y-5,W-2*M,8,'F');
@@ -3633,7 +3971,7 @@ function gerarPDFandar(andarId){
   const fotosAndar=[];
   Object.keys(fotos).forEach(key=>{
     const [fid,ei]=key.split('_');
-    const fase=VRF_FASES.find(f=>f.id===fid);
+    const fase=vrfFasesAtuais().find(f=>f.id===fid);
     const label=fase?(fase.nome+' — '+fase.etapas[+ei]):'';
     (fotos[key]||[]).forEach(src=>fotosAndar.push({src,label}));
   });
@@ -3678,6 +4016,11 @@ function renderConfig(){
     <div class="card-head"><h3>🧾 Checklist</h3></div>
     <div class="card-pad" style="padding-top:6px">${renderChecklistConfig()}</div>
   </div>
+
+  ${ramoTemVRF()?`<div class="card" style="margin-bottom:22px">
+    <div class="card-head"><h3>🌡️ Checklist VRF</h3></div>
+    <div class="card-pad" style="padding-top:6px">${renderVrfFasesConfig()}</div>
+  </div>`:''}
 
   <div class="two-col">
     <div class="card">
@@ -3806,8 +4149,305 @@ function adicionarItemChecklist(grupo){
 }
 
 /* ════════════════════════════════════════
+   GESTÃO DO CHECKLIST VRF (Configurações, Story 9)
+   Mesmo padrão de renderChecklistConfig acima, mas por fase: cada fase (<details>,
+   nunca reordenada/removida/renomeada -- 10 fases fixas, f1..f10) expande pra lista de
+   etapas editável (adicionar/remover/renomear só a etapa). Só aparece quando
+   ramoTemVRF() -- Ramo sem VRF nem tem o que editar aqui.
+   AVISO: remover uma etapa do meio da fase desloca o índice (faseId_idx) das etapas
+   seguintes -- progresso/fotos/notas já lançados numa obra em andamento podem passar a
+   se referir à etapa deslocada errada. Renomear é seguro (índice não muda); adicionar
+   sempre no fim também é seguro. Fora de escopo desta story resolver a migração de
+   índice em obras já em andamento -- ver relato da Story 9. */
+function renderVrfFasesConfig(){
+  const fases=vrfFasesAtuais();
+  return '<p style="font-size:12px;color:var(--gray-400);margin-bottom:10px">📌 As 10 fases da obra são fixas -- só as etapas dentro de cada uma podem ser adicionadas, renomeadas ou removidas.</p>'
+    +fases.map(f=>`
+    <details class="vrf-fase-cfg" style="margin-bottom:10px;border:1px solid var(--gray-200);border-radius:10px;overflow:hidden">
+      <summary style="padding:10px 14px;font-size:14px;font-weight:600;color:var(--gray-800);cursor:pointer">${escapeHtml(f.nome)} <span style="font-weight:400;color:var(--gray-400);font-size:12px">(${f.etapas.length} etapa${f.etapas.length!==1?'s':''})</span></summary>
+      <div style="padding:0 14px 14px">
+        ${f.etapas.map((et,idx)=>`<div class="set-row">
+          <div class="set-info"><div class="st">${escapeHtml(et)}</div></div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-ghost btn-sm" onclick="editarEtapaVrf('${f.id}',${idx})">${svgIco('edit','ico-sm')}</button>
+            ${idx===f.etapas.length-1?`<button class="btn btn-danger btn-sm" onclick="removerEtapaVrf('${f.id}',${idx})">${svgIco('trash','ico-sm')}</button>`:''}
+          </div>
+        </div>`).join('')||'<p style="font-size:14px;color:var(--gray-400);padding:8px 0">Nenhuma etapa.</p>'}
+        ${f.etapas.length>1?'<p style="font-size:11px;color:var(--gray-400);margin:2px 0 8px">Só a última etapa pode ser removida, pra não bagunçar o progresso já registrado em obras.</p>':''}
+        <div class="set-row" style="gap:8px">
+          <input type="text" id="novaEtapaVrf_${f.id}" placeholder="Nova etapa…" style="flex:1">
+          <button class="btn btn-primary btn-sm" onclick="adicionarEtapaVrf('${f.id}')">${svgIco('plus','ico-sm')} Adicionar</button>
+        </div>
+      </div>
+    </details>`).join('');
+}
+function editarEtapaVrf(faseId,idx){
+  // defesa em profundidade (code review): não alcançável por UI nenhuma pra quem não
+  // tem VRF (card só existe em renderConfig quando ramoTemVRF()), mas o write path em
+  // si nunca deve confiar só no gate de tela.
+  if(!ramoTemVRF())return;
+  _garantirVrfFasesConfig();
+  const fase=vrfFasesConfig.find(f=>f.id===faseId);
+  const atual=fase&&fase.etapas[idx];
+  if(atual===undefined)return;
+  const novo=prompt('Etapa:',atual);
+  if(novo===null)return;
+  const limpo=novo.trim();
+  if(!limpo){toast('A etapa não pode ficar vazia','warn');return;}
+  fase.etapas[idx]=limpo;
+  saveVrfFasesConfig();renderView('config');toast('Etapa atualizada','success');
+}
+function removerEtapaVrf(faseId,idx){
+  if(!ramoTemVRF())return; // defesa em profundidade -- ver nota em editarEtapaVrf
+  _garantirVrfFasesConfig();
+  const fase=vrfFasesConfig.find(f=>f.id===faseId);
+  if(!fase||fase.etapas[idx]===undefined)return;
+  if(fase.etapas.length<=1){toast('A fase precisa de pelo menos uma etapa','warn');return;}
+  // progresso/fotos/notas de obra são gravados por índice (faseId_idx) -- remover do meio
+  // deslocaria toda etapa seguinte pra um índice que já tem histórico de OUTRA etapa,
+  // reatribuindo silenciosamente o progresso de uma obra em andamento. Só a última etapa
+  // da fase pode ser removida (sem deslocar nada depois dela); renomear/adicionar continuam
+  // livres (nunca mudam índice de etapa nenhuma).
+  if(idx!==fase.etapas.length-1){toast('Só dá pra remover a última etapa da fase, pra não bagunçar o progresso já registrado em obras -- edite o texto ou remova a partir do final','warn');return;}
+  if(!confirm('Remover "'+fase.etapas[idx]+'" desta fase?'))return;
+  fase.etapas.splice(idx,1);
+  // Purga o registro desta etapa em toda obra (code review): progresso/fotos/fotosMeta/
+  // notas são todos {andarId:{faseId_idx:...}} -- vrfProgresso guarda um booleano,
+  // vrfFotos/vrfFotosMeta um array (fotos e seus metadados prestador/data em paralelo),
+  // vrfNotas uma string. Sem isso, se uma etapa nova for adicionada depois nesta mesma
+  // fase, ela herda esse índice liberado (adicionarEtapaVrf faz push no fim, que agora
+  // é este índice de novo) e "reaparece" já marcada/com foto/nota de uma etapa que já
+  // não existe mais -- e até lá, qualquer leitura de fase.etapas[idx] fora do range
+  // vazava a string "undefined" em fotos/PDF/missão.
+  const key=faseId+'_'+idx;
+  (vrfObra.andares||[]).forEach(an=>{
+    if(vrfProgresso[an.id])delete vrfProgresso[an.id][key];
+    if(vrfFotos[an.id])delete vrfFotos[an.id][key];
+    if(vrfFotosMeta[an.id])delete vrfFotosMeta[an.id][key];
+    if(vrfNotas[an.id])delete vrfNotas[an.id][key];
+  });
+  saveVrfProgresso();saveVrfFotos();saveVrfFotosMeta();saveVrfNotas();
+  saveVrfFasesConfig();renderView('config');toast('Etapa removida','success');
+}
+function adicionarEtapaVrf(faseId){
+  if(!ramoTemVRF())return; // defesa em profundidade -- ver nota em editarEtapaVrf
+  _garantirVrfFasesConfig();
+  const fase=vrfFasesConfig.find(f=>f.id===faseId);
+  if(!fase)return;
+  const input=document.getElementById('novaEtapaVrf_'+faseId);
+  const label=(input&&input.value||'').trim();
+  if(!label){toast('Informe o texto da nova etapa','warn');return;}
+  // mesmo padrão de adicionarPrecoCategoria (Story 8, code review): sem isso, duas
+  // etapas idênticas na mesma fase só confundem o técnico em campo, sem ganho nenhum.
+  if(fase.etapas.some(e=>_normTipo(e)===_normTipo(label))){toast('Essa etapa já existe nesta fase','warn');return;}
+  fase.etapas.push(label);
+  if(input)input.value='';
+  saveVrfFasesConfig();renderView('config');toast('Etapa adicionada','success');
+}
+
+/* ════════════════════════════════════════
+   FINANCEIRO (Story 8) — só gestor (gate de UI: sidebar-nav + aplicarMenuTecnico,
+   mesmo padrão de Configurações não ser mostrada a técnico). Tabela de preço editável
+   + hierarquia Serviço → Prestador → valores/status + notas de adiantamento.
+   ════════════════════════════════════════ */
+function renderPrecoConfig(){
+  const cfg=_precoCfgExibicao();
+  return `
+    ${(cfg||[]).map((c,idx)=>`<div class="set-row" style="gap:8px">
+      <div class="set-info" style="flex:1"><div class="st">${escapeHtml(c.nome)}</div></div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span style="font-size:13px;color:var(--gray-400)">R$</span>
+        <input type="number" step="0.01" min="0" style="width:110px" value="${c.valor!=null?c.valor:''}" placeholder="0,00" onchange="editarPrecoCategoria(${idx},this.value)">
+        <button class="btn btn-danger btn-sm" onclick="removerPrecoCategoria(${idx})">${svgIco('trash','ico-sm')}</button>
+      </div>
+    </div>`).join('')||'<p style="font-size:14px;color:var(--gray-400);padding:8px 0">Nenhuma categoria ainda.</p>'}
+    <div class="set-row" style="gap:8px">
+      <input type="text" id="novaCategoriaPreco" placeholder="Nova categoria de serviço…" style="flex:1">
+      <button class="btn btn-primary btn-sm" onclick="adicionarPrecoCategoria()">${svgIco('plus','ico-sm')} Adicionar</button>
+    </div>`;
+}
+function editarPrecoCategoria(idx,valorStr){
+  _garantirPrecoConfig();
+  const item=precoConfig[idx];if(!item)return;
+  const raw=(valorStr||'').toString().trim();
+  const v=_parseMoeda(raw);
+  // raw!=='' mas não deu um número válido: o gestor digitou algo -- nunca apaga o valor
+  // que já estava salvo por baixo de um "sucesso" mentiroso (code review).
+  if(raw!==''&&isNaN(v)){toast('Valor inválido — não foi salvo','warn');renderView('financeiro');return;}
+  item.valor=v; // null só quando o campo foi mesmo esvaziado de propósito
+  savePrecoConfig();toast('Valor atualizado','success');
+}
+function removerPrecoCategoria(idx){
+  _garantirPrecoConfig();
+  const item=precoConfig[idx];if(!item)return;
+  if(!confirm('Remover a categoria "'+item.nome+'" da tabela de preço?'))return;
+  precoConfig.splice(idx,1);
+  savePrecoConfig();renderView('financeiro');toast('Categoria removida','success');
+}
+function adicionarPrecoCategoria(){
+  _garantirPrecoConfig();
+  const input=document.getElementById('novaCategoriaPreco');
+  const nome=(input&&input.value||'').trim();
+  if(!nome){toast('Informe o nome da categoria','warn');return;}
+  // sem isso, duas categorias com o mesmo nome deixam a segunda inalcançável --
+  // valorDoTipo() sempre acha a primeira no .find() (code review).
+  if(precoConfig.some(c=>_normTipo(c.nome)===_normTipo(nome))){toast('Já existe uma categoria com esse nome','warn');return;}
+  precoConfig.push({id:'custom_'+Date.now(),nome,valor:null});
+  if(input)input.value='';
+  savePrecoConfig();renderView('financeiro');toast('Categoria adicionada','success');
+}
+
+/* Hierarquia Serviço → Prestador → itens/valores, só a partir de OS com valor lançado
+   (I/O matrix: OS sem valor não aparece aqui, não é erro). Nota de adiantamento nunca
+   entra nessa soma -- vem de financeiroNotas, uma coleção completamente separada.
+   total = soma de TUDO que tem valor lançado (pago+aPagar+semStatus); pago e aPagar só
+   somam o que o gestor já confirmou explicitamente -- uma OS recém-criada com valor
+   pré-preenchido por valorDoTipo() nasce com valorStatus:null e não pode entrar em
+   nenhum dos dois até o gestor confirmar o status (senão toda OS nova apareceria
+   contada como "a pagar" antes de qualquer trabalho ou confirmação). */
+function financeiroResumo(){
+  const porServico={};
+  osList.forEach(o=>{
+    if(o.valor==null)return;
+    const serv=o.tipo||'Outro';
+    const prest=o.tecnico||'—';
+    porServico[serv]=porServico[serv]||{};
+    const grupo=porServico[serv][prest]=porServico[serv][prest]||{itens:[],pago:0,aPagar:0,semStatus:0,total:0};
+    grupo.itens.push(o);
+    grupo.total+=o.valor;
+    if(o.valorStatus==='pago')grupo.pago+=o.valor;
+    else if(o.valorStatus==='a_pagar')grupo.aPagar+=o.valor;
+    else grupo.semStatus+=o.valor;
+  });
+  return porServico;
+}
+function renderFinanceiroHierarquia(){
+  const resumo=financeiroResumo();
+  const servicos=Object.keys(resumo).sort();
+  if(!servicos.length)return emptyState('financeiro','Nenhum valor lançado ainda','Abra uma OS e lance o valor pra ver o resumo por serviço e prestador aqui.');
+  return servicos.map(serv=>{
+    const prestadores=Object.keys(resumo[serv]).sort();
+    return `<div class="card" style="margin-bottom:14px">
+      <div class="card-head"><h3>🔧 ${escapeHtml(serv)}</h3></div>
+      <div class="card-pad" style="padding-top:6px">
+        ${prestadores.map(prest=>{
+          const g=resumo[serv][prest];
+          return `<div style="margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--gray-100)">
+            <div style="font-size:14px;font-weight:600;color:var(--gray-800);margin-bottom:6px">👷 ${escapeHtml(prest)}</div>
+            ${g.itens.map(o=>{
+              const st=o.valorStatus;
+              const badgeCss=st==='pago'?'background:#dcfce7;color:#166534':st==='a_pagar'?'background:#fef3c7;color:#92400e':'background:var(--gray-100);color:var(--gray-500)';
+              const badgeLbl=st==='pago'?'PAGO':st==='a_pagar'?'A PAGAR':'SEM STATUS';
+              return `<div class="os-meta-i" style="padding:4px 0">${escapeHtml(o.cliente)} — ${fmtDate(o.data)} — ${fmtMoeda(o.valor)} <span style="font-size:11px;padding:1px 6px;border-radius:8px;font-weight:600;${badgeCss}">${badgeLbl}</span></div>`;
+            }).join('')}
+            <div style="font-size:12px;color:var(--gray-500);margin-top:6px">Pago: ${fmtMoeda(g.pago)} · A pagar: ${fmtMoeda(g.aPagar)}${g.semStatus?' · Sem status: '+fmtMoeda(g.semStatus):''} · Total: ${fmtMoeda(g.total)}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* Bloco de notas de adiantamento: append-only (mesmo padrão de vrfCheckins/APPEND_LISTS
+   em fbPush/fbApply) -- nunca perde uma entrada lançada aqui ou em outro aparelho. Só
+   registro manual, nunca soma no pago/a pagar por OS acima (financeiroResumo não lê
+   financeiroNotas). */
+function renderFinanceiroNotas(){
+  const notas=[...financeiroNotas].sort((a,b)=>((b.data||'')+(b.hora||'')).localeCompare((a.data||'')+(a.hora||'')));
+  return `
+  <div class="fg" style="margin-bottom:14px">
+    <div class="frow">
+      <div class="fg"><label>Prestador</label><select id="notaPrestador">${nomesTecnicos().map(t=>`<option>${escapeHtml(t)}</option>`).join('')}</select></div>
+      <div class="fg"><label>Valor</label><input type="number" step="0.01" min="0" id="notaValor" placeholder="0,00"></div>
+    </div>
+    <div class="fg"><label>Observação</label><input type="text" id="notaObs" placeholder="Ex: adiantamento em dinheiro"></div>
+    <button class="btn btn-primary btn-sm" onclick="adicionarNotaFinanceira()">${svgIco('plus','ico-sm')} Registrar nota</button>
+  </div>
+  ${notas.length?notas.map(n=>`<div class="set-row"><div class="set-info"><div class="st">${escapeHtml(n.prestador)} — ${fmtMoeda(n.valor)}</div><div class="sd">${fmtDate(n.data)} ${n.hora||''}${n.obs?' · '+escapeHtml(n.obs):''}${n.responsavel?' · registrado por '+escapeHtml(n.responsavel):''}</div></div></div>`).join(''):'<p style="font-size:14px;color:var(--gray-400);padding:8px 0">Nenhuma nota registrada.</p>'}
+  <p style="font-size:12px;color:var(--gray-400);margin-top:10px">📌 Notas de adiantamento são só registro manual — nunca entram na soma de pago/a pagar por OS acima.</p>`;
+}
+function adicionarNotaFinanceira(){
+  const prestador=(document.getElementById('notaPrestador').value||'').trim();
+  const valorRaw=(document.getElementById('notaValor').value||'').trim();
+  const obs=(document.getElementById('notaObs').value||'').trim();
+  if(!prestador){toast('Selecione o prestador','warn');return;}
+  const valor=_parseMoeda(valorRaw);
+  if(valor==null||isNaN(valor)||valor<=0){toast('Informe um valor válido','warn');return;}
+  const agora=new Date();
+  financeiroNotas.push({
+    prestador,valor,obs,
+    data:agora.toISOString().split('T')[0],
+    hora:agora.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),
+    responsavel:session.nome,
+  });
+  saveFinanceiroNotas();
+  renderView('financeiro');
+  toast('Nota registrada','success');
+}
+
+function renderFinanceiro(){
+  return `
+  <div class="page-head"><div><div class="page-title">Financeiro</div><div class="page-desc">Tabela de preço, valores por prestador e notas de adiantamento</div></div></div>
+
+  <div class="card" style="margin-bottom:22px">
+    <div class="card-head"><h3>💰 Tabela de preço por tipo de serviço</h3></div>
+    <div class="card-pad" style="padding-top:6px">${renderPrecoConfig()}</div>
+  </div>
+
+  <div style="margin-bottom:22px">${renderFinanceiroHierarquia()}</div>
+
+  <div class="card">
+    <div class="card-head"><h3>🗒️ Notas de adiantamento</h3></div>
+    <div class="card-pad">${renderFinanceiroNotas()}</div>
+  </div>`;
+}
+
+/* ════════════════════════════════════════
    GESTÃO DE TÉCNICOS (Configurações)
    ════════════════════════════════════════ */
+/* Story 11: reconciliação -- quando o prestador se vincula sozinho (_consumirConviteTecnico),
+   a vaga em tecnicos[] (local, deste dispositivo) não sabe do uid/nome novos até alguém
+   contar pro gestor. Chamada ao abrir Configurações: lê members inteiro (sem where(), pra
+   manter firestore.indexes.json vazio -- AD-1) e cruza por tecnicoId (não por nome, evita
+   ambiguidade -- Design Notes). saveTecnicos() só roda se algo de fato mudou. */
+let _reconciliandoEquipe=false;
+async function _reconciliarEquipe(){
+  if(_reconciliandoEquipe)return;
+  if(!fbReady||!WORKSPACE||session.perfil!=='gestor')return;
+  _reconciliandoEquipe=true;
+  try{
+    const snap=await fbDB.collection('workspaces').doc(WORKSPACE).collection('members').get();
+    let mudou=false;
+    snap.forEach(doc=>{
+      const d=doc.data();
+      if(d.role!=='tecnico'||!d.tecnicoId)return;
+      const t=tecnicos.find(x=>x.id===d.tecnicoId);
+      if(!t)return; // vaga não existe mais localmente (removida) -- nada a reconciliar
+      if(t.uid!==doc.id){t.uid=doc.id;mudou=true;}
+      if(d.nome&&t.nome!==d.nome){
+        // mesma guarda de salvarTecnico (code review): se o nome que o prestador digitou já
+        // é de OUTRA vaga, renomear fundiria o histórico de OS/manutenção de um técnico no
+        // nome do outro, silenciosamente. Não bloqueia o vínculo (uid já foi setado acima),
+        // só pula o rename e deixa rastro pra investigação manual.
+        if(tecnicos.some(x=>x.id!==t.id&&x.nome.toLowerCase()===d.nome.toLowerCase())){
+          fbLog('Reconciliação: nome "'+d.nome+'" (members/'+doc.id+') colide com outra vaga -- uid vinculado, rename pulado','erro');
+        }else{
+          // mesma cascata do rename manual (osList/manutencoes/mappo_locations) -- sem isso,
+          // OS já atribuídas à vaga ficam órfãs do nome novo que o prestador digitou.
+          _renomearTecnicoEmDados(t.nome,d.nome);
+          t.nome=d.nome;mudou=true;
+        }
+      }
+      if(t.conviteCodigo){delete t.conviteCodigo;mudou=true;} // convite já foi consumido
+    });
+    if(mudou){saveTecnicos();renderView('config');}
+  }catch(e){
+    fbLog('Falha ao reconciliar equipe: '+(e.code||'')+' — '+(e.message||''),'erro');
+  }finally{
+    _reconciliandoEquipe=false;
+  }
+}
+
 function renderEquipeConfig(){
   if(!tecnicos.length)return '<p style="font-size:14px;color:var(--gray-400);padding:12px 0">Nenhum técnico cadastrado. Adicione o primeiro.</p>';
   return tecnicos.map(t=>{
@@ -3816,13 +4456,15 @@ function renderEquipeConfig(){
       <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:180px">
         <div class="tech-av">${t.nome.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase()}</div>
         <div><div style="font-size:15px;font-weight:600;color:var(--gray-800)">${escapeHtml(t.nome)}</div>
-        <div style="font-size:12px;color:var(--gray-400)">${t.uid?'Acesso vinculado':'Aguardando código de acesso'}</div></div>
+        <div style="font-size:12px;color:var(--gray-400)">${t.uid?'Acesso vinculado':(t.conviteCodigo?'Convite pendente — código '+escapeHtml(t.conviteCodigo):'Aguardando vínculo')}</div></div>
       </div>
       <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
         <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;user-select:none">
           <input type="checkbox" ${m.split?'checked':''} onchange="toggleModuloTec('${t.id}','split',this.checked)"> ❄️ Split</label>
-        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;user-select:none">
-          <input type="checkbox" ${m.vrf?'checked':''} onchange="toggleModuloTec('${t.id}','vrf',this.checked)"> 🌡️ VRF</label>
+        ${ramoTemVRF()?`<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;user-select:none">
+          <input type="checkbox" ${m.vrf?'checked':''} onchange="toggleModuloTec('${t.id}','vrf',this.checked)"> 🌡️ VRF</label>`:''}
+        ${!t.uid&&!t.conviteCodigo?`<button class="btn btn-primary btn-sm" onclick="gerarConviteTecnico('${t.id}')">✉️ Gerar código de convite</button>`:''}
+        ${!t.uid&&t.conviteCodigo?`<button class="btn btn-ghost btn-sm" onclick="_mostrarModalConvite('${t.id}')">👁️ Ver convite</button>`:''}
         <button class="btn btn-ghost btn-sm" onclick="openModalTecnico('${t.id}')">✏️ Editar</button>
         <button class="btn btn-danger btn-sm" onclick="removerTecnico('${t.id}')">🗑</button>
       </div>
@@ -3837,8 +4479,12 @@ function openModalTecnico(id){
     <div class="modal-head"><h2>${t?'✏️ Editar técnico':'👷 Novo técnico'}</h2></div>
     <div class="modal-body">
       <div class="fg"><label>Nome completo</label><input type="text" id="tNome" value="${t?escapeHtml(t.nome):''}" placeholder="Nome do técnico"></div>
-      <div class="fg"><label>Código de acesso do técnico (UID)</label><input type="text" id="tUid" value="${t?escapeHtml(t.uid||''):''}" placeholder="Cole aqui o código que ele te enviou">
-      <p style="font-size:12px;color:var(--gray-400);margin-top:5px">Peça pro técnico abrir a tela de login e clicar em "Sou técnico convidado, criar minha conta" — ele te envia o código mostrado depois. Sem esse código, ele não consegue entrar.</p></div>
+      ${!t||!t.uid?`<p style="font-size:12px;color:var(--gray-400);margin:-4px 0 4px">Sem acesso ainda? Feche este modal e use "✉️ Gerar código de convite" no card do técnico — ele mesmo se vincula com nome+código, sem colar nada aqui.</p>`:''}
+      <details class="fg" style="margin-top:2px">
+        <summary style="cursor:pointer;font-size:13px;color:var(--gray-500)">Avançado: colar UID manualmente (fallback)</summary>
+        <div style="margin-top:8px"><label>Código de acesso do técnico (UID)</label><input type="text" id="tUid" value="${t?escapeHtml(t.uid||''):''}" placeholder="Cole aqui o código que ele te enviou">
+        <p style="font-size:12px;color:var(--gray-400);margin-top:5px">Alternativa ao convite: peça pro técnico abrir a tela de login e clicar em "Sou prestador de serviço" → "Avançado: já mandei meu código de acesso pro gestor colar manualmente" — ele te envia o código mostrado lá. Sem esse código nem um convite consumido, ele não consegue entrar.</p></div>
+      </details>
       <div class="fg"><label>Módulos liberados</label>
         <div class="mod-grid">
           <label class="mod-card" id="modCardSplit">
@@ -3847,12 +4493,12 @@ function openModalTecnico(id){
             <span class="mod-name">Sistema Split</span>
             <span class="mod-tick">${svgIco('check','ico-sm')}</span>
           </label>
-          <label class="mod-card" id="modCardVrf">
+          ${ramoTemVRF()?`<label class="mod-card" id="modCardVrf">
             <input type="checkbox" id="tVrf" ${m.vrf?'checked':''} onchange="document.getElementById('modCardVrf').classList.toggle('on',this.checked)">
             <span class="mod-ico">${svgIco('vrf')}</span>
             <span class="mod-name">Sistema VRF</span>
             <span class="mod-tick">${svgIco('check','ico-sm')}</span>
-          </label>
+          </label>`:''}
         </div>
         <p style="font-size:12px;color:var(--gray-400);margin-top:8px">No login, o técnico só vê os módulos marcados aqui.</p>
       </div>
@@ -3863,7 +4509,9 @@ function openModalTecnico(id){
     </div>`);
   // estado visual inicial dos cards de módulo
   if(m.split)document.getElementById('modCardSplit').classList.add('on');
-  if(m.vrf)document.getElementById('modCardVrf').classList.add('on');
+  // Sistema VRF é exclusivo do Ramo refrigeração (Story 9) -- modCardVrf nem existe no
+  // DOM pra outros Ramos, então não faz sentido tentar marcá-lo.
+  if(m.vrf&&ramoTemVRF())document.getElementById('modCardVrf').classList.add('on');
 }
 
 /* Concede acesso real ao workspace pro uid que o técnico enviou (AD-2/AD-11) -- só um
@@ -3887,6 +4535,130 @@ async function _vincularAcessoTecnico(uid,nome){
   }
 }
 
+/* Story 11: código de convite de uso único pra uma vaga (tecnicos[] com uid:null) --
+   8 caracteres, alfabeto sem 0/O/1/I (evita confusão ao digitar/ler em voz alta).
+   crypto.getRandomValues (code review): o código é um bearer secret que autoriza criação
+   real de membership -- Math.random() não é criptograficamente seguro pra isso, e a API
+   já é nativa do browser (sem dependência nova). */
+function _gerarCodigoConvite(){
+  const alfabeto='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const bytes=new Uint8Array(8);
+  crypto.getRandomValues(bytes);
+  let out='';
+  for(let i=0;i<8;i++)out+=alfabeto[bytes[i]%alfabeto.length];
+  return out;
+}
+
+/* Gera um convite pra uma vaga ainda sem uid (AD-2/AD-11 -- mesmo padrão de erro-logado
+   de _vincularAcessoTecnico). O código vira o próprio id do doc em convites/{codigo}
+   (firestore.rules); guardado local em t.conviteCodigo só pra exibir/copiar/revogar
+   depois -- fica dentro do envelope JSON de mappo_tecnicos, não é um campo novo em
+   members/{uid} (esse só ganha 'convite' na hora do consumo, ver _consumirConviteTecnico). */
+async function gerarConviteTecnico(tecnicoId){
+  const t=tecnicos.find(x=>x.id===tecnicoId);if(!t)return;
+  if(t.uid){toast('Este técnico já tem acesso vinculado','warn');return;}
+  // code review: gerar de novo sem revogar o anterior deixava um segundo código vivo em
+  // convites/{codigo}, órfão (sem UI apontando pra ele, mas ainda válido no Firestore).
+  if(t.conviteCodigo){toast('Já existe um convite pendente para este técnico — veja ou revogue antes de gerar outro','warn');return;}
+  if(!fbReady||!WORKSPACE){toast('Sem conexão com a nuvem — conecte-se para gerar o convite','error');return;}
+  const codigo=_gerarCodigoConvite();
+  try{
+    await fbDB.collection('convites').doc(codigo).set({
+      workspaceId:WORKSPACE,tecnicoId:t.id,criadoPor:(session&&session.nome)||'',
+      criadoEm:firebase.firestore.FieldValue.serverTimestamp(),
+      usado:false,usadoPor:null,usadoEm:null,revogadoEm:null
+    });
+    t.conviteCodigo=codigo;
+    saveTecnicos();
+    renderView('config');
+    _mostrarModalConvite(tecnicoId);
+  }catch(e){
+    fbLog('Falha ao gerar convite: '+e.code+' — '+e.message,'erro');
+    toast('Não foi possível gerar o convite — tente de novo','error');
+  }
+}
+
+/* Revoga um convite pendente (Design Notes: por consumo ou revogação, nunca por tempo).
+   Não desfaz nenhum vínculo já feito -- só um convite AINDA não usado pode ser revogado,
+   a própria regra do Firestore já impede revogar um convite consumido. */
+async function revogarConviteTecnico(tecnicoId){
+  const t=tecnicos.find(x=>x.id===tecnicoId);if(!t||!t.conviteCodigo)return;
+  if(!confirm('Revogar este convite? O código para de funcionar imediatamente.'))return;
+  if(!fbReady||!WORKSPACE){toast('Sem conexão com a nuvem — conecte-se para revogar','error');return;}
+  try{
+    await fbDB.collection('convites').doc(t.conviteCodigo).update({revogadoEm:firebase.firestore.FieldValue.serverTimestamp()});
+    delete t.conviteCodigo;
+    saveTecnicos();
+    renderView('config');
+    toast('Convite revogado','success');
+  }catch(e){
+    fbLog('Falha ao revogar convite: '+e.code+' — '+e.message,'erro');
+    toast('Não foi possível revogar o convite — tente de novo','error');
+  }
+}
+
+/* Revoga (best-effort) o convite pendente de uma vaga, sem confirm()/toast próprios --
+   reaproveitada por removerTecnico (remover a vaga não pode deixar um código ainda
+   redimível pra trás -- backdoor real, code review) e por salvarTecnico/uidMudou
+   (vínculo manual via UID colado não pode deixar o convite pendente órfão -- depois que
+   t.uid é setado, renderEquipeConfig para de mostrar qualquer botão de convite pra essa
+   vaga, então sem isto o código ficaria sem UI nenhuma pra revogar depois, code review).
+   Sempre limpa t.conviteCodigo local (a UI já não teria como apontar pra ele depois da
+   ação que chamou isto); se estiver offline, só loga -- nunca lança, pra não travar a
+   ação principal (mesmo espírito do delete best-effort de members/{uid} já existente
+   em removerTecnico). Diferente de revogarConviteTecnico (clique explícito do gestor,
+   que mantém o código local se falhar, pra permitir nova tentativa) -- aqui a vaga já
+   está sumindo ou já perdeu a UI de convite, então não há pra onde "tentar de novo". */
+async function _revogarConviteSeExistir(t){
+  if(!t||!t.conviteCodigo)return;
+  const codigo=t.conviteCodigo;
+  delete t.conviteCodigo;
+  if(!fbReady||!WORKSPACE){
+    fbLog('Convite '+codigo+' não pôde ser revogado (sem conexão) — pode continuar válido no servidor até alguém revogar manualmente','erro');
+    return;
+  }
+  try{
+    await fbDB.collection('convites').doc(codigo).update({revogadoEm:firebase.firestore.FieldValue.serverTimestamp()});
+  }catch(e){
+    fbLog('Falha ao revogar convite '+codigo+' (limpeza automática): '+e.code+' — '+(e.message||''),'erro');
+  }
+}
+
+/* Mostra/reexibe o código de um convite já gerado, com copiar (mesmo padrão do modal
+   de link público, abrirModalLink/copiarLinkPub). */
+function _mostrarModalConvite(tecnicoId){
+  const t=tecnicos.find(x=>x.id===tecnicoId);if(!t||!t.conviteCodigo)return;
+  showModal(`
+    <div class="modal-head"><h2>Convite de acesso</h2></div>
+    <div class="modal-body">
+      <p style="font-size:13.5px;color:var(--gray-500);line-height:1.55;margin-bottom:14px">
+        Envie este código para <b>${escapeHtml(t.nome)}</b>. Na tela de login, ele clica em
+        "Sou prestador de serviço", cria a conta e entra com o nome dele + este código —
+        sem você precisar colar nada.
+      </p>
+      <div class="pub-link-box"><input id="conviteCodigoInput" readonly value="${escapeHtml(t.conviteCodigo)}" onclick="this.select()"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-danger" onclick="closeModal();revogarConviteTecnico('${t.id}')">Revogar convite</button>
+      <button class="btn btn-primary" onclick="_copiarConviteCodigo()">Copiar código</button>
+    </div>`,'wide');
+}
+function _copiarConviteCodigo(){
+  const i=document.getElementById('conviteCodigoInput');if(!i)return;
+  i.select();
+  const done=()=>toast('Código copiado','success');
+  const falhouCopia=()=>toast('Não foi possível copiar — selecione e copie manualmente','error');
+  // code review: execCommand('copy') é depreciado e pode falhar sem lançar em alguns
+  // navegadores -- sem try/catch, uma falha aqui deixava o usuário sem feedback nenhum.
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(i.value).then(done,()=>{
+      try{document.execCommand('copy');done();}catch(e){falhouCopia();}
+    });
+  }else{
+    try{document.execCommand('copy');done();}catch(e){falhouCopia();}
+  }
+}
+
 /* Só troca o nome em members/{uid} -- update() leve e best-effort (nunca bloqueia nem
    desfaz o save local se falhar: fica dessincronizado até o próximo save bem-sucedido,
    não pior que hoje). Usada quando o uid do técnico NÃO mudou -- ver salvarTecnico(). */
@@ -3896,10 +4668,27 @@ function _atualizarNomeMembro(uid,nome){
     .catch(e=>fbLog('Não foi possível sincronizar o nome do técnico no servidor: '+e.code+' — '+(e.message||''),'erro'));
 }
 
+/* Extraído de salvarTecnico (rename manual) e reusado por _reconciliarEquipe (rename
+   automático via convite, Story 11) -- mesma cascata nos dois casos: sem isto, uma OS
+   atribuída ao nome antigo do técnico perde o vínculo assim que o nome muda por
+   qualquer via (ITEM_LISTS['mappo_tecnicos'] segue identificado por nome -- AD-6). */
+function _renomearTecnicoEmDados(nomeAntigo,nome){
+  osList.forEach(o=>{if(o.tecnico===nomeAntigo)o.tecnico=nome;});saveOS();
+  manutencoes.forEach(mn=>{if(mn.tecnico===nomeAntigo)mn.tecnico=nome;});saveManut();
+  const locs=JSON.parse(localStorage.getItem('mappo_locations')||'{}');
+  if(locs[nomeAntigo]){locs[nome]=locs[nomeAntigo];delete locs[nomeAntigo];localStorage.setItem('mappo_locations',JSON.stringify(locs));}
+}
+
 async function salvarTecnico(id){
   const nome=document.getElementById('tNome').value.trim();
   const uid=(document.getElementById('tUid').value||'').trim();
-  const mods={split:document.getElementById('tSplit').checked,vrf:document.getElementById('tVrf').checked};
+  // Ramo sem VRF (Story 9): #tVrf não existe no DOM (modCardVrf nem foi renderizado) --
+  // preserva o que o técnico já tinha (false pra um técnico novo), sem clobbar dado.
+  const tVrfEl=document.getElementById('tVrf');
+  let vrfMod=false;
+  if(tVrfEl)vrfMod=tVrfEl.checked;
+  else if(id){const t0=tecnicos.find(x=>x.id===id);vrfMod=!!(t0&&t0.modulos&&t0.modulos.vrf);}
+  const mods={split:document.getElementById('tSplit').checked,vrf:vrfMod};
   if(!nome){toast('Informe o nome','warn');return;}
   if(!mods.split&&!mods.vrf){toast('Libere pelo menos um módulo','warn');return;}
   if(id){
@@ -3914,18 +4703,16 @@ async function salvarTecnico(id){
       const ok=await _vincularAcessoTecnico(uidFinal,nome);
       if(!ok)return;
       t.uid=uidFinal;
+      // vínculo manual via UID colado (fallback) não pode deixar um convite pendente
+      // órfão pra trás -- code review, ver _revogarConviteSeExistir.
+      await _revogarConviteSeExistir(t);
     }
     // grava local sempre, sem depender de rede -- um rename de técnico já vinculado
     // não pode ficar refém de conexão só porque tenta sincronizar o nome no servidor
     t.nome=nome;t.modulos=mods;
     if(!uidMudou&&uidFinal&&nome!==nomeAntigo)_atualizarNomeMembro(uidFinal,nome);
     // renomeia em OS, manutenções e GPS
-    if(nomeAntigo!==nome){
-      osList.forEach(o=>{if(o.tecnico===nomeAntigo)o.tecnico=nome;});saveOS();
-      manutencoes.forEach(mn=>{if(mn.tecnico===nomeAntigo)mn.tecnico=nome;});saveManut();
-      const locs=JSON.parse(localStorage.getItem('mappo_locations')||'{}');
-      if(locs[nomeAntigo]){locs[nome]=locs[nomeAntigo];delete locs[nomeAntigo];localStorage.setItem('mappo_locations',JSON.stringify(locs));}
-    }
+    if(nomeAntigo!==nome)_renomearTecnicoEmDados(nomeAntigo,nome);
     toast('Técnico atualizado','success');
   }else{
     if(tecnicos.some(x=>x.nome.toLowerCase()===nome.toLowerCase())){toast('Já existe técnico com esse nome','warn');return;}
@@ -3944,6 +4731,11 @@ async function removerTecnico(id){
   const abertas=osList.filter(o=>o.tecnico===t.nome&&o.status!=='concluida').length;
   const msg=abertas?`${t.nome} tem ${abertas} OS em aberto. Remover mesmo assim? (Reatribua as OS depois)`:`Remover ${t.nome} da equipe? Ele perde o acesso na hora.`;
   if(!confirm(msg))return;
+  // se a vaga tinha um convite pendente (ainda não consumido), revoga ANTES de remover a
+  // vaga localmente -- sem isto o código continua válido e redimível mesmo depois da vaga
+  // sumir, virando um backdoor real pro workspace (code review).
+  const tinhaConvitePendente=!!t.conviteCodigo;
+  await _revogarConviteSeExistir(t);
   tecnicos=tecnicos.filter(x=>x.id!==id);saveTecnicos();
   renderView('config');toast('Técnico removido');
   if(t.uid){
@@ -3957,11 +4749,17 @@ async function removerTecnico(id){
       fbLog('Falha ao revogar acesso no servidor: '+e.code+' — '+e.message,'erro');
       toast('Removido localmente, mas não foi possível revogar o acesso dele no servidor — tente de novo depois','warn');
     }
+  }else if(tinhaConvitePendente&&(!fbReady||!WORKSPACE)){
+    toast('Removido localmente, mas sem conexão — o convite pendente dele NÃO foi revogado ainda','warn');
   }
 }
 
 function toggleModuloTec(id,mod,val){
   const t=tecnicos.find(x=>x.id===id);if(!t)return;
+  // defesa em profundidade (code review): mesmo se algo chamar isto pra 'vrf' sem
+  // passar pelo checkbox gateado em renderEquipeConfig/openModalTecnico (console, ou
+  // qualquer código futuro), o write em si nunca liga VRF pra quem não tem o Ramo.
+  if(mod==='vrf'&&!ramoTemVRF())return;
   if(!t.modulos)t.modulos={split:true,vrf:false};
   t.modulos[mod]=val;
   if(!t.modulos.split&&!t.modulos.vrf){t.modulos[mod]=true;toast('O técnico precisa de pelo menos um módulo','warn');renderView('config');return;}
@@ -3989,7 +4787,7 @@ function openModalOS(){
       <div class="fg"><label>Endereço</label><input type="text" id="oEndereco" placeholder="Rua, número, bairro, cidade"></div>
       <div class="frow">
         <div class="fg"><label>Tipo de serviço</label><select id="oTipo">
-          <option>Instalação Split</option><option>Manutenção Preventiva</option><option>Manutenção Corretiva</option><option>Visita Técnica</option>
+          <option>Instalação Split</option><option>Manutenção Preventiva</option><option>Manutenção Corretiva</option><option>Manutenção Limpeza</option><option>Visita Técnica</option><option>Outro / Serviço avulso</option>
         </select></div>
         <div class="fg"><label>Técnico</label><select id="oTecnico">${nomesTecnicos().map(t=>`<option>${t}</option>`).join('')}</select></div>
       </div>
@@ -4022,6 +4820,7 @@ function criarOS(){
     qtdSplits:qtd,status:'pendente',
     checklist:checklistDoTipo(document.getElementById('oTipo').value),
     equipamentos:Array.from({length:qtd},(_,i)=>({idx:i,marca:'',modelo:'',fotoEvap:null,fotoCond:null})),
+    valor:valorDoTipo(document.getElementById('oTipo').value),valorStatus:null,
     criadaEm:new Date().toISOString(),
   };
   osList.unshift(os);saveOS();closeModal();renderView(currentView);atualizarBadges();
@@ -4077,6 +4876,18 @@ function openDetalhe(id){
         <button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="salvarNota('${os.id}')">Salvar nota</button>
       </div>
 
+      <div class="fg" style="margin-top:12px"><label>💰 Valor do serviço (o prestador vê, só leitura)</label>
+        <div class="frow">
+          <div class="fg"><input type="number" id="osValor" step="0.01" min="0" placeholder="0,00" value="${os.valor!=null?os.valor:''}"></div>
+          <div class="fg"><select id="osValorStatus">
+            <option value="" ${!os.valorStatus?'selected':''}>Sem status</option>
+            <option value="a_pagar" ${os.valorStatus==='a_pagar'?'selected':''}>A pagar</option>
+            <option value="pago" ${os.valorStatus==='pago'?'selected':''}>Pago</option>
+          </select></div>
+        </div>
+        <button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="salvarValorOS('${os.id}')">Salvar valor</button>
+      </div>
+
       <div style="margin-top:18px"><label style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--gray-500);display:block;margin-bottom:10px">Equipamentos</label>${equipHTML||'<p style="font-size:13px;color:var(--gray-400)">Nenhum equipamento registrado.</p>'}</div>
       <div style="margin-top:18px"><label style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--gray-500);display:block;margin-bottom:10px">Checklist de execução</label>${checkHTML}</div>
       ${os.checkinTime?`<div style="margin-top:14px;font-size:13px;color:var(--gray-500)">⏱ Check-in: ${os.checkinTime}${os.checkoutTime?' · Check-out: '+os.checkoutTime:''}</div>`:''}
@@ -4092,6 +4903,20 @@ function openDetalhe(id){
 }
 
 function salvarNota(id){const os=osList.find(o=>o.id===id);if(!os)return;os.notaGestor=document.getElementById('notaGestor').value;saveOS();toast('Nota salva — o técnico verá','success');}
+/* Valor + status da OS (Story 8): só o gestor chega em openDetalhe() (view de técnico
+   nunca renderiza esse modal -- ver secTec/abrirExecucao), então sem checagem extra de
+   perfil aqui, mesmo padrão de salvarNota(). */
+function salvarValorOS(id){
+  const os=osList.find(o=>o.id===id);if(!os)return;
+  const raw=(document.getElementById('osValor').value||'').trim();
+  const v=_parseMoeda(raw);
+  // raw!=='' mas inválido: nada é salvo (nem valor, nem status) -- evita um salvamento
+  // parcial que passe a impressão de "salvo" com o valor zerado por baixo (code review).
+  if(raw!==''&&isNaN(v)){toast('Valor inválido — não foi salvo','warn');return;}
+  os.valor=v; // null só quando o campo foi mesmo esvaziado de propósito
+  os.valorStatus=document.getElementById('osValorStatus').value||null;
+  saveOS();toast('Valor salvo — o prestador verá','success');
+}
 function excluirOS(id){if(!confirm('Excluir esta OS?'))return;osList=osList.filter(o=>o.id!==id);saveOS();closeModal();renderView(currentView);atualizarBadges();toast('OS excluída');}
 function revisarOS(id){const os=osList.find(o=>o.id===id);if(!os)return;const motivo=prompt('Motivo da revisão (o técnico verá):','Refazer foto — imagem ilegível');if(motivo===null)return;os.status='revisao';os.motivoRevisao=motivo;saveOS();closeModal();renderView(currentView);toast('OS enviada para revisão','warn');}
 
@@ -4177,7 +5002,7 @@ function concluirManut(id){
 }
 function criarOSdeManut(id){
   const m=manutencoes.find(x=>x.id===id);if(!m)return;
-  const os={id:'os_'+Date.now(),cliente:m.cliente,endereco:m.endereco,tipo:'Manutenção '+m.tipo,tecnico:m.tecnico||nomesTecnicos()[0]||'',data:m.dataAgendada,hora:'08:00',obs:m.obs,notaGestor:'',qtdSplits:1,status:'pendente',checklist:checklistDoTipo('Manutenção '+m.tipo),equipamentos:[{idx:0,marca:'',modelo:'',fotoEvap:null,fotoCond:null}],criadaEm:new Date().toISOString()};
+  const os={id:'os_'+Date.now(),cliente:m.cliente,endereco:m.endereco,tipo:'Manutenção '+m.tipo,tecnico:m.tecnico||nomesTecnicos()[0]||'',data:m.dataAgendada,hora:'08:00',obs:m.obs,notaGestor:'',qtdSplits:1,status:'pendente',checklist:checklistDoTipo('Manutenção '+m.tipo),equipamentos:[{idx:0,marca:'',modelo:'',fotoEvap:null,fotoCond:null}],valor:valorDoTipo('Manutenção '+m.tipo),valorStatus:null,criadaEm:new Date().toISOString()};
   osList.unshift(os);saveOS();closeModal();toast('OS gerada a partir da manutenção','success');nav('ordens');
 }
 function agendarProximaManut(osId){const os=osList.find(o=>o.id===osId);if(!os)return;closeModal();openModalManut({cliente:os.cliente,endereco:os.endereco,tecnico:os.tecnico,dataAgendada:''});}
@@ -4224,6 +5049,96 @@ function abrirGoogleAgenda(m){
 /* ════════════════════════════════════════
    MAPA (Leaflet)
    ════════════════════════════════════════ */
+
+/* ── painel de info do prestador (Story 10): elemento HTML próprio do app,
+   não o popup nativo do Leaflet (bindPopup não tinha estado controlável pelo
+   app e podia cobrir controles ao abrir perto da borda de #mapaBox).
+   Estado guardado em variável simples, re-renderizado a cada clique de marcador. ── */
+let mapaPainelAberto=null;      // nome do técnico com o painel aberto, ou null (fechado)
+let mapaPainelColapsado=false;  // true = só a barra de título aparece
+
+function _painelMapaConteudoHtml(nome){
+  const locs=JSON.parse(localStorage.getItem('mappo_locations')||'{}');
+  const lives=JSON.parse(localStorage.getItem('mappo_live')||'{}');
+  const lv=lives[nome];
+  const emLive=!!(lv&&lv.ativo&&Date.now()<lv.fimTs&&lv.atual);
+  const l=emLive?lv.atual:locs[nome];
+  if(!l)return `<div class="mapa-painel-body">Sem dados de localização.</div>`;
+  // mesmo limiar de "sem sinal" que atualizarMarcadores() já usa pro marcador (2min sem ping) --
+  // sem isto o painel podia dizer "GPS ao vivo" enquanto o marcador ao lado já mostra "sem sinal"
+  // (code review, Story 10)
+  const semSinal=emLive&&(Date.now()-lv.atual.ts>120000);
+  const linhas=[];
+  if(emLive){
+    linhas.push(semSinal
+      ?'<b style="color:#94a3b8">○ Sem sinal há '+fmtDuracaoMs(Date.now()-lv.atual.ts)+'</b>'
+      :'<b style="color:#dc2626">● GPS ao vivo</b>');
+  }else{
+    linhas.push('<b>Check-in fixo</b>');
+  }
+  linhas.push('Atualizado: '+new Date(l.ts).toLocaleTimeString('pt-BR'));
+  if(l.acc)linhas.push('Precisão: ~'+l.acc+'m');
+  if(emLive)linhas.push('Expira em '+fmtDuracaoMs(Math.max(0,lv.fimTs-Date.now())));
+  return `<div class="mapa-painel-body">${linhas.join('<br>')}</div>`;
+}
+
+function _renderPainelMapa(){
+  const el=document.getElementById('mapaPainelInfo');
+  if(!el)return;
+  if(!mapaPainelAberto){el.style.display='none';el.innerHTML='';return;}
+  el.style.display='block';
+  el.className='mapa-painel'+(mapaPainelColapsado?' colapsado':'');
+  el.innerHTML=`
+    <div class="mapa-painel-head" onclick="toggleColapsoPainelMapa()">
+      <span>${escapeHtml(mapaPainelAberto)}</span>
+      <span class="mapa-painel-acoes">
+        <button type="button" class="mapa-painel-btn" onclick="event.stopPropagation();toggleColapsoPainelMapa()" title="${mapaPainelColapsado?'Expandir':'Recolher'}">${mapaPainelColapsado?'▲':'▼'}</button>
+        <button type="button" class="mapa-painel-btn" onclick="event.stopPropagation();fecharPainelMapa()" title="Fechar">✕</button>
+      </span>
+    </div>
+    ${_painelMapaConteudoHtml(mapaPainelAberto)}`;
+}
+
+function abrirPainelMapa(nome){
+  if(mapaPainelAberto===nome){toggleColapsoPainelMapa();return;} // clicar de novo no mesmo marcador: recolhe/expande
+  mapaPainelAberto=nome;
+  mapaPainelColapsado=false;
+  _renderPainelMapa();
+}
+function fecharPainelMapa(){mapaPainelAberto=null;_renderPainelMapa();}
+function toggleColapsoPainelMapa(){mapaPainelColapsado=!mapaPainelColapsado;_renderPainelMapa();}
+
+/* ── avatar do prestador no marcador (Story 10): SVG estático (avatar-1..6.svg) injetado
+   inline no DOM (não <img>), pra que o CSS da página alcance os <g class="avatar-leg-*">
+   internos e anime a "caminhada". Cache simples em memória, carregado sob demanda. ── */
+const _avatarSvgCache={}; // avatarId -> markup do SVG (sucesso) | null (carregando agora)
+function _carregarAvatarSvg(id){
+  if(_avatarSvgCache[id]!==undefined)return; // já carregado, ou já carregando neste momento
+  _avatarSvgCache[id]=null; // marca "carregando" só enquanto o fetch está em voo
+  fetch(id+'.svg').then(r=>r.ok?r.text():Promise.reject(r.status)).then(txt=>{
+    _avatarSvgCache[id]=txt;
+    if(typeof currentView!=='undefined'&&currentView==='mapa')atualizarMarcadores();
+  }).catch(e=>{
+    console.error('[avatar] falha ao carregar '+id+'.svg',e.code,e.message);
+    // NÃO guarda um estado de erro permanente (code review, Story 10): uma falha transitória
+    // (rede instável, offline por um instante) não pode desativar este avatar pro resto da
+    // sessão -- volta pra undefined, cai no emoji só NESTE render, e o próximo tick de
+    // atualizarMarcadores() (poll de 5s ou sync remoto) tenta o fetch de novo.
+    delete _avatarSvgCache[id];
+  });
+}
+/* HTML do marcador com avatar, ou null se ainda não há avatar escolhido/SVG disponível
+   -- nesse caso quem chama cai no emoji 👷/chip de sempre, sem quebrar nada. */
+function _avatarMarkerHtml(nome,avatarId,andando,rotuloExtra,corRotulo){
+  if(!avatarId||!AVATAR_IDS.includes(avatarId))return null;
+  const svg=_avatarSvgCache[avatarId];
+  if(!svg){_carregarAvatarSvg(avatarId);return null;} // undefined (nunca pedido, ou falhou antes) ou null (carregando agora)
+  return `<div class="avatar-marker${andando?' avatar-andando':''}">
+    <div class="avatar-marker-svg">${svg}</div>
+    <div class="avatar-marker-tag"${corRotulo?` style="color:${corRotulo}"`:''}>${escapeHtml(nome)}${rotuloExtra?' · '+rotuloExtra:''}</div>
+  </div>`;
+}
+
 function initMapa(){
   if(typeof L==='undefined'){loadLeaflet(()=>{if(typeof L!=='undefined')initMapa();});return;}
   const box=document.getElementById('mapaBox');if(!box)return;
@@ -4239,21 +5154,43 @@ function atualizarMarcadores(){
   const locs=JSON.parse(localStorage.getItem('mappo_locations')||'{}');
   const lives=JSON.parse(localStorage.getItem('mappo_live')||'{}');
   const pontos=[];
-  nomesTecnicos().forEach(t=>{
+  const ativos=nomesTecnicos();
+  // remove marcador/rastro de quem saiu da lista de ativos (inativado, removido, renomeado):
+  // nomesTecnicos() já filtra ativo!==false, então o forEach abaixo simplesmente NUNCA visita
+  // esse nome de novo -- sem isto, a entrada em mapaMarkers fica "fantasma" pra sempre e o
+  // auto-close do painel (no fim desta função) nunca dispara pra esse técnico (code review, Story 10)
+  const ativosSet=new Set(ativos);
+  Object.keys(mapaMarkers).forEach(nome=>{
+    if(!ativosSet.has(nome)){mapaInstance.removeLayer(mapaMarkers[nome]);delete mapaMarkers[nome];}
+  });
+  Object.keys(mapaTrails).forEach(nome=>{
+    if(!ativosSet.has(nome)){mapaInstance.removeLayer(mapaTrails[nome]);delete mapaTrails[nome];}
+  });
+  ativos.forEach(t=>{
     const lv=lives[t];
     const emLive=!!(lv&&lv.ativo&&Date.now()<lv.fimTs&&lv.atual);
     const l=emLive?lv.atual:locs[t];
     const nome=t.split(' ')[0];
+    const avatarId=avatarDoTecnico(t);
 
     if(emLive){
       const semSinal=Date.now()-lv.atual.ts>120000; // 2 min sem atualizar
       pontos.push([l.lat,l.lng]);
       const cor=semSinal?'#94a3b8':'#dc2626';
       const rotulo=semSinal?('sem sinal '+fmtDuracaoMs(Date.now()-lv.atual.ts)):'AO VIVO';
-      const ico=L.divIcon({html:`<div class="mk-live${semSinal?' off':''}"><span class="mk-live-dot"></span>${escapeHtml(nome)} · ${rotulo}</div>`,className:'',iconSize:[130,26]});
+      // avatar escolhido "anda" enquanto o GPS ao vivo está ativo (mesma condição de emLive);
+      // sem avatar escolhido, cai no chip "AO VIVO" de sempre
+      const avatarHtml=avatarId?_avatarMarkerHtml(nome,avatarId,true,rotulo,cor):null;
+      const ico=avatarHtml
+        // iconAnchor explícito e igual nos dois estados (avatar/fallback teriam anchors
+        // diferentes por padrão -- Leaflet centraliza em iconSize/2 sem isto -- causando um
+        // "pulo" visual no marcador no instante em que o SVG assíncrono termina de carregar
+        // e troca o ícone fallback pelo avatar; [36,60] é aproximadamente onde ficam os pés
+        // do avatar dentro da caixa 72×66 (code review, Story 10)
+        ?L.divIcon({html:avatarHtml,className:'',iconSize:[72,66],iconAnchor:[36,60]})
+        :L.divIcon({html:`<div class="mk-live${semSinal?' off':''}"><span class="mk-live-dot"></span>${escapeHtml(nome)} · ${rotulo}</div>`,className:'',iconSize:[130,26]});
       if(mapaMarkers[t]){mapaMarkers[t].setLatLng([l.lat,l.lng]);mapaMarkers[t].setIcon(ico);}
-      else mapaMarkers[t]=L.marker([l.lat,l.lng],{icon:ico}).addTo(mapaInstance);
-      mapaMarkers[t].bindPopup(`<b>${escapeHtml(t)}</b><br>${semSinal?'Último sinal':'Ao vivo'} · ${new Date(lv.atual.ts).toLocaleTimeString('pt-BR')}<br>Expira em ${fmtDuracaoMs(Math.max(0,lv.fimTs-Date.now()))}${lv.atual.acc?'<br>Precisão: ~'+lv.atual.acc+'m':''}`);
+      else{mapaMarkers[t]=L.marker([l.lat,l.lng],{icon:ico}).addTo(mapaInstance);mapaMarkers[t].on('click',()=>abrirPainelMapa(t));}
       // rastro do caminho percorrido
       const caminho=(lv.pontos||[]).map(p=>[p.lat,p.lng]);
       if(caminho.length>1){
@@ -4267,10 +5204,18 @@ function atualizarMarcadores(){
     if(mapaTrails[t]){mapaInstance.removeLayer(mapaTrails[t]);delete mapaTrails[t];}
     if(l&&Date.now()-l.ts<300000){
       pontos.push([l.lat,l.lng]);
-      const ico=L.divIcon({html:`<div style="background:var(--petrol);color:#fff;padding:4px 8px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.3);border:2px solid #fff">👷 ${escapeHtml(nome)}</div>`,className:'',iconSize:[80,24]});
+      // parado (check-in fixo): sem classe de animação
+      const avatarHtml=avatarId?_avatarMarkerHtml(nome,avatarId,false):null;
+      const ico=avatarHtml
+        // iconAnchor explícito e igual nos dois estados (avatar/fallback teriam anchors
+        // diferentes por padrão -- Leaflet centraliza em iconSize/2 sem isto -- causando um
+        // "pulo" visual no marcador no instante em que o SVG assíncrono termina de carregar
+        // e troca o ícone fallback pelo avatar; [36,60] é aproximadamente onde ficam os pés
+        // do avatar dentro da caixa 72×66 (code review, Story 10)
+        ?L.divIcon({html:avatarHtml,className:'',iconSize:[72,66],iconAnchor:[36,60]})
+        :L.divIcon({html:`<div style="background:var(--petrol);color:#fff;padding:4px 8px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.3);border:2px solid #fff">👷 ${escapeHtml(nome)}</div>`,className:'',iconSize:[80,24]});
       if(mapaMarkers[t]){mapaMarkers[t].setLatLng([l.lat,l.lng]);mapaMarkers[t].setIcon(ico);}
-      else mapaMarkers[t]=L.marker([l.lat,l.lng],{icon:ico}).addTo(mapaInstance);
-      mapaMarkers[t].bindPopup(`<b>${escapeHtml(t)}</b><br>Atualizado: ${new Date(l.ts).toLocaleTimeString('pt-BR')}${l.acc?'<br>Precisão: ~'+l.acc+'m':''}`);
+      else{mapaMarkers[t]=L.marker([l.lat,l.lng],{icon:ico}).addTo(mapaInstance);mapaMarkers[t].on('click',()=>abrirPainelMapa(t));}
     }else if(mapaMarkers[t]){
       mapaInstance.removeLayer(mapaMarkers[t]);delete mapaMarkers[t];
     }
@@ -4280,6 +5225,10 @@ function atualizarMarcadores(){
     mapaInstance.fitBounds(pontos,{padding:[60,60],maxZoom:15});
     mapaInstance._fezFit=true;
   }
+  // painel próprio: mantém o conteúdo em dia (horário/precisão/expiração); fecha sozinho
+  // se o marcador do técnico com o painel aberto sumiu do mapa (ex.: ficou offline)
+  if(mapaPainelAberto&&!mapaMarkers[mapaPainelAberto])fecharPainelMapa();
+  else _renderPainelMapa();
 }
 
 function loadLeaflet(cb){
@@ -4318,8 +5267,41 @@ function renderTecnicoApp(){
 
   return `
   <div class="page-head"><div><div class="page-title">Minhas ordens</div><div class="page-desc">${minhas.filter(o=>o.status!=='concluida').length} em aberto</div></div>
-  <button class="btn btn-ghost btn-sm" onclick="toggleGPS()"><span id="gpsLabel">${liveAtivo()?'<span class="live-dot"></span> Ao vivo · '+fmtDuracaoMs(liveRestanteMs()):'Ativar GPS ao vivo'}</span></button></div>
+  <div style="display:flex;gap:8px;align-items:center">
+  <button class="btn btn-ghost btn-sm" onclick="abrirEscolhaAvatar()" title="Escolher como você aparece no mapa do gestor">${meuAvatarBtnLabel()}</button>
+  <button class="btn btn-ghost btn-sm" onclick="toggleGPS()"><span id="gpsLabel">${liveAtivo()?'<span class="live-dot"></span> Ao vivo · '+fmtDuracaoMs(liveRestanteMs()):'Ativar GPS ao vivo'}</span></button>
+  </div></div>
   ${minhas.length?secoes:emptyState('ordens','Nenhuma OS atribuída','O gestor vai criar e atribuir suas ordens.')}`;
+}
+
+/* ── Escolha de avatar do técnico (Story 10) ──
+   Ponto de entrada mínimo -- não existe hoje nenhuma tela de "meu perfil" pro técnico;
+   isto é a primeira peça desse tipo, deliberadamente pequena (modal, não tela cheia). */
+function meuAvatarBtnLabel(){
+  return avatarDoTecnico(session.nome)?'🧑 Trocar avatar':'🧑 Escolher avatar';
+}
+function abrirEscolhaAvatar(){
+  const atual=avatarDoTecnico(session.nome);
+  showModal(`
+    <div class="modal-head"><h2>🧑 Meu avatar no mapa</h2></div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--gray-500);line-height:1.5;margin-bottom:14px">Escolha como você aparece no mapa do gestor. Sem escolha, aparece o ícone padrão 👷.</p>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+        ${AVATAR_IDS.map(id=>`
+        <button type="button" onclick="escolherMeuAvatar('${id}')" style="border:2px solid ${atual===id?'var(--petrol)':'var(--gray-200)'};border-radius:12px;padding:8px;background:#fff;cursor:pointer;display:flex;flex-direction:column;align-items:center">
+          <img src="${id}.svg" alt="Avatar" style="width:48px;height:48px">
+        </button>`).join('')}
+      </div>
+      ${atual?`<button type="button" class="btn btn-ghost btn-sm" style="margin-top:14px" onclick="escolherMeuAvatar(null)">Remover (voltar ao ícone padrão)</button>`:''}
+    </div>
+    <div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal()">Fechar</button></div>
+  `);
+}
+function escolherMeuAvatar(id){
+  setMeuAvatar(id||null);
+  closeModal();
+  toast(id?'Avatar atualizado':'Avatar removido','success');
+  if(typeof currentView!=='undefined'&&currentView==='ordens')renderView('ordens');
 }
 
 function secTec(titulo,list){
@@ -4330,7 +5312,7 @@ function secTec(titulo,list){
       <div class="os-card-top"><div><div class="os-client">${escapeHtml(o.cliente)}</div><div class="os-addr">🔧 ${escapeHtml(o.tipo)} · ❄️ ${o.qtdSplits||1} split${(o.qtdSplits||1)>1?'s':''}</div></div></div>
       ${o.notaGestor?`<div style="margin-top:8px;padding:8px 10px;background:var(--yellow-bg);border-radius:8px;font-size:12px;color:#92600e">📝 ${escapeHtml(o.notaGestor)}</div>`:''}
       ${o.status==='revisao'&&o.motivoRevisao?`<div style="margin-top:8px;padding:8px 10px;background:#fdf6e3;border-radius:8px;font-size:12px;color:var(--gold-dark)">↩ Revisar: ${escapeHtml(o.motivoRevisao)}</div>`:''}
-      <div class="os-meta"><div class="os-meta-i"><span>📍</span>${escapeHtml(o.endereco.substring(0,30))}</div><div class="os-meta-i"><span>📅</span>${fmtDate(o.data)}</div></div>
+      <div class="os-meta"><div class="os-meta-i"><span>📍</span>${escapeHtml(o.endereco.substring(0,30))}</div><div class="os-meta-i"><span>📅</span>${fmtDate(o.data)}</div>${o.valor!=null?`<div class="os-meta-i"><span>💰</span>${fmtMoeda(o.valor)}${o.valorStatus?' · '+(o.valorStatus==='pago'?'Pago':'A pagar'):''}</div>`:''}</div>
     </div>`;
   }).join('')}</div></div>`;
 }
@@ -4453,7 +5435,7 @@ function iniciarLive(){
       };
       _liveUltimoReg=Date.now();
       saveLive();
-      salvarPosicao(pos);
+      salvarPosicao(pos,'ao_vivo'); // início da sessão: UMA entrada no histórico (não por ping)
       _ligarWatchLive();
       _pedirWakeLock();
       _ligarGuardaLive();
@@ -4509,7 +5491,8 @@ function liveRegistrarPonto(pos){
     }
   }
   saveLive();          // → interceptor → nuvem (debounce de 5s)
-  salvarPosicao(pos);  // mantém a posição simples também
+  salvarPosicao(pos);  // mantém a posição simples também -- SEM tipoHistorico: isto roda a
+                       // cada ping (~5s) do GPS ao vivo, não pode virar entrada no histórico
 }
 
 /* mantém a tela acesa enquanto o live está ativo (senão o celular dorme e o GPS para) */
@@ -4550,10 +5533,16 @@ function retomarLiveSePreciso(){
   }
 }
 
-function salvarPosicao(pos){
+/* tipoHistorico ('fixo'|'ao_vivo'), quando informado, registra UMA entrada no histórico
+   de localização (Story 10) -- só nos pontos de entrada de evento discreto (check-in,
+   início de sessão ao vivo). O ping periódico do GPS ao vivo (liveRegistrarPonto, a cada
+   5s) chama salvarPosicao(pos) SEM esse argumento -- não pode logar aqui, senão o
+   histórico cresce sem controle (ver Design Notes da story). */
+function salvarPosicao(pos,tipoHistorico){
   const locs=JSON.parse(localStorage.getItem('mappo_locations')||'{}');
   locs[session.nome]={lat:pos.coords.latitude,lng:pos.coords.longitude,acc:Math.round(pos.coords.accuracy||0),ts:Date.now()};
   localStorage.setItem('mappo_locations',JSON.stringify(locs));
+  if(tipoHistorico)registrarHistoricoLocalizacao(tipoHistorico);
 }
 function msgErroGPS(err){
   const msgs={
@@ -4812,7 +5801,7 @@ function tarefaCheckin(){
   if(btn){btn.disabled=true;btn.style.opacity='.6';btn.textContent='Localizando...';}
   navigator.geolocation.getCurrentPosition(
     pos=>{
-      salvarPosicao(pos); // registra o ponto do check-in no mapa
+      salvarPosicao(pos,'fixo'); // registra o ponto do check-in no mapa + evento no histórico
       tarefaFinalizarCheckin(pos);
     },
     err=>{
@@ -5024,7 +6013,7 @@ function execCheckin(){
   if(btn){btn.disabled=true;btn.style.opacity='.6';btn.innerHTML='📍 Localizando...';}
   navigator.geolocation.getCurrentPosition(
     pos=>{
-      salvarPosicao(pos); // registra o ponto do check-in no mapa
+      salvarPosicao(pos,'fixo'); // registra o ponto do check-in no mapa + evento no histórico
       finalizarCheckin(pos);
     },
     err=>{
@@ -5241,7 +6230,7 @@ async function pubPayloadObra(andarId){
   const fotosDoAndar=(vrfFotos||{})[andarId]||{};
   const notas=(vrfNotas||{})[andarId]||{};
   const fases=[];let bytes=0,cortadas=0;
-  for(const f of VRF_FASES){
+  for(const f of vrfFasesAtuais()){
     const etapas=[];
     for(let i=0;i<f.etapas.length;i++){
       const key=f.id+'_'+i;

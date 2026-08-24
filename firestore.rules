@@ -62,11 +62,50 @@ service cloud.firestore {
           request.auth.uid == uid &&
           request.resource.data.role == 'gestor' &&
           !exists(/databases/$(database)/documents/workspaces/$(wsId))
+        ) ||
+        ( // Story 11: auto-vínculo do prestador via convite de uso único, consumido na
+          // mesma transação que atualiza convites/{codigo} (ver match abaixo). O uid só
+          // cria o PRÓPRIO membership, como 'tecnico', citando um convite que ainda esteja
+          // válido para ESTE workspace -- nunca um campo de perfil enviado livremente.
+          request.auth.uid == uid &&
+          request.resource.data.role == 'tecnico' &&
+          get(/databases/$(database)/documents/convites/$(request.resource.data.convite)).data.workspaceId == wsId &&
+          get(/databases/$(database)/documents/convites/$(request.resource.data.convite)).data.usado == false &&
+          get(/databases/$(database)/documents/convites/$(request.resource.data.convite)).data.revogadoEm == null
         )
       );
       allow update: if isRealAuth() && isGestor(wsId);
       // gestor nunca remove o próprio membership (evita workspace órfão sem gestor)
       allow delete: if isRealAuth() && isGestor(wsId) && request.auth.uid != uid;
+    }
+
+    /* ── Convite de prestador (Story 11): vaga de técnico (tecnicos[] com uid:null)
+       auto-vinculável por código de uso único -- o gestor gera pra uma vaga já criada,
+       o próprio prestador troca nome+código pelo vínculo, sem o gestor colar UID manual.
+       Coleção raiz, não workspaces/{wsId}/data/... -- o prestador não sabe o wsId até
+       consumir o código (mesmo raciocínio de userWorkspaces/{uid}, AD-11).
+       allow get (NUNCA allow read): bloqueia list/enumeração -- só quem já tem o
+       código específico consegue ler aquele documento. */
+    match /convites/{codigo} {
+      allow get: if isRealAuth();
+      allow create: if isRealAuth() && isGestor(request.resource.data.workspaceId)
+        && request.resource.data.usado == false
+        && request.resource.data.revogadoEm == null;
+      allow update: if isRealAuth() && (
+        ( // gestor revoga um convite ainda pendente (não desfaz vínculo já consumido)
+          isGestor(resource.data.workspaceId) &&
+          resource.data.usado == false && resource.data.revogadoEm == null &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['revogadoEm']) &&
+          request.resource.data.revogadoEm != null
+        ) ||
+        ( // o próprio prestador consome, na mesma transação que cria o members/{uid} dele
+          resource.data.usado == false && resource.data.revogadoEm == null &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['usado','usadoPor','usadoEm']) &&
+          request.resource.data.usado == true &&
+          request.resource.data.usadoPor == request.auth.uid
+        )
+      );
+      allow list, delete: if false;
     }
 
     /* ── Dados sincronizados do workspace (envelope {json,updatedAt,by}, AD-8) ──

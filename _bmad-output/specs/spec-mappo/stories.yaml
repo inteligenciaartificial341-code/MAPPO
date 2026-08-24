@@ -1,0 +1,209 @@
+- id: "1"
+  title: Autenticação real + isolamento multi-tenant
+  description: >-
+    Implementa CAP-1 e CAP-2 do SPEC.md juntas: conta Firebase real por
+    pessoa, lookup global de workspace, documento de membership, e
+    firestore.rules cobrindo o caminho real por perfil. Fundacional --
+    toda story seguinte depende desta.
+  spec_checkpoint: true
+  done_checkpoint: true
+  invoke_dev_with: >-
+    Seguir AD-2, AD-3, AD-6 e AD-11 da ARCHITECTURE-SPINE.md ao pé da
+    letra -- não introduzir Cloud Functions/custom claims (AD-7 proíbe).
+    Nenhuma regra vai a produção sem teste no Firebase Emulator Suite
+    (constraint do SPEC). Nenhum deploy, mudança de firestore.rules ou
+    commit em main sem autorização explícita do Paulo para a ação
+    específica. Não prosseguir para a Story 2 antes de confirmar a
+    Open Question 1 do SPEC (quais regras estão de fato publicadas em
+    mappo-13a30) -- pode ser incidente de exposição já em andamento.
+
+- id: "2"
+  title: Onboarding com Ramo e Template de Checklist
+  description: >-
+    Implementa CAP-3: cadastro pergunta o Ramo, clona o Template de
+    Checklist correspondente (padrão VRF_FASES) para o novo workspace,
+    dono pode editar sem afetar outras empresas.
+  spec_checkpoint: false
+  done_checkpoint: false
+  invoke_dev_with: >-
+    Seguir AD-4 -- template é constante JS clonada, não coleção Firestore
+    nova. Um workspace tem exatamente um Ramo, uma chave genérica de
+    checklist (não uma chave por Ramo). Cobre o edge case do SPEC
+    (Assumptions): Ramo sem template pronto oferece o genérico mais
+    próximo.
+
+- id: "3"
+  title: Compressão de foto consistente em todos os pontos de captura
+  description: >-
+    Implementa CAP-4: aplica a rotina de compressão já usada no fluxo
+    VRF (canvas + JPEG) em todo ponto de captura de foto que hoje grava
+    sem redimensionar (onCheckFoto, onEquipFoto).
+  spec_checkpoint: false
+  done_checkpoint: false
+  invoke_dev_with: >-
+    Seguir AD-9 -- uma função de compressão única, sem bypass, em todo
+    ponto de captura presente e futuro. Mudança cirúrgica e isolada,
+    não depende da Story 1/2 para funcionar (mas roda depois delas
+    nesta lista por ordem de execução).
+
+- id: "4"
+  title: GPS ao vivo com consentimento explícito
+  description: >-
+    Implementa CAP-5: tela de consentimento antes da primeira ativação
+    do GPS ao vivo, persistida por pessoa; check-in pontual sem GPS
+    disponível não bloqueia o fluxo.
+  spec_checkpoint: false
+  done_checkpoint: false
+  invoke_dev_with: >-
+    Consentimento é perguntado uma vez por pessoa, não a cada ativação
+    (Consistency Conventions da espinha). Texto do consentimento deve
+    ser claro sobre o que é coletado e por quanto tempo (até 10h).
+
+- id: "5"
+  title: Link Público com expiração, revogação e sanitização contra XSS
+  description: >-
+    Implementa CAP-6: campo de validade no documento pub_{token},
+    checado no cliente e na regra; botão de revogação manual; função
+    de escape única aplicada em todo ponto de innerHTML com dado de
+    usuário, incluindo a página pública.
+  spec_checkpoint: false
+  done_checkpoint: true
+  invoke_dev_with: >-
+    Seguir AD-10 (mecanismo de expiração, campo expiraEm checado nos
+    dois lugares) e AD-12 (escape único, sem caminho alternativo).
+    Toca firestore.rules -- mesma exigência de Emulator Suite e
+    autorização explícita antes de publicar da Story 1.
+
+- id: "6"
+  title: Verificação de não-regressão da sincronização offline-first
+  description: >-
+    Confirma CAP-7 após as Stories 1-5: o motor de merge existente
+    (SYNC_KEYS/ITEM_LISTS/LEAF_MAPS/APPEND_LISTS/MERGE_MAPS) continua
+    com comportamento idêntico -- é verificação, não feature nova.
+  spec_checkpoint: false
+  done_checkpoint: false
+  invoke_dev_with: >-
+    Seguir AD-5 -- não há mudança de código esperada aqui além do que
+    as Stories 1-5 já tocaram incidentalmente. Testar toda sequência
+    offline→online hoje suportada (merge por item, campo, folha,
+    append-only) continua idêntica. Reportar qualquer desvio como
+    regressão, não como melhoria a aplicar.
+
+- id: "7"
+  title: Instalação multiplataforma via PWA
+  description: >-
+    Implementa CAP-8: manifest.json e Service Worker mínimo tornando o
+    MAPPO instalável em Android, PC e iPhone, reaproveitando o código
+    existente.
+  spec_checkpoint: false
+  done_checkpoint: false
+  invoke_dev_with: >-
+    index.html:11 já tem um manifest inline apontando ícones para host
+    externo do GitHub Pages -- decidir se o manifest.json novo substitui
+    por ícones locais (icon-192.png/icon-512.png já existem no repo) ou
+    mantém o host externo. Só faz sentido rodar depois das Stories 1-6
+    estáveis (PRD/espinha).
+
+- id: "8"
+  title: Aba Financeira por serviço e prestador
+  description: >-
+    Implementa CAP-9: tabela de preço editável por tipo de serviço (por
+    Ramo), valor anexado à OS e visível ao prestador dela, visão do
+    gestor (Financeiro -> Serviço -> Prestador -> valores/status) com
+    bloco de notas pra adiantamentos.
+  spec_checkpoint: false
+  done_checkpoint: false
+  invoke_dev_with: >-
+    Tabela de preço é por Ramo, mesmo padrão do template de checklist
+    (AD-4) -- categorias exatas dentro de cada Ramo ficam a critério da
+    implementação (proprietário confirmou "Conserto" foi só exemplo).
+    Valor da OS é só-leitura pro prestador; gestor vê tudo do workspace,
+    prestador só as próprias OS. Bloco de notas de adiantamento é campo
+    livre, não entra no cálculo de pago/a pagar por OS.
+
+- id: "9"
+  title: VRF restrito ao Ramo Refrigeração + checklist editável
+  description: >-
+    Implementa CAP-10: módulo Sistema VRF só aparece pro Ramo
+    Refrigeração/Climatização; checklist de cada fase vira editável
+    (mesmo editor de Configurações -> Checklist da Story 2); outros
+    Ramos veem "Criar Tarefas" no lugar, reaproveitando Tarefa Adicional.
+  spec_checkpoint: false
+  done_checkpoint: false
+  invoke_dev_with: >-
+    Preservar a estrutura de fases do VRF (fotos+nota por etapa) --
+    editável não significa achatado. "Criar Tarefas" pros outros Ramos é
+    só reapontar o item de menu pra Tarefa Adicional já existente, sem
+    construir nada novo.
+
+- id: "10"
+  title: Mapa -- painel recolhível, avatar do prestador, histórico de localização
+  description: >-
+    Implementa CAP-11: painel de info do prestador no mapa recolhe/expande;
+    prestador escolhe avatar (parado em check-in, "andando" em GPS ao
+    vivo); lista de prestadores abaixo do mapa com histórico de
+    localizações (dia/hora/semana).
+  spec_checkpoint: false
+  done_checkpoint: false
+  invoke_dev_with: >-
+    Avatar é asset estático (SVG) gerado/baixado uma vez, sem dependência
+    de runtime nova (política do projeto). Animação de "andando" é CSS
+    leve (pernas oscilando), não troca de sprite. Sem replay de trajeto
+    real -- só os 2 estados visuais.
+
+- id: "11"
+  title: Convite de prestador gerado pelo gestor, revogável
+  description: >-
+    Implementa CAP-12: gestor gera código de convite (uso único) e envia
+    ao prestador, em vez do fluxo atual onde o prestador gera/envia o
+    próprio UID; código válido até o gestor revogar.
+  spec_checkpoint: false
+  done_checkpoint: false
+  invoke_dev_with: >-
+    Muito provavelmente toca firestore.rules -- Emulator Suite obrigatório
+    antes de qualquer publicação, autorização explícita separada pra
+    regra e pro commit, mesmo rigor das Stories 1 e 5. Código de convite
+    é de uso único (1 convite = 1 prestador, consumido ao vincular).
+
+- id: "12"
+  title: Pontos de entrada novos -- WhatsApp e Compartilhar app
+  description: >-
+    Implementa CAP-13: botão de WhatsApp na tela de login pra gestor novo
+    pedir acesso; "Compartilhar app" no menu do gestor via Web Share API
+    nativa.
+  spec_checkpoint: false
+  done_checkpoint: false
+  invoke_dev_with: >-
+    Número de WhatsApp do proprietário: 62994299385. Mensagem
+    pré-preenchida: "sou gestor, queria utilizar o mappo". Compartilhar
+    precisa de fallback (copiar link) se a Web Share API não existir no
+    navegador.
+
+- id: "13"
+  title: Multi-obra no VRF
+  description: >-
+    Implementa CAP-14: Sistema VRF passa de uma obra única por workspace
+    pra uma lista de obras; gestor seleciona qual obra ver, com checklist
+    e prestadores isolados por obra.
+  spec_checkpoint: true
+  done_checkpoint: false
+  invoke_dev_with: >-
+    Maior escopo do pacote. vrfObra hoje é objeto único -- virar lista
+    reaproveita o padrão já existente de merge por id (ITEM_LISTS, igual
+    mappo_os), sem inventar mecanismo novo (AD-5 preservado). Toda função
+    do VRF que assume "a obra" precisa passar a assumir "a obra
+    selecionada" (progresso/fotos/notas/checkins isolados por obra). Sem
+    orçamento/prazo/custo por obra -- só o checklist/progresso já
+    existente, agora por obra.
+
+- id: "14"
+  title: Avaliação do app (feedback do piloto)
+  description: >-
+    Implementa CAP-15: empresas do piloto enviam feedback (nota + texto
+    livre) sobre o app, visível só pro proprietário.
+  spec_checkpoint: false
+  done_checkpoint: false
+  invoke_dev_with: >-
+    Simples e de baixo risco -- sem painel de analytics/NPS formal, só
+    captura e lista o feedback bruto (com data e workspace de origem)
+    pro proprietário ler.
