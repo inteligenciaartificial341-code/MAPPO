@@ -914,6 +914,9 @@
       <button class="nav-item" data-view="compartilhar" onclick="compartilharApp()">
         <span class="nav-ico nav-ico-slot" data-ico="share"></span> Compartilhar app
       </button>
+      <button class="nav-item" data-view="avaliar" onclick="abrirAvaliarApp()">
+        <span class="nav-ico nav-ico-slot" data-ico="star"></span> Avaliar o app
+      </button>
     </nav>
 
     <div class="sidebar-footer">
@@ -1000,7 +1003,10 @@ function ramoTemVRF(){return WORKSPACE_RAMO==null||WORKSPACE_RAMO==='refrigeraca
 /* Mapa das coleções sincronizadas: chave localStorage → doc no Firestore */
 const SYNC_KEYS=[
   'mappo_tecnicos','mappo_os','mappo_clientes','mappo_manut','mappo_settings',
-  'mappo_vrf_obra','mappo_vrf_progresso','mappo_vrf_fotos','mappo_vrf_notas',
+  /* mappo_vrf_obra (singular) permanece na lista de propósito (Story 13, Etapa 1): nada
+     escreve nela mais, mas continuar sincronizando-a é o próprio plano de rollback -- se o
+     commit for revertido, o código antigo espera achar essa chave fresca no localStorage. */
+  'mappo_vrf_obra','mappo_vrf_obras','mappo_vrf_progresso','mappo_vrf_fotos','mappo_vrf_notas',
   'mappo_vrf_relatorios','mappo_vrf_checkins','mappo_vrf_fotos_meta','mappo_locations','mappo_tarefas','mappo_live',
   'mappo_checklist_config','mappo_preco_config','mappo_financeiro_notas','mappo_vrf_fases_config',
   'mappo_localizacao_historico','mappo_avatares'
@@ -1015,7 +1021,7 @@ const _snapshot={};         // último valor confirmado (enviado ou recebido) po
 /* Coleções que são LISTAS DE REGISTROS: cada item tem identidade própria.
    O merge é feito item a item — o gestor criar uma tarefa nunca apaga a
    foto que o técnico acabou de lançar em OUTRA tarefa. */
-const ITEM_LISTS={'mappo_os':'id','mappo_manut':'id','mappo_tarefas':'id','mappo_clientes':'nome','mappo_tecnicos':'nome'};
+const ITEM_LISTS={'mappo_os':'id','mappo_manut':'id','mappo_tarefas':'id','mappo_clientes':'nome','mappo_tecnicos':'nome','mappo_vrf_obras':'id'};
 /* Coleções em dois níveis {grupo:{chave:valor}} — merge folha a folha */
 const LEAF_MAPS=['mappo_vrf_progresso','mappo_vrf_fotos','mappo_vrf_notas','mappo_vrf_fotos_meta'];
 const SEP='\u0001';
@@ -1101,7 +1107,7 @@ function _marcarAlteracaoLocal(key,antes,depois){
   if(typeof agendarRepublicacao==='function'&&PUB_KEYS.includes(key))agendarRepublicacao();
 }
 /* alterações nestas chaves atualizam os links de acompanhamento do cliente */
-const PUB_KEYS=['mappo_os','mappo_vrf_obra','mappo_vrf_progresso','mappo_vrf_fotos','mappo_vrf_notas','mappo_vrf_checkins'];
+const PUB_KEYS=['mappo_os','mappo_vrf_obras','mappo_vrf_progresso','mappo_vrf_fotos','mappo_vrf_notas','mappo_vrf_checkins'];
 
 /* ── INTERCEPTOR (camada 1): captura todo localStorage.setItem ──
    Patch no Storage.prototype — no iPhone/Safari, substituir
@@ -1691,7 +1697,10 @@ function _aplicarNaMemoria(key,val){
     case'mappo_checklist_config':checklistConfig=val;break;
     case'mappo_preco_config':precoConfig=val;break;
     case'mappo_vrf_fases_config':vrfFasesConfig=val;break;
-    case'mappo_vrf_obra':vrfObra=val;break;
+    // mappo_vrf_obra (singular) não tem mais variável própria em memória (Story 13, Etapa 1)
+    // -- o pull continua atualizando o localStorage (ver SYNC_KEYS), só não alimenta nada
+    // em memória; nada no app lê essa chave depois do boot além da migração one-shot.
+    case'mappo_vrf_obras':vrfObras=val;break;
     case'mappo_vrf_progresso':vrfProgresso=val;break;
     case'mappo_vrf_fotos':vrfFotos=val;break;
     case'mappo_vrf_notas':vrfNotas=val;break;
@@ -1793,9 +1802,15 @@ function fbOnRemoteChange(key){
   const reRender={
     'mappo_os':['dashboard','ordens','home'],
     'mappo_manut':['dashboard','manutencoes','home'],
-    'mappo_tecnicos':['config','mapa'],
+    // code review (item 5): faltava 'vrf'/'vrf-mapa'/'vrf-fotos'/'home' -- um técnico que
+    // perde/ganha acesso a uma obra remotamente (gestor edita t.modulos.vrfObras em outro
+    // aparelho) ficava na tela antiga até navegar manualmente.
+    'mappo_tecnicos':['config','mapa','vrf','vrf-mapa','vrf-fotos','home'],
     'mappo_checklist_config':['config'],
-    'mappo_vrf_obra':['vrf','vrf-andares','home','dashboard'],
+    // code review (item 5): faltava 'vrf-obras'/'vrf-mapa'/'vrf-fotos' -- a tela de trocar
+    // obra e o mapa/fotos não se atualizavam sozinhos quando uma obra é criada/editada em
+    // outro aparelho.
+    'mappo_vrf_obras':['vrf','vrf-obras','vrf-andares','vrf-mapa','vrf-fotos','home','dashboard'],
     'mappo_vrf_progresso':['vrf','vrf-andares','home','dashboard'],
     'mappo_vrf_fotos':['vrf','vrf-fotos'],
     'mappo_vrf_fotos_meta':['vrf-fotos'],
@@ -1973,7 +1988,7 @@ let tecnicos = JSON.parse(localStorage.getItem('mappo_tecnicos')||'null');
 if(!tecnicos||!tecnicos.length){
   tecnicos = ['Carlos Silva','João Pereira','Marcos Souza','Rafael Lima'].map((n,i)=>({
     id:'tec_'+(i+1), nome:n, uid:null,
-    modulos:{split:true,vrf:false}, ativo:true,
+    modulos:{split:true,vrf:false,vrfObras:[]}, ativo:true,
     criadoEm:new Date().toISOString()
   }));
   localStorage.setItem('mappo_tecnicos',JSON.stringify(tecnicos));
@@ -2037,6 +2052,7 @@ const ICONS={
   power:'<path d="M18.36 6.64a9 9 0 1 1-12.73 0"/><line x1="12" y1="2" x2="12" y2="12"/>',
   financeiro:'<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
   share:'<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>',
+  star:'<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
 };
 function svgIco(name,cls){return `<svg class="ico ${cls||''}" viewBox="0 0 24 24">${ICONS[name]||''}</svg>`;}
 function ico(name,cls){return svgIco(name,cls);} // alias
@@ -2086,10 +2102,101 @@ function vrfFasesAtuais(){return vrfFasesConfig||VRF_FASES;}
    VRF_TOTAL_ETAPAS fixo, que descreve só a fonte-padrão. */
 function vrfTotalEtapasAtuais(){return vrfFasesAtuais().reduce((a,f)=>a+f.etapas.length,0);}
 
-// estado da obra VRF (persistido)
-let vrfObra=JSON.parse(localStorage.getItem('mappo_vrf_obra')||'null')||{
-  nome:'', andares:[{id:'a1',nome:'Térreo'}], metaData:'', missao:{porAndar:{},andarIdx:0}
-};
+// estado da(s) obra(s) VRF (persistido)
+// Story 13 (Etapa 1): vrfObra (objeto único) -> vrfObras (lista) + vrfObraAtual() accessor,
+// mesmo padrão de mapaPainelAberto/vrfFasesAtuais(). Migração one-shot no boot, NÃO-DESTRUTIVA
+// (Boundaries & Constraints -- Always): se mappo_vrf_obras (plural) ainda não existe, lê
+// mappo_vrf_obra (singular) e envolve numa lista de 1 item -- o documento singular original
+// NUNCA é apagado/sobrescrito aqui. É o próprio plano de rollback: reverter o commit volta a
+// ler a chave intacta. vrfObraAtualId aponta pra essa obra (Etapa 2: agora pode haver mais de
+// uma de verdade -- tela "Obras" pra criar/selecionar, ver renderVRFobras()).
+let vrfObras=JSON.parse(localStorage.getItem('mappo_vrf_obras')||'null');
+if(!vrfObras||!vrfObras.length){ // code review: array vazio [] é truthy -- !vrfObras sozinho não pega esse caso
+  const _vrfObraAntiga=JSON.parse(localStorage.getItem('mappo_vrf_obra')||'null')||{
+    nome:'', andares:[{id:'a1',nome:'Térreo'}], metaData:'', missao:{porAndar:{},andarIdx:0}
+  };
+  vrfObras=[{..._vrfObraAntiga,id:'obra_migrada'}];
+  localStorage.setItem('mappo_vrf_obras',JSON.stringify(vrfObras));
+}
+let vrfObraAtualId=vrfObras[0]?vrfObras[0].id:null;
+function vrfObraAtual(){return vrfObras.find(o=>o.id===vrfObraAtualId)||null;}
+/* Story 13, Etapa 2+3: garante uma obra selecionada (dentre as PERMITIDAS) antes de qualquer
+   tela vrf* renderizar. 'permitidas' default = todas as obras do workspace (gestor, Etapa 2);
+   o gate em renderView()/getNavItems() passa vrfObrasPermitidas() aqui, que filtra pro técnico
+   (Etapa 3) -- ver essa função abaixo. Lista permitida vazia (técnico sem nenhuma obra
+   liberada) nunca resolve -- quem chamou deve mostrar renderVRFsemAcesso(), não a lista. */
+function vrfResolverObraAtual(permitidas){
+  const lista=permitidas||vrfObras;
+  if(!lista.length)return false;
+  const antes=vrfObraAtualId;
+  let ok;
+  if(lista.length===1){vrfObraAtualId=lista[0].id;ok=true;}
+  else{const atual=vrfObraAtual();ok=!!(atual&&lista.some(o=>o.id===atual.id));}
+  // code review (item 7): trocar de obra não pode herdar a aba de andar (vrfFloorTab) da
+  // obra anterior -- só reseta quando a obra RESOLVIDA de fato muda, nunca a cada re-render
+  // (senão o técnico nunca conseguiria ficar numa aba de andar diferente da Missão).
+  if(ok&&vrfObraAtualId!==antes)vrfFloorTab=0;
+  return ok;
+}
+/* code review (itens 1/2): um check-in/relatório pertence à obra ATUAL quando o obraId dele
+   bate, OU quando é um registro ANTIGO (pré-Etapa-2, sem obraId) e a obra atual é a migrada da
+   Etapa 1 -- só ela existia quando esses registros foram criados, então é a única dona
+   legítima deles. Sem este filtro, o Mapa/Relatórios de uma obra mostrava dado de TODAS. */
+function _vrfPertenceObra(obraId,alvoId){return obraId===alvoId||(!obraId&&alvoId==='obra_migrada');}
+function _vrfPertenceObraAtual(obraId){return _vrfPertenceObra(obraId,vrfObraAtualId);}
+/* ids globalmente únicos (Story 13) -- Date.now() sozinho colide quando duas coisas são
+   criadas no mesmo milissegundo (obras diferentes, ou andares de obras diferentes). */
+function _novoIdAndar(){return 'a'+Date.now()+'_'+Math.random().toString(36).slice(2,6);}
+function _novoIdObra(){return 'obra'+Date.now()+'_'+Math.random().toString(36).slice(2,6);}
+/* Story 13, Etapa 3: t.modulos.vrf (booleano) -> t.modulos.vrfObras (lista de ids de obra).
+   Migração one-shot por registro de técnico (marcador: presença de vrfObras como array --
+   idempotente, segura de rodar de novo se um técnico chegar via sync de um dispositivo mais
+   antigo ainda sem o campo). NÃO-DESTRUTIVA (mesma disciplina das etapas anteriores): o campo
+   vrf antigo não é apagado, só deixa de ser lido daqui em diante. Quem tinha vrf:true recebe
+   TODAS as obras que existem NESTE momento -- não perde acesso a nada que já tinha, mas
+   também não ganha acesso automático a obras criadas depois (senão o filtro por técnico desta
+   etapa não significaria nada). Quem tinha vrf:false/ausente vira lista vazia (mesmo efeito de
+   hoje: "vazio/ausente = sem VRF"). */
+let _mudouNaMigracaoTecVrfObras=false;
+tecnicos.forEach(t=>{
+  if(!t.modulos)t.modulos={split:true,vrf:false};
+  if(!Array.isArray(t.modulos.vrfObras)){
+    t.modulos.vrfObras=t.modulos.vrf?vrfObras.map(o=>o.id):[];
+    _mudouNaMigracaoTecVrfObras=true;
+  }
+});
+if(_mudouNaMigracaoTecVrfObras)saveTecnicos();
+/* obras atribuídas a UM técnico específico (objetos completos, não só ids) -- Story 13,
+   Etapa 3. Técnico sem nenhuma atribuída = lista vazia ("sem obra liberada", não erro). */
+function vrfObrasDoTecnico(t){
+  const ids=(t&&t.modulos&&t.modulos.vrfObras)||[];
+  return vrfObras.filter(o=>ids.includes(o.id));
+}
+/* obras que a SESSÃO ATUAL pode ver: gestor vê todas (Etapa 2, inalterado); técnico só as que
+   o gestor atribuiu a ele (Etapa 3) -- usado por todo o gate de view/nav do VRF. */
+function vrfObrasPermitidas(){
+  if(!session||session.perfil!=='tecnico')return vrfObras;
+  return vrfObrasDoTecnico(getTecnico(session.nome));
+}
+/* mesma checagem de vrfTemAtividade()/vrfProgGeral()/_vrfResumoDash(), mas restrita a um
+   subconjunto de obras -- Story 13, Etapa 3: o card de atalho VRF na home do técnico só pode
+   reagir/expor dado das obras QUE ELE tem acesso, nunca do workspace inteiro. */
+function vrfTemAtividadeObras(lista){
+  return !!(lista.some(o=>o.nome)||lista.some(o=>vrfProgObra(o)>0)||vrfRelatorios.some(r=>lista.some(o=>o.id===r.obraId)));
+}
+function vrfProgGeralObras(lista){
+  if(!lista.length)return 0;
+  const soma=lista.reduce((a,o)=>a+vrfProgObra(o),0);
+  return Math.round(soma/lista.length);
+}
+function _vrfResumoDashObras(lista){
+  const totalAndares=lista.reduce((a,o)=>a+(o.andares?o.andares.length:0),0);
+  if(lista.length===1){
+    const o=lista[0];
+    return {nome:escapeHtml(o.nome||'Obra em andamento'),meta:`${totalAndares} andar${totalAndares!==1?'es':''}`};
+  }
+  return {nome:`${lista.length} obras ativas`,meta:`${totalAndares} andar${totalAndares!==1?'es':''} no total`};
+}
 let vrfProgresso=JSON.parse(localStorage.getItem('mappo_vrf_progresso')||'{}'); // {andarId:{faseId_etapaIdx:true}}
 let vrfFotos=JSON.parse(localStorage.getItem('mappo_vrf_fotos')||'{}'); // {andarId:{faseId_etapaIdx:[fotos]}}
 let vrfNotas=JSON.parse(localStorage.getItem('mappo_vrf_notas')||'{}'); // {andarId:{faseId_etapaIdx:texto}}
@@ -2128,20 +2235,20 @@ function vrfFotoPrestador(andarId,key,idx){
 let vrfFloorTab=0;
 
 // migração: missão antiga (items global) → porAndar
-if(vrfObra.missao&&Array.isArray(vrfObra.missao.items)){
-  const primeiro=vrfObra.andares[0]?vrfObra.andares[0].id:'a1';
-  vrfObra.missao={porAndar:{[primeiro]:vrfObra.missao.items},andarIdx:0};
-  localStorage.setItem('mappo_vrf_obra',JSON.stringify(vrfObra));
+if(vrfObraAtual().missao&&Array.isArray(vrfObraAtual().missao.items)){
+  const primeiro=vrfObraAtual().andares[0]?vrfObraAtual().andares[0].id:'a1';
+  vrfObraAtual().missao={porAndar:{[primeiro]:vrfObraAtual().missao.items},andarIdx:0};
+  localStorage.setItem('mappo_vrf_obras',JSON.stringify(vrfObras)); // plural -- nunca a singular (não-destrutivo)
 }
-if(!vrfObra.missao)vrfObra.missao={porAndar:{},andarIdx:0};
-if(!vrfObra.missao.porAndar)vrfObra.missao.porAndar={};
+if(!vrfObraAtual().missao)vrfObraAtual().missao={porAndar:{},andarIdx:0};
+if(!vrfObraAtual().missao.porAndar)vrfObraAtual().missao.porAndar={};
 
 // helpers de missão por andar
-function vrfMissaoAndar(andarId){return vrfObra.missao.porAndar[andarId]||[];}
-function vrfMissaoTotal(){return vrfObra.andares.reduce((a,an)=>a+vrfMissaoAndar(an.id).length,0);}
+function vrfMissaoAndar(andarId){return vrfObraAtual().missao.porAndar[andarId]||[];}
+function vrfMissaoTotal(){return vrfObraAtual().andares.reduce((a,an)=>a+vrfMissaoAndar(an.id).length,0);}
 function vrfMissaoInclui(andarId,key){return vrfMissaoAndar(andarId).includes(key);}
 
-function saveVrfObra(){localStorage.setItem('mappo_vrf_obra',JSON.stringify(vrfObra));}
+function saveVrfObra(){localStorage.setItem('mappo_vrf_obras',JSON.stringify(vrfObras));}
 function saveVrfProgresso(){localStorage.setItem('mappo_vrf_progresso',JSON.stringify(vrfProgresso));}
 function saveVrfFotos(){localStorage.setItem('mappo_vrf_fotos',JSON.stringify(vrfFotos));}
 function saveVrfNotas(){localStorage.setItem('mappo_vrf_notas',JSON.stringify(vrfNotas));}
@@ -2153,11 +2260,20 @@ function vrfProgAndar(andarId){
   vrfFasesAtuais().forEach(f=>f.etapas.forEach((_,i)=>{if(p[f.id+'_'+i])feitas++;}));
   return Math.round((feitas/vrfTotalEtapasAtuais())*100);
 }
-function vrfProgGeral(){
-  if(!vrfObra.andares.length)return 0;
-  const soma=vrfObra.andares.reduce((a,an)=>a+vrfProgAndar(an.id),0);
-  return Math.round(soma/vrfObra.andares.length);
+/* progresso médio de UMA obra específica (média dos andares dela) -- Story 13, Etapa 2.
+   Usado tanto pelo painel da obra selecionada (vrfProgObra(vrfObraAtual())) quanto pelo
+   agregado de todas as obras em vrfProgGeral(), abaixo. */
+function vrfProgObra(o){
+  if(!o||!o.andares||!o.andares.length)return 0;
+  const soma=o.andares.reduce((a,an)=>a+vrfProgAndar(an.id),0);
+  return Math.round(soma/o.andares.length);
 }
+/* progresso médio agregando TODAS as obras do workspace -- Story 13, Etapa 2 (antes desta
+   etapa, com 1 obra só, isto e vrfProgObra(vrfObraAtual()) davam o mesmo número; agora que
+   pode haver mais de uma, isto é só pros cards de dashboard/resumo -- o painel da obra aberta
+   usa vrfProgObra(vrfObraAtual()) direto, nunca este). Etapa 3: fininho sobre
+   vrfProgGeralObras(), que o card do TÉCNICO usa com a lista filtrada por atribuição. */
+function vrfProgGeral(){return vrfProgGeralObras(vrfObras);}
 function vrfProgFase(andarId,faseId){
   const p=vrfProgresso[andarId]||{};
   const fase=vrfFasesAtuais().find(f=>f.id===faseId);if(!fase)return 0;
@@ -2407,14 +2523,17 @@ function entrarApp(){
 
 /* ═══ HOME DO TÉCNICO — boas-vindas ou resumo do que tem em andamento ═══ */
 function renderTecnicoHome(){
-  const tec=getTecnico(session.nome)||{modulos:{split:true,vrf:false}};
-  const m=tec.modulos||{split:true,vrf:false};
+  const tec=getTecnico(session.nome)||{modulos:{split:true,vrf:false,vrfObras:[]}};
+  const m=tec.modulos||{split:true,vrf:false,vrfObras:[]};
+  // Story 13, Etapa 3: obras QUE ESTE técnico tem acesso -- todo dado/agregado VRF na home
+  // dele usa esta lista, nunca vrfObras (workspace inteiro) direto.
+  const minhasObrasVRF=vrfObrasDoTecnico(tec);
   const minhas=osList.filter(o=>o.tecnico===session.nome&&o.status!=='concluida');
   const pend=minhas.filter(o=>o.status==='pendente').length;
   const and=minhas.filter(o=>o.status==='andamento').length;
   const minhasTarefas=tarefas.filter(t=>t.tecnico===session.nome&&t.status!=='concluida');
   const temSplitAtivo=m.split&&minhas.length>0;
-  const temVRFativo=m.vrf&&ramoTemVRF()&&vrfTemAtividade();
+  const temVRFativo=minhasObrasVRF.length>0&&ramoTemVRF()&&vrfTemAtividadeObras(minhasObrasVRF);
   const temTarefaAtiva=minhasTarefas.length>0;
 
   // nada em andamento → boas-vindas com seletor dos módulos liberados
@@ -2427,7 +2546,7 @@ function renderTecnicoHome(){
         <div class="bv-card-desc">Suas ordens de serviço de instalação e manutenção</div>
         <div class="bv-card-go">Abrir ${svgIco('arrow-right','ico-sm')}</div>
       </div>`);
-    if(m.vrf&&ramoTemVRF())cards.push(`
+    if(minhasObrasVRF.length&&ramoTemVRF())cards.push(`
       <div class="bv-card" onclick="nav('vrf')">
         <div class="bv-card-ico">${svgIco('vrf')}</div>
         <div class="bv-card-name">Obra VRF</div>
@@ -2461,14 +2580,17 @@ function renderTecnicoHome(){
     </div>`;
   }
   if(temVRFativo){
-    const geral=vrfProgGeral();
+    // Story 13, Etapa 3: agregado restrito às obras QUE ESTE técnico tem acesso (nunca o
+    // workspace inteiro, senão vazaria progresso/quantidade de obras de outros técnicos).
+    const geral=vrfProgGeralObras(minhasObrasVRF);
+    const resumo=_vrfResumoDashObras(minhasObrasVRF);
     blocos+=`
     <div class="card vrf-dash-card" onclick="nav('vrf')">
       <div class="vrf-dash-left">
         <div class="vrf-dash-tag">${svgIco('vrf','ico-sm')} Obra VRF</div>
-        <div class="vrf-dash-nome">${escapeHtml(vrfObra.nome||'Obra em andamento')}</div>
+        <div class="vrf-dash-nome">${resumo.nome}</div>
         <div class="vrf-bar" style="margin-top:10px"><div class="vrf-bar-fill" style="width:${geral}%;background:${vrfCorProg(geral)}"></div></div>
-        <div class="vrf-dash-meta">${vrfObra.andares.length} andar${vrfObra.andares.length!==1?'es':''}</div>
+        <div class="vrf-dash-meta">${resumo.meta}</div>
       </div>
       <div class="vrf-dash-pct" style="color:${vrfCorProg(geral)}">${geral}%</div>
     </div>`;
@@ -2507,13 +2629,20 @@ function injetarIcones(){
 function getNavItems(){
   let items=NAV_ITEMS;
   if(session.perfil==='tecnico'){
-    const tec=getTecnico(session.nome)||{modulos:{split:true,vrf:false}};
-    const m=tec.modulos||{split:true,vrf:false};
+    const tec=getTecnico(session.nome)||{modulos:{split:true,vrf:false,vrfObras:[]}};
+    const m=tec.modulos||{split:true,vrf:false,vrfObras:[]};
     if(navbarContexto==='vrf'&&ramoTemVRF()){
-      items=[
+      // Story 13, Etapa 2+3: gate "obra selecionada?" -- com 2+ obras PERMITIDAS pra este
+      // técnico (Etapa 3) e nenhuma escolhida ainda, as abas de Checklist/Mapa/Fotos não
+      // fazem sentido (de qual obra?); mostra só a aba de Obras até resolver. Com 1 obra só
+      // (ou 0), vrfResolverObraAtual() resolve/recusa na hora.
+      items=vrfResolverObraAtual(vrfObrasPermitidas())?[
         {view:'vrf',icon:'vrf',label:'Checklist'},
         {view:'vrf-mapa',icon:'mapa',label:'Mapa'},
         {view:'vrf-fotos',icon:'camera',label:'Fotos'},
+        {view:'home',icon:'home',label:'Início'},
+      ]:[
+        {view:'vrf-obras',icon:'vrf',label:'Obras'},
         {view:'home',icon:'home',label:'Início'},
       ];
     }else{
@@ -2521,15 +2650,18 @@ function getNavItems(){
       if(m.split){items.push({view:'ordens',icon:'ordens',label:'Ordens'});}
       items.push({view:'tarefas',icon:'tarefas',label:'Tarefas'});
       items.push({view:'manutencoes',icon:'manutencoes',label:'Manut.'});
-      if(m.vrf&&ramoTemVRF()){items.push({view:'vrf',icon:'vrf',label:'VRF'});}
+      // Story 13, Etapa 3: m.vrf (booleano) -> m.vrfObras (lista); vazio/ausente = sem VRF.
+      if(m.vrfObras&&m.vrfObras.length&&ramoTemVRF()){items.push({view:'vrf',icon:'vrf',label:'VRF'});}
     }
   }else if(navbarContexto==='vrf'&&ramoTemVRF()){
-    items=[
+    items=vrfResolverObraAtual()?[
       {view:'vrf',icon:'dashboard',label:'Painel VRF'},
       {view:'vrf-andares',icon:'splits',label:'Andares'},
       {view:'vrf-mapa',icon:'mapa',label:'Mapa'},
       {view:'vrf-fotos',icon:'camera',label:'Fotos'},
       {view:'vrf-relatorios',icon:'ordens',label:'Relatórios'},
+    ]:[
+      {view:'vrf-obras',icon:'dashboard',label:'Obras'},
     ];
   }
   return items;
@@ -2646,9 +2778,72 @@ async function compartilharApp(){
   }
 }
 
+/* Story 14: "Avaliar o app" -- feedback do piloto (nota 1-5 + texto livre), gravado
+   direto em feedback/{id} (coleção raiz, write-only do lado do cliente -- leitura só
+   pelo dono do projeto via Firebase Console/Admin SDK, fora do alcance de
+   firestore.rules; ver Never do Intent -- sem tela/painel de leitura dentro do app).
+   Fora do motor de sync (SYNC_KEYS/ITEM_LISTS/etc.) de propósito: não precisa voltar
+   pro client, então não faz sentido no envelope {json,updatedAt,by} nem no
+   localStorage -- é um "add" avulso, não um doc reconciliado. */
+let _avalNota=0;
+function abrirAvaliarApp(){
+  closeSidebar();
+  _avalNota=0;
+  showModal(`
+    <div class="modal-head"><h2>${svgIco('star','ico-sm')} Avaliar o app</h2></div>
+    <div class="modal-body">
+      <div class="fg">
+        <label>Sua nota</label>
+        <div id="avalNotas" style="display:flex;gap:8px;margin-top:6px">${_renderAvalNotas()}</div>
+      </div>
+      <div class="fg" style="margin-top:14px">
+        <label>Comentário (opcional)</label>
+        <textarea id="avalTexto" style="min-height:110px" placeholder="Conte pra gente o que achou do MAPPO..."></textarea>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="enviarFeedbackApp()">${svgIco('check','ico-sm')} Enviar avaliação</button>
+    </div>`);
+}
+function _renderAvalNotas(){
+  let html='';
+  for(let n=1;n<=5;n++)html+=`<button type="button" class="btn ${n===_avalNota?'btn-primary':'btn-ghost'}" style="flex:1" onclick="_setAvalNota(${n})">${n}</button>`;
+  return html;
+}
+function _setAvalNota(n){
+  _avalNota=n;
+  const el=document.getElementById('avalNotas');
+  if(el)el.innerHTML=_renderAvalNotas();
+}
+async function enviarFeedbackApp(){
+  const txtEl=document.getElementById('avalTexto');
+  if(!txtEl)return; // modal já fechado (ex.: clique duplo) -- nada a enviar
+  const nota=_avalNota;
+  const texto=(txtEl.value||'').trim();
+  if(!nota||nota<1||nota>5){toast('Escolha uma nota de 1 a 5 antes de enviar','warn');return;}
+  if(!fbReady||!WORKSPACE){toast('Sem conexão com a nuvem — seu texto continua aqui, tente enviar de novo daqui a pouco','error');return;}
+  try{
+    await fbDB.collection('feedback').add({
+      workspaceId:WORKSPACE,
+      workspaceNome:WORKSPACE_NOME||'',
+      nome:(session&&session.nome)||'',
+      nota,
+      texto,
+      criadoEm:firebase.firestore.FieldValue.serverTimestamp()
+    });
+    closeModal();
+    toast('Obrigado pela avaliação!','success');
+  }catch(e){
+    fbLog('Falha ao enviar avaliação do app: '+e.code+' — '+e.message,'erro');
+    toast('Não foi possível enviar sua avaliação agora — seu texto continua aqui, tente de novo','error');
+  }
+}
+
 /* ── NAVEGAÇÃO ── */
 const VIEW_META={
   home:['Início','Resumo do seu dia'],
+  'vrf-obras':['Obras VRF','Escolha a obra pra ver o painel'],
   'vrf-andares':['Andares da Obra','Selecione um andar para ver detalhes'],
   'vrf-relatorios':['Relatórios VRF','Envios recebidos do campo'],
   'vrf-mapa':['Mapa da Obra','Localização e check-ins do prestador'],
@@ -2762,10 +2957,11 @@ function etapaAtual(os){
 /* menu do técnico conforme módulos liberados */
 function aplicarMenuTecnico(){
   if(!session||session.perfil!=='tecnico')return;
-  const tec=getTecnico(session.nome)||{modulos:{split:true,vrf:false}};
-  const m=tec.modulos||{split:true,vrf:false};
+  const tec=getTecnico(session.nome)||{modulos:{split:true,vrf:false,vrfObras:[]}};
+  const m=tec.modulos||{split:true,vrf:false,vrfObras:[]};
   document.querySelectorAll('[data-view="dashboard"],[data-view="mapa"],[data-view="clientes"],[data-view="config"],[data-view="manutencoes"],[data-view="splits"],[data-view="financeiro"],[data-view="compartilhar"]').forEach(el=>el.style.display='none');
-  const vrfEl=document.querySelector('[data-view="vrf"]');if(vrfEl)vrfEl.style.display=(m.vrf&&ramoTemVRF())?'':'none';
+  // Story 13, Etapa 3: m.vrf (booleano) -> m.vrfObras (lista); vazio/ausente = sem VRF.
+  const vrfEl=document.querySelector('[data-view="vrf"]');if(vrfEl)vrfEl.style.display=(m.vrfObras&&m.vrfObras.length&&ramoTemVRF())?'':'none';
   const ordEl=document.querySelector('[data-view="ordens"]');if(ordEl)ordEl.style.display=m.split?'':'none';
 }
 
@@ -2782,7 +2978,17 @@ function renderView(v){
     // escondidos por ramoTemVRF(), mas nav('vrf'/'vrf-mapa'/'vrf-fotos') direto (console,
     // ou qualquer chamada futura a renderView) não pode continuar renderizando o módulo
     // pra outro Ramo só porque a UI que levaria até aqui está escondida.
-    if((v==='vrf'||v==='vrf-mapa'||v==='vrf-fotos')&&!ramoTemVRF()){c.innerHTML=renderTecnicoHome();return;}
+    if((v==='vrf'||v==='vrf-mapa'||v==='vrf-fotos'||v==='vrf-obras')&&!ramoTemVRF()){c.innerHTML=renderTecnicoHome();return;}
+    // Story 13, Etapa 2+3: gate "obra selecionada?", mesmo padrão do gate de Ramo acima --
+    // mas pro técnico, "selecionada" é dentre as obras QUE ELE tem atribuída (Etapa 3), nunca
+    // todas do workspace. Sem nenhuma atribuída -> estado claro (renderVRFsemAcesso()), não a
+    // lista (vazaria as obras de outros técnicos) nem tela em branco.
+    if(v==='vrf'||v==='vrf-mapa'||v==='vrf-fotos'||v==='vrf-obras'){
+      const permitidas=vrfObrasPermitidas();
+      if(!permitidas.length){c.innerHTML=renderVRFsemAcesso();return;}
+      if(v==='vrf-obras'){c.innerHTML=renderVRFobras(permitidas);return;}
+      if(!vrfResolverObraAtual(permitidas)){c.innerHTML=renderVRFobras(permitidas);return;}
+    }
     if(v==='vrf'){c.innerHTML=renderVRF();setTimeout(vrfSetupCamera,50);return;}
     if(v==='vrf-mapa'){c.innerHTML=renderVRFmapa();setTimeout(()=>initVRFmapa(),60);return;}
     if(v==='vrf-fotos'){c.innerHTML=renderVRFfotos();return;}
@@ -2795,6 +3001,12 @@ function renderView(v){
   // reordenação/adição futura de case (mesmo espírito do que já existe pra
   // case'financeiro' logo abaixo), sem depender de lembrar de repetir o check em cada um.
   if((v==='vrf'||v.indexOf('vrf-')===0)&&!ramoTemVRF()){c.innerHTML=renderDashboard();atualizarBadges();return;}
+  // Story 13, Etapa 2: gate "obra selecionada?", mesmo espírito do gate de Ramo acima --
+  // cobre 'vrf'/'vrf-andares'/'vrf-relatorios'/'vrf-mapa'/'vrf-fotos' de uma vez, mas nunca
+  // intercepta 'vrf-obras' em si (senão a própria tela de escolha ficaria inalcançável).
+  // Com 2+ obras e nenhuma selecionada ainda, mostra a lista em vez da tela pedida; com 1
+  // obra só, vrfResolverObraAtual() resolve na hora (zero fricção nova).
+  if(v!=='vrf-obras'&&(v==='vrf'||v.indexOf('vrf-')===0)&&!vrfResolverObraAtual()){c.innerHTML=renderVRFobras();atualizarBadges();return;}
   switch(v){
     case'dashboard':c.innerHTML=renderDashboard();break;
     case'ordens':c.innerHTML=renderOrdens();break;
@@ -2802,6 +3014,7 @@ function renderView(v){
     case'manutencoes':c.innerHTML=renderManutencoes();break;
     case'clientes':c.innerHTML=renderClientes();break;
     case'splits':c.innerHTML=renderSplits();break;
+    case'vrf-obras':c.innerHTML=renderVRFobras();break;
     case'vrf':c.innerHTML=renderVRF();break;
     case'vrf-andares':c.innerHTML=renderVRFandares();break;
     case'vrf-relatorios':c.innerHTML=renderVRFrelatorios();break;
@@ -2836,10 +3049,15 @@ function atualizarBadges(){
 }
 
 /* ═══════════ DASHBOARD ═══════════ */
-/* atividade VRF existe? (obra nomeada, progresso ou relatórios) */
+/* atividade VRF existe? (alguma obra nomeada, progresso ou relatórios) -- Story 13, Etapa 2:
+   antes assumia "a" obra, agora varre todas. */
 function vrfTemAtividade(){
-  return !!(vrfObra.nome||vrfProgGeral()>0||vrfRelatorios.length);
+  return !!(vrfObras.some(o=>o.nome)||vrfProgGeral()>0||vrfRelatorios.length);
 }
+/* texto de resumo do card de atalho VRF no dashboard do GESTOR -- Story 13, Etapa 2: 1 obra só
+   mantém o texto de sempre (nome + andares); 2+ obras mostra agregado. Etapa 3: fininho sobre
+   _vrfResumoDashObras(), que o card do TÉCNICO usa com a lista filtrada por atribuição. */
+function _vrfResumoDash(){return _vrfResumoDashObras(vrfObras);}
 
 /* tela de boas-vindas do gestor (nada em andamento ainda) */
 function renderBemVindoGestor(){
@@ -2880,13 +3098,14 @@ function cardVRFdash(){
   if(!vrfTemAtividade())return'';
   const geral=vrfProgGeral();
   const ultimoRel=vrfRelatorios.length?vrfRelatorios[vrfRelatorios.length-1]:null;
+  const resumo=_vrfResumoDash();
   return `
   <div class="card vrf-dash-card" onclick="nav('vrf')">
     <div class="vrf-dash-left">
       <div class="vrf-dash-tag">${svgIco('vrf','ico-sm')} Obra VRF</div>
-      <div class="vrf-dash-nome">${escapeHtml(vrfObra.nome||'Obra em andamento')}</div>
+      <div class="vrf-dash-nome">${resumo.nome}</div>
       <div class="vrf-bar" style="margin-top:10px"><div class="vrf-bar-fill" style="width:${geral}%;background:${vrfCorProg(geral)}"></div></div>
-      <div class="vrf-dash-meta">${vrfObra.andares.length} andar${vrfObra.andares.length!==1?'es':''}${ultimoRel?` · último relatório: ${fmtDate(ultimoRel.data)}`:''}</div>
+      <div class="vrf-dash-meta">${resumo.meta}${ultimoRel?` · último relatório: ${fmtDate(ultimoRel.data)}`:''}</div>
     </div>
     <div class="vrf-dash-pct" style="color:${vrfCorProg(geral)}">${geral}%</div>
   </div>`;
@@ -3169,7 +3388,7 @@ function renderVRF(){
 /* check-in diário do prestador na obra VRF */
 function vrfCheckinHoje(){
   const hoje=new Date().toISOString().split('T')[0];
-  return vrfCheckins.find(c=>c.prestador===session.nome&&c.data===hoje);
+  return vrfCheckins.find(c=>c.prestador===session.nome&&c.data===hoje&&_vrfPertenceObraAtual(c.obraId));
 }
 function vrfCardCheckin(){
   const ci=vrfCheckinHoje();
@@ -3216,7 +3435,8 @@ function vrfSalvarCheckin(pos){
     data:agora.toISOString().split('T')[0],
     hora:agora.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),
     lat:pos?pos.coords.latitude:null,
-    lng:pos?pos.coords.longitude:null
+    lng:pos?pos.coords.longitude:null,
+    obraId:vrfObraAtualId // Story 13, Etapa 2 -- check-ins antigos ficam sem o campo (aceito, sem backfill)
   });
   localStorage.setItem('mappo_vrf_checkins',JSON.stringify(vrfCheckins));
   // re-render do VRF
@@ -3227,15 +3447,15 @@ function vrfSalvarCheckin(pos){
 
 function renderVRFtecnico(){
   // sem obra configurada pelo gestor
-  if(!vrfObra.andares.length){
+  if(!vrfObraAtual().andares.length){
     return `<div class="page-head"><div><div class="page-title">Obra VRF</div><div class="page-desc">Checklist de execução</div></div></div>
     <div class="card">${emptyState('splits','Aguardando configuração','O gestor ainda não configurou os andares desta obra. Assim que configurar, aparecem aqui.')}</div>`;
   }
-  const geral=vrfProgGeral();
-  const obraNome=vrfObra.nome||'Obra VRF';
+  const geral=vrfProgObra(vrfObraAtual());
+  const obraNome=vrfObraAtual().nome||'Obra VRF';
 
   // aba ativa: 0 = missão, 1..N = andares
-  if(vrfFloorTab>vrfObra.andares.length)vrfFloorTab=0;
+  if(vrfFloorTab>vrfObraAtual().andares.length)vrfFloorTab=0;
 
   // tabs (missão + andares)
   const mp=vrfMissaoProgresso();
@@ -3243,7 +3463,7 @@ function renderVRFtecnico(){
     <button class="vrf-tab ${vrfFloorTab===0?'on':''}" onclick="vrfSetTab(0)">
       ${svgIco('check','ico-sm')} Missão<small>${vrfMissaoTotal()?mp.done+'/'+mp.total:'—'}</small>
     </button>
-    ${vrfObra.andares.map((an,i)=>{
+    ${vrfObraAtual().andares.map((an,i)=>{
       const pct=vrfProgAndar(an.id);
       return `<button class="vrf-tab ${vrfFloorTab===i+1?'on':''}" onclick="vrfSetTab(${i+1})">${escapeHtml(an.nome)}<small>${pct}%</small></button>`;
     }).join('')}`;
@@ -3251,10 +3471,13 @@ function renderVRFtecnico(){
   // painel ativo
   let painelHTML;
   if(vrfFloorTab===0){painelHTML=vrfRenderMissaoPainel();}
-  else{painelHTML=vrfRenderAndarPainel(vrfObra.andares[vrfFloorTab-1]);}
+  else{painelHTML=vrfRenderAndarPainel(vrfObraAtual().andares[vrfFloorTab-1]);}
 
   return `
-  <div class="page-head"><div><div class="page-title">${escapeHtml(obraNome)}</div><div class="page-desc">Checklist de execução em campo</div></div></div>
+  <div class="page-head">
+    <div><div class="page-title">${escapeHtml(obraNome)}</div><div class="page-desc">Checklist de execução em campo</div></div>
+    ${vrfObrasPermitidas().length>1?`<button class="btn btn-ghost btn-sm" onclick="nav('vrf-obras')">${svgIco('vrf','ico-sm')} Trocar obra</button>`:''}
+  </div>
 
   <!-- check-in diário do prestador -->
   ${vrfCardCheckin()}
@@ -3284,7 +3507,7 @@ function renderVRFtecnico(){
 // progresso da missão (soma de todos os andares)
 function vrfMissaoProgresso(){
   let done=0,total=0;
-  vrfObra.andares.forEach(an=>{
+  vrfObraAtual().andares.forEach(an=>{
     const p=vrfProgresso[an.id]||{};
     vrfMissaoAndar(an.id).forEach(key=>{total++;if(p[key])done++;});
   });
@@ -3295,7 +3518,7 @@ function vrfSetTab(i){
   vrfFloorTab=i;
   const painel=document.getElementById('vrfPainel');
   if(i===0)painel.innerHTML=vrfRenderMissaoPainel();
-  else painel.innerHTML=vrfRenderAndarPainel(vrfObra.andares[i-1]);
+  else painel.innerHTML=vrfRenderAndarPainel(vrfObraAtual().andares[i-1]);
   document.querySelectorAll('#vrfTabs .vrf-tab').forEach((b,idx)=>b.classList.toggle('on',idx===i));
 }
 
@@ -3309,7 +3532,7 @@ function vrfRenderMissaoPainel(){
   const pct=mp.total>0?Math.round(mp.done/mp.total*100):0;
 
   // agrupar por andar
-  const grupos=vrfObra.andares.map(an=>{
+  const grupos=vrfObraAtual().andares.map(an=>{
     const keys=vrfMissaoAndar(an.id);
     if(!keys.length)return'';
     const p=vrfProgresso[an.id]||{};
@@ -3406,7 +3629,7 @@ function vrfToggleTec(andarId,key,el){
   // re-render do painel do andar para abrir o expand automático
   const painel=document.getElementById('vrfPainel');
   if(vrfFloorTab===0)painel.innerHTML=vrfRenderMissaoPainel();
-  else painel.innerHTML=vrfRenderAndarPainel(vrfObra.andares[vrfFloorTab-1]);
+  else painel.innerHTML=vrfRenderAndarPainel(vrfObraAtual().andares[vrfFloorTab-1]);
   // atualizar % da tab e barra geral
   vrfAtualizarTabs();
 }
@@ -3414,8 +3637,8 @@ function vrfAtualizarTabs(){
   const tabs=document.querySelectorAll('#vrfTabs .vrf-tab');
   const mp=vrfMissaoProgresso();
   if(tabs[0])tabs[0].querySelector('small').textContent=vrfMissaoTotal()?mp.done+'/'+mp.total:'—';
-  vrfObra.andares.forEach((an,i)=>{if(tabs[i+1])tabs[i+1].querySelector('small').textContent=vrfProgAndar(an.id)+'%';});
-  const geral=vrfProgGeral();
+  vrfObraAtual().andares.forEach((an,i)=>{if(tabs[i+1])tabs[i+1].querySelector('small').textContent=vrfProgAndar(an.id)+'%';});
+  const geral=vrfProgObra(vrfObraAtual());
   const bar=document.querySelector('.vrf-tec-bar .vrf-bar-fill');
   const pctT=document.querySelector('.vrf-tec-pct');
   if(bar)bar.style.width=geral+'%';
@@ -3465,7 +3688,7 @@ function vrfSetupCamera(){
       vrfFotosMeta[andarId][key].push({prestador:session.nome||'Prestador',data:new Date().toISOString().split('T')[0]});
       saveVrfFotosMeta();
       const painel=document.getElementById('vrfPainel');
-      if(vrfFloorTab>0)painel.innerHTML=vrfRenderAndarPainel(vrfObra.andares[vrfFloorTab-1]);
+      if(vrfFloorTab>0)painel.innerHTML=vrfRenderAndarPainel(vrfObraAtual().andares[vrfFloorTab-1]);
       toast('Foto adicionada');
     });
   });
@@ -3490,7 +3713,7 @@ function vrfSalvarNota(andarId,key){
   if(txt)vrfNotas[andarId][key]=txt;else delete vrfNotas[andarId][key];
   saveVrfNotas();closeModal();
   const painel=document.getElementById('vrfPainel');
-  if(vrfFloorTab>0)painel.innerHTML=vrfRenderAndarPainel(vrfObra.andares[vrfFloorTab-1]);
+  if(vrfFloorTab>0)painel.innerHTML=vrfRenderAndarPainel(vrfObraAtual().andares[vrfFloorTab-1]);
   toast('Nota salva');
 }
 
@@ -3513,7 +3736,7 @@ function vrfExcluirFoto(andarId,key,idx){
   if(fs){fs.splice(idx,1);if(!fs.length)delete vrfFotos[andarId][key];saveVrfFotos();}
   closeModal();
   const painel=document.getElementById('vrfPainel');
-  if(vrfFloorTab>0)painel.innerHTML=vrfRenderAndarPainel(vrfObra.andares[vrfFloorTab-1]);
+  if(vrfFloorTab>0)painel.innerHTML=vrfRenderAndarPainel(vrfObraAtual().andares[vrfFloorTab-1]);
   toast('Foto excluída');
 }
 
@@ -3521,17 +3744,17 @@ function vrfExcluirFoto(andarId,key,idx){
 function vrfEnviarRelatorio(){
   const nome=(document.getElementById('vrfRespNome').value||'').trim()||'Prestador';
   const obs=(document.getElementById('vrfObs').value||'').trim();
-  const rel={data:new Date().toISOString().split('T')[0],responsavel:nome,obs,pct:vrfProgGeral()};
+  const rel={data:new Date().toISOString().split('T')[0],responsavel:nome,obs,pct:vrfProgObra(vrfObraAtual()),obraId:vrfObraAtualId};
   vrfRelatorios.push(rel);
   localStorage.setItem('mappo_vrf_relatorios',JSON.stringify(vrfRelatorios));
   toast('Relatório enviado ao gestor!','success');
 }
 
 function renderVRFgestor(){
-  const geral=vrfProgGeral();
-  const obraNome=vrfObra.nome||'';
+  const geral=vrfProgObra(vrfObraAtual());
+  const obraNome=vrfObraAtual().nome||'';
   // cards de andar
-  const andaresCards=vrfObra.andares.map(an=>{
+  const andaresCards=vrfObraAtual().andares.map(an=>{
     const pct=vrfProgAndar(an.id);
     const cor=vrfCorProg(pct);
     const nFotos=Object.values(vrfFotos[an.id]||{}).reduce((a,arr)=>a+(arr?arr.length:0),0);
@@ -3550,8 +3773,8 @@ function renderVRFgestor(){
 
   // dias restantes até meta
   let metaInfo='';
-  if(vrfObra.metaData){
-    const dias=diasAte(vrfObra.metaData);
+  if(vrfObraAtual().metaData){
+    const dias=diasAte(vrfObraAtual().metaData);
     const cor=dias<0?'var(--red)':dias<=7?'var(--yellow)':'var(--green)';
     metaInfo=`<span style="color:${cor};font-weight:600">${dias<0?Math.abs(dias)+' dias atrasado':dias===0?'Entrega hoje':dias+' dias restantes'}</span>`;
   }
@@ -3559,7 +3782,10 @@ function renderVRFgestor(){
   return `
   <div class="page-head">
     <div><div class="page-title">Obra VRF</div><div class="page-desc">${escapeHtml(obraNome)||'Configure a obra abaixo para começar'}</div></div>
-    <button class="btn btn-primary btn-sm" onclick="vrfConfigObra()">${svgIco('config','ico-sm')} Configurar obra</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      ${vrfObras.length>1?`<button class="btn btn-ghost btn-sm" onclick="nav('vrf-obras')">${svgIco('vrf','ico-sm')} Trocar obra</button>`:''}
+      <button class="btn btn-primary btn-sm" onclick="vrfConfigObra()">${svgIco('config','ico-sm')} Configurar obra</button>
+    </div>
   </div>
 
   <!-- progresso geral -->
@@ -3570,21 +3796,21 @@ function renderVRFgestor(){
         <div class="vrf-hero-pct">${geral}<span>%</span></div>
       </div>
       <div class="vrf-hero-ring" style="background:conic-gradient(var(--gold) ${Math.max(geral*3.6,8)}deg, rgba(255,255,255,.18) 0deg)">
-        <div class="vrf-hero-ring-in">${vrfObra.andares.length}<small>andar${vrfObra.andares.length!==1?'es':''}</small></div>
+        <div class="vrf-hero-ring-in">${vrfObraAtual().andares.length}<small>andar${vrfObraAtual().andares.length!==1?'es':''}</small></div>
       </div>
     </div>
-    ${vrfObra.metaData?`<div class="vrf-hero-meta">${svgIco('calendar','ico-sm')} Meta: ${fmtDate(vrfObra.metaData)} · ${metaInfo}</div>`:''}
+    ${vrfObraAtual().metaData?`<div class="vrf-hero-meta">${svgIco('calendar','ico-sm')} Meta: ${fmtDate(vrfObraAtual().metaData)} · ${metaInfo}</div>`:''}
   </div>
 
   <!-- andares -->
   <div class="vrf-section-label">Andares / Ambientes</div>
-  ${vrfObra.andares.length?`<div class="vrf-floors">${andaresCards}</div>`:emptyState('splits','Nenhum andar configurado','Configure a obra para adicionar andares.')}
+  ${vrfObraAtual().andares.length?`<div class="vrf-floors">${andaresCards}</div>`:emptyState('splits','Nenhum andar configurado','Configure a obra para adicionar andares.')}
 
   <!-- missão da semana -->
   <div class="vrf-section-label" style="margin-top:20px">Missão da Semana</div>
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-      <span style="font-size:13px;color:var(--gray-500)">${vrfMissaoTotal()} tarefa${vrfMissaoTotal()!==1?'s':''} priorizada${vrfMissaoTotal()!==1?'s':''} em ${Object.keys(vrfObra.missao.porAndar).length} andar(es)</span>
+      <span style="font-size:13px;color:var(--gray-500)">${vrfMissaoTotal()} tarefa${vrfMissaoTotal()!==1?'s':''} priorizada${vrfMissaoTotal()!==1?'s':''} em ${Object.keys(vrfObraAtual().missao.porAndar).length} andar(es)</span>
       <button class="btn btn-gold btn-sm" onclick="vrfConfigMissao()">${svgIco('check','ico-sm')} Definir missão</button>
     </div>
     ${vrfMissaoTotal()?vrfMissaoResumo():'<p style="font-size:13px;color:var(--gray-400);text-align:center;padding:12px">Nenhuma prioridade definida para a semana.</p>'}
@@ -3603,14 +3829,97 @@ function renderVRFgestor(){
   </div>`;
 }
 
+/* ─── VIEW: lista de obras VRF (criar/selecionar) -- Story 13, Etapa 2 ───
+   Mesmo padrão de card-lista de renderVRFandares() (abaixo), um nível acima: obra em vez de
+   andar. Só aparece quando há 2+ obras e nenhuma selecionada ainda, OU quando alguém navega
+   pra 'vrf-obras' explicitamente (botão "Trocar obra" nos painéis) -- ver vrfResolverObraAtual()
+   e o gate em renderView()/getNavItems(). Com 1 obra só, ninguém nunca vê esta tela.
+   'lista' (Etapa 3) -- default vrfObras (todas, gestor); o gate do técnico sempre passa
+   vrfObrasPermitidas() explicitamente, senão a lista vazaria obras que ele não tem acesso. */
+function renderVRFobras(lista){
+  lista=lista||vrfObras;
+  const cards=lista.map(o=>{
+    const pct=vrfProgObra(o);
+    const cor=vrfCorProg(pct);
+    const nAndares=(o.andares||[]).length;
+    return `<div class="vrf-andar-lista-card" onclick="vrfSelecionarObra('${o.id}')">
+      <div class="vrf-al-top">
+        <div class="vrf-al-nome">${escapeHtml(o.nome||'Obra sem nome')}</div>
+        <div class="vrf-al-pct" style="color:${cor}">${pct}%</div>
+      </div>
+      <div class="vrf-bar" style="margin:10px 0"><div class="vrf-bar-fill" style="width:${pct}%;background:${cor}"></div></div>
+      <div class="vrf-al-meta">
+        ${o.endereco?`<span>${svgIco('mapa','ico-sm')} ${escapeHtml(o.endereco)}</span>`:''}
+        <span>${svgIco('splits','ico-sm')} ${nAndares} andar${nAndares!==1?'es':''}</span>
+        <span class="vrf-al-abrir">Abrir ${svgIco('arrow-right','ico-sm')}</span>
+      </div>
+    </div>`;
+  }).join('');
+  return `<div class="page-head">
+    <div><div class="page-title">Obras VRF</div><div class="page-desc">Escolha a obra pra ver o painel</div></div>
+    ${session.perfil==='gestor'?`<button class="btn btn-primary btn-sm" onclick="vrfNovaObraModal()">${svgIco('plus','ico-sm')} Nova obra</button>`:''}
+  </div>
+  <div class="vrf-andar-lista">${cards}</div>`;
+}
+/* técnico sem NENHUMA obra VRF liberada -- Story 13, Etapa 3. Estado claro (I/O Matrix da
+   spec), nunca a lista de obras de outros técnicos (isso vazaria nome/quantidade de obras que
+   ele não tem acesso) nem tela em branco. */
+function renderVRFsemAcesso(){
+  return `<div class="page-head"><div><div class="page-title">Obra VRF</div><div class="page-desc">Nenhuma obra liberada</div></div></div>
+  <div class="card">${emptyState('splits','Nenhuma obra liberada ainda','Peça ao gestor para liberar o acesso a pelo menos uma obra VRF em Configurações → Equipe.')}</div>`;
+}
+function vrfNovaObraModal(){
+  showModal(`
+    <div class="modal-head"><h2>🏗️ Nova obra VRF</h2></div>
+    <div class="modal-body">
+      <div class="fg"><label>Nome da obra</label><input type="text" id="vrfNovaObraNome" placeholder="Ex: Edifício Solar — Centro"></div>
+      <div class="fg"><label>Endereço (opcional)</label><input type="text" id="vrfNovaObraEndereco" placeholder="Ajuda a distinguir obras parecidas"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="vrfCriarObra()">${svgIco('check','ico-sm')} Criar obra</button>
+    </div>`);
+}
+function vrfCriarObra(){
+  // defesa em profundidade (code review, item 4): mesmo espírito de vrfSelecionarObra --
+  // técnico nunca cria obra, nem chamando isto direto pelo console.
+  if(!session||session.perfil!=='gestor')return;
+  const nome=(document.getElementById('vrfNovaObraNome').value||'').trim();
+  const endereco=(document.getElementById('vrfNovaObraEndereco').value||'').trim();
+  if(!nome){toast('Informe o nome da obra','warn');return;} // mesmo padrão de outros cadastros (ex.: salvarTecnico)
+  // code review (item 6): mesmo guard de nome duplicado que salvarTecnico() já tem pra técnicos.
+  if(vrfObras.some(o=>(o.nome||'').toLowerCase()===nome.toLowerCase())){toast('Já existe uma obra com esse nome','warn');return;}
+  const nova={
+    id:_novoIdObra(), nome, endereco,
+    andares:[{id:_novoIdAndar(),nome:'Térreo'}],
+    metaData:'', missao:{porAndar:{},andarIdx:0}
+  };
+  vrfObras.push(nova);
+  saveVrfObra();
+  vrfObraAtualId=nova.id;
+  vrfFloorTab=0; // code review (item 7): nunca herda a aba de andar de outra obra
+  closeModal();
+  nav('vrf');
+  toast('Obra criada','success');
+}
+function vrfSelecionarObra(id){
+  // defesa em profundidade (Story 13, Etapa 3): nunca seleciona uma obra fora do que a
+  // sessão atual pode ver, mesmo que algo chame isto direto (console) passando o id de uma
+  // obra de outro técnico -- mesmo espírito do gate de TELA já usado por ramoTemVRF().
+  if(!vrfObrasPermitidas().find(o=>o.id===id))return;
+  if(id!==vrfObraAtualId)vrfFloorTab=0; // code review (item 7): idem -- nunca herda aba de andar
+  vrfObraAtualId=id;
+  nav('vrf');
+}
+
 /* ─── VIEW: lista de andares (barra VRF → Andares) ─── */
 function renderVRFandares(){
-  if(!vrfObra.andares.length){
+  if(!vrfObraAtual().andares.length){
     return `<div class="page-head"><div><div class="page-title">Andares da Obra</div><div class="page-desc">Nenhum andar configurado</div></div></div>
     <div class="card">${emptyState('splits','Nenhum andar','Configure a obra no Painel VRF para adicionar andares.')}
     <div style="text-align:center;margin-top:14px"><button class="btn btn-primary btn-sm" onclick="nav('vrf');setTimeout(vrfConfigObra,150)">${svgIco('config','ico-sm')} Configurar obra</button></div></div>`;
   }
-  const cards=vrfObra.andares.map(an=>{
+  const cards=vrfObraAtual().andares.map(an=>{
     const pct=vrfProgAndar(an.id);
     const cor=vrfCorProg(pct);
     const nFotos=Object.values(vrfFotos[an.id]||{}).reduce((a,arr)=>a+(arr?arr.length:0),0);
@@ -3631,7 +3940,7 @@ function renderVRFandares(){
     </div>`;
   }).join('');
   return `<div class="page-head">
-    <div><div class="page-title">Andares da Obra</div><div class="page-desc">${escapeHtml(vrfObra.nome)||'Toque em um andar para ver o checklist'}</div></div>
+    <div><div class="page-title">Andares da Obra</div><div class="page-desc">${escapeHtml(vrfObraAtual().nome)||'Toque em um andar para ver o checklist'}</div></div>
     <button class="btn btn-ghost btn-sm" onclick="nav('vrf');setTimeout(vrfConfigObra,150)">${svgIco('config','ico-sm')} Configurar</button>
   </div>
   <div class="vrf-andar-lista">${cards}</div>`;
@@ -3639,9 +3948,12 @@ function renderVRFandares(){
 
 /* ─── VIEW: relatórios recebidos (barra VRF → Relatórios) ─── */
 function renderVRFrelatorios(){
+  // code review (item 2): sem este filtro, relatórios de TODAS as obras apareciam misturados
+  // na tela de qualquer obra selecionada -- mesmo critério de _vrfPertenceObraAtual (item 1).
+  const relatoriosDaObra=vrfRelatorios.filter(r=>_vrfPertenceObraAtual(r.obraId));
   return `<div class="page-head"><div><div class="page-title">Relatórios VRF</div><div class="page-desc">Envios recebidos do campo</div></div></div>
   <div class="card">
-    ${vrfRelatorios.length?vrfRelatorios.slice().reverse().map(r=>`
+    ${relatoriosDaObra.length?relatoriosDaObra.slice().reverse().map(r=>`
       <div class="vrf-rel-item">
         <div class="vrf-rel-data">${fmtDate(r.data)}</div>
         <div class="vrf-rel-info"><strong>${escapeHtml(r.responsavel||'Prestador')}</strong>${r.obs?`<span>${escapeHtml(r.obs)}</span>`:''}</div>
@@ -3654,7 +3966,9 @@ function renderVRFrelatorios(){
 let vrfMapaInstance=null;
 function renderVRFmapa(){
   const hoje=new Date().toISOString().split('T')[0];
-  const checkinsHoje=vrfCheckins.filter(c=>c.data===hoje);
+  // code review (item 1): sem o filtro por obra, o Mapa mostrava check-ins de TODAS as obras
+  // -- vazamento entre obras (inclusive entre técnicos sem acesso um ao outro).
+  const checkinsHoje=vrfCheckins.filter(c=>c.data===hoje&&_vrfPertenceObraAtual(c.obraId));
   const comGPS=checkinsHoje.filter(c=>c.lat);
   return `<div class="page-head"><div><div class="page-title">Mapa da Obra</div><div class="page-desc">Check-ins e localização do prestador</div></div></div>
   <div class="card" style="padding:0;overflow:hidden">
@@ -3683,7 +3997,7 @@ function initVRFmapa(){
   // marcadores dos check-ins de hoje
   const hoje=new Date().toISOString().split('T')[0];
   const pontos=[];
-  vrfCheckins.filter(c=>c.data===hoje&&c.lat).forEach(c=>{
+  vrfCheckins.filter(c=>c.data===hoje&&c.lat&&_vrfPertenceObraAtual(c.obraId)).forEach(c=>{
     pontos.push([c.lat,c.lng]);
     const ico=L.divIcon({html:`<div style="background:var(--gold-dark);color:#fff;padding:4px 8px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.3);border:2px solid #fff">🏗️ ${escapeHtml(c.prestador.split(' ')[0])}</div>`,className:'',iconSize:[90,24]});
     L.marker([c.lat,c.lng],{icon:ico}).addTo(vrfMapaInstance).bindPopup(`<b>${escapeHtml(c.prestador)}</b><br>Check-in: ${c.hora}<br>${fmtDate(c.data)}`);
@@ -3709,7 +4023,7 @@ function vrfCentralizarMapa(lat,lng){
 function renderVRFfotos(){
   // coletar todas as fotos de todos os andares
   const todas=[];
-  vrfObra.andares.forEach(an=>{
+  vrfObraAtual().andares.forEach(an=>{
     const fotos=vrfFotos[an.id]||{};
     const notas=vrfNotas[an.id]||{};
     Object.keys(fotos).forEach(key=>{
@@ -3746,7 +4060,7 @@ function renderVRFfotos(){
 function vrfVerFotoDetalhe(andarId,key,idx){
   const fs=(vrfFotos[andarId]||{})[key]||[];
   const src=fs[idx];if(!src)return;
-  const an=vrfObra.andares.find(a=>a.id===andarId);
+  const an=vrfObraAtual().andares.find(a=>a.id===andarId);
   const [fid,ei]=key.split('_');
   const fase=vrfFasesAtuais().find(f=>f.id===fid);
   const nota=(vrfNotas[andarId]||{})[key]||'';
@@ -3767,7 +4081,7 @@ function vrfVerFotoDetalhe(andarId,key,idx){
 
 function vrfMissaoResumo(){
   return `<div style="font-size:13px;color:var(--gray-600)">
-    ${vrfObra.andares.map(an=>{
+    ${vrfObraAtual().andares.map(an=>{
       const keys=vrfMissaoAndar(an.id);
       if(!keys.length)return'';
       return `<div style="margin-bottom:10px">
@@ -3785,7 +4099,7 @@ function vrfMissaoResumo(){
 
 /* ─── configurar obra (nome, andares, meta) ─── */
 function vrfConfigObra(){
-  const andaresHTML=vrfObra.andares.map((an,i)=>`
+  const andaresHTML=vrfObraAtual().andares.map((an,i)=>`
     <div class="vrf-andar-row" data-i="${i}">
       <input type="text" value="${escapeHtml(an.nome)}" onchange="vrfRenomearAndar(${i},this.value)" placeholder="Nome do andar">
       <button class="vrf-andar-del" onclick="vrfRemoverAndar(${i})" title="Remover">${svgIco('trash','ico-sm')}</button>
@@ -3793,8 +4107,9 @@ function vrfConfigObra(){
   showModal(`
     <div class="modal-head"><h2>Configurar obra VRF</h2></div>
     <div class="modal-body">
-      <div class="fg"><label>Nome da obra</label><input type="text" id="vrfNome" value="${escapeHtml(vrfObra.nome)}" placeholder="Ex: Edifício Solar — Centro"></div>
-      <div class="fg"><label>Data alvo de conclusão</label><input type="date" id="vrfMeta" value="${vrfObra.metaData}"></div>
+      <div class="fg"><label>Nome da obra</label><input type="text" id="vrfNome" value="${escapeHtml(vrfObraAtual().nome)}" placeholder="Ex: Edifício Solar — Centro"></div>
+      <div class="fg"><label>Endereço (opcional)</label><input type="text" id="vrfEndereco" value="${escapeHtml(vrfObraAtual().endereco||'')}" placeholder="Ajuda a distinguir obras parecidas"></div>
+      <div class="fg"><label>Data alvo de conclusão</label><input type="date" id="vrfMeta" value="${vrfObraAtual().metaData}"></div>
       <div class="fg"><label>Andares / Ambientes</label>
         <div id="vrfAndaresList" style="display:flex;flex-direction:column;gap:8px;margin-top:6px">${andaresHTML}</div>
         <button class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="vrfAddAndar()">${svgIco('plus','ico-sm')} Adicionar andar</button>
@@ -3806,22 +4121,28 @@ function vrfConfigObra(){
     </div>`);
 }
 function vrfAddAndar(){
-  vrfObra.andares.push({id:'a'+Date.now(),nome:'Andar '+(vrfObra.andares.length+1)});
+  vrfObraAtual().andares.push({id:_novoIdAndar(),nome:'Andar '+(vrfObraAtual().andares.length+1)});
   saveVrfObra();vrfConfigObra();
 }
 function vrfRemoverAndar(i){
-  if(vrfObra.andares.length<=1){toast('A obra precisa de ao menos 1 andar','warn');return;}
-  const an=vrfObra.andares[i];
+  if(vrfObraAtual().andares.length<=1){toast('A obra precisa de ao menos 1 andar','warn');return;}
+  const an=vrfObraAtual().andares[i];
   if(!confirm('Remover "'+an.nome+'"? As marcações e fotos desse andar serão apagadas.'))return;
   delete vrfProgresso[an.id];delete vrfFotos[an.id];delete vrfNotas[an.id];
-  vrfObra.andares.splice(i,1);
+  vrfObraAtual().andares.splice(i,1);
   saveVrfObra();saveVrfProgresso();saveVrfFotos();saveVrfNotas();
   vrfConfigObra();
 }
-function vrfRenomearAndar(i,nome){if(vrfObra.andares[i]){vrfObra.andares[i].nome=nome.trim()||('Andar '+(i+1));saveVrfObra();}}
+function vrfRenomearAndar(i,nome){if(vrfObraAtual().andares[i]){vrfObraAtual().andares[i].nome=nome.trim()||('Andar '+(i+1));saveVrfObra();}}
 function vrfSalvarObra(){
-  vrfObra.nome=document.getElementById('vrfNome').value.trim();
-  vrfObra.metaData=document.getElementById('vrfMeta').value;
+  const nome=document.getElementById('vrfNome').value.trim();
+  if(!nome){toast('Informe o nome da obra','warn');return;}
+  // code review (item 6): mesmo guard de nome duplicado que salvarTecnico() já tem pra
+  // técnicos, aqui excluindo a própria obra sendo editada.
+  if(vrfObras.some(o=>o.id!==vrfObraAtualId&&(o.nome||'').toLowerCase()===nome.toLowerCase())){toast('Já existe uma obra com esse nome','warn');return;}
+  vrfObraAtual().nome=nome;
+  vrfObraAtual().endereco=(document.getElementById('vrfEndereco').value||'').trim(); // code review (item 8): agora editável, não só na criação
+  vrfObraAtual().metaData=document.getElementById('vrfMeta').value;
   saveVrfObra();closeModal();renderView('vrf');toast('Obra salva');
 }
 
@@ -3829,7 +4150,7 @@ function vrfSalvarObra(){
 let _vrfMissaoAndarIdx=0;
 function vrfConfigMissao(){
   _vrfMissaoAndarIdx=0;
-  const tabs=vrfObra.andares.map((an,i)=>{
+  const tabs=vrfObraAtual().andares.map((an,i)=>{
     const n=vrfMissaoAndar(an.id).length;
     return `<button class="fbtn ${i===0?'active':''}" onclick="vrfMissaoTab(${i})">${escapeHtml(an.nome)}${n?` <span class="fbtn-badge">${n}</span>`:''}</button>`;
   }).join('');
@@ -3854,7 +4175,7 @@ function vrfMissaoTab(i){
 }
 function vrfRenderMissaoSteps(){
   const cont=document.getElementById('vrfMissaoSteps');if(!cont)return;
-  const andar=vrfObra.andares[_vrfMissaoAndarIdx];if(!andar)return;
+  const andar=vrfObraAtual().andares[_vrfMissaoAndarIdx];if(!andar)return;
   const lbl=document.getElementById('vrfMissaoAndarAtual');
   if(lbl)lbl.innerHTML=`${svgIco('splits','ico-sm')} Definindo missão de: <strong>${escapeHtml(andar.nome)}</strong>`;
   const missaoDoAndar=vrfMissaoAndar(andar.id);
@@ -3872,8 +4193,8 @@ function vrfRenderMissaoSteps(){
     </div>`).join('');
 }
 function vrfToggleMissao(andarId,key,el){
-  if(!vrfObra.missao.porAndar[andarId])vrfObra.missao.porAndar[andarId]=[];
-  const arr=vrfObra.missao.porAndar[andarId];
+  if(!vrfObraAtual().missao.porAndar[andarId])vrfObraAtual().missao.porAndar[andarId]=[];
+  const arr=vrfObraAtual().missao.porAndar[andarId];
   const idx=arr.indexOf(key);
   if(idx>=0){arr.splice(idx,1);el.classList.remove('on');el.querySelector('.vrf-mstep-chk').innerHTML='';}
   else{arr.push(key);el.classList.add('on');el.querySelector('.vrf-mstep-chk').innerHTML=svgIco('check','ico-sm');}
@@ -3881,19 +4202,19 @@ function vrfToggleMissao(andarId,key,el){
   const tab=document.querySelectorAll('#vrfMissaoTabs .fbtn')[_vrfMissaoAndarIdx];
   if(tab){
     const n=arr.length;
-    const nome=vrfObra.andares[_vrfMissaoAndarIdx].nome;
+    const nome=vrfObraAtual().andares[_vrfMissaoAndarIdx].nome;
     tab.innerHTML=escapeHtml(nome)+(n?` <span class="fbtn-badge">${n}</span>`:'');
   }
 }
 function vrfSalvarMissao(){
   // limpar andares com missão vazia
-  Object.keys(vrfObra.missao.porAndar).forEach(k=>{if(!vrfObra.missao.porAndar[k].length)delete vrfObra.missao.porAndar[k];});
+  Object.keys(vrfObraAtual().missao.porAndar).forEach(k=>{if(!vrfObraAtual().missao.porAndar[k].length)delete vrfObraAtual().missao.porAndar[k];});
   saveVrfObra();closeModal();renderView('vrf');toast('Missão da semana definida');
 }
 
 /* ─── abrir andar: ver fases, etapas, progresso, fotos ─── */
 function vrfAbrirAndar(andarId){
-  const an=vrfObra.andares.find(a=>a.id===andarId);if(!an)return;
+  const an=vrfObraAtual().andares.find(a=>a.id===andarId);if(!an)return;
   const p=vrfProgresso[andarId]||{};
   const fotos=vrfFotos[andarId]||{};
   const notas=vrfNotas[andarId]||{};
@@ -3958,7 +4279,7 @@ function carregarJsPDF(cb){
 }
 
 function vrfExportarPDF(andarId){
-  const andar=vrfObra.andares.find(a=>a.id===andarId);
+  const andar=vrfObraAtual().andares.find(a=>a.id===andarId);
   if(!andar){toast('Andar não encontrado','warn');return;}
   toast('Gerando PDF...');
   carregarJsPDF(()=>{
@@ -3969,7 +4290,7 @@ function vrfExportarPDF(andarId){
 
 function gerarPDFandar(andarId){
   const jsPDFLib=window.jspdf.jsPDF;
-  const andar=vrfObra.andares.find(a=>a.id===andarId);
+  const andar=vrfObraAtual().andares.find(a=>a.id===andarId);
   const p=vrfProgresso[andarId]||{};
   const fotos=vrfFotos[andarId]||{};
   const notas=vrfNotas[andarId]||{};
@@ -3993,7 +4314,7 @@ function gerarPDFandar(andarId){
 
   // info obra
   doc.setTextColor(40,40,40);doc.setFontSize(10);doc.setFont('helvetica','normal');
-  if(vrfObra.nome){doc.text('Obra: '+semAcento(vrfObra.nome),M,y);y+=6;}
+  if(vrfObraAtual().nome){doc.text('Obra: '+semAcento(vrfObraAtual().nome),M,y);y+=6;}
   doc.text('Data do relatorio: '+new Date().toLocaleDateString('pt-BR'),M,y);y+=6;
   doc.setFont('helvetica','bold');doc.setFontSize(13);
   doc.setTextColor(24,81,102);
@@ -4284,7 +4605,9 @@ function removerEtapaVrf(faseId,idx){
   // não existe mais -- e até lá, qualquer leitura de fase.etapas[idx] fora do range
   // vazava a string "undefined" em fotos/PDF/missão.
   const key=faseId+'_'+idx;
-  (vrfObra.andares||[]).forEach(an=>{
+  // Story 13, Etapa 2: varre TODAS as obras, não só a selecionada -- os ids de andar já são
+  // globalmente únicos (Etapa 1), então isto nunca colide entre obras diferentes.
+  vrfObras.flatMap(o=>o.andares||[]).forEach(an=>{
     if(vrfProgresso[an.id])delete vrfProgresso[an.id][key];
     if(vrfFotos[an.id])delete vrfFotos[an.id][key];
     if(vrfFotosMeta[an.id])delete vrfFotosMeta[an.id][key];
@@ -4515,7 +4838,19 @@ async function _reconciliarEquipe(){
 function renderEquipeConfig(){
   if(!tecnicos.length)return '<p style="font-size:14px;color:var(--gray-400);padding:12px 0">Nenhum técnico cadastrado. Adicione o primeiro.</p>';
   return tecnicos.map(t=>{
-    const m=t.modulos||{split:true,vrf:false};
+    const m=t.modulos||{split:true,vrf:false,vrfObras:[]};
+    const mVrfObras=m.vrfObras||[]; // Story 13, Etapa 3: m.vrf (booleano) -> m.vrfObras (lista)
+    // com 1 obra só, mantém o checkbox único de sempre (toggleModuloTec); com 2+ obras, um
+    // checkbox por obra (toggleObraTec), compacto e já líquido (liga na hora, sem "Salvar").
+    const vrfControl=vrfObras.length<=1
+      ?`<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;user-select:none">
+          <input type="checkbox" ${mVrfObras.length?'checked':''} onchange="toggleModuloTec('${t.id}','vrf',this.checked)"> 🌡️ VRF</label>`
+      :`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12.5px;color:var(--gray-600)">
+          <span>🌡️ VRF:</span>
+          ${vrfObras.map(o=>`<label style="display:flex;align-items:center;gap:4px;cursor:pointer;user-select:none">
+            <input type="checkbox" ${mVrfObras.includes(o.id)?'checked':''} onchange="toggleObraTec('${t.id}','${o.id}',this.checked)">
+            ${escapeHtml(o.nome||'Obra')}</label>`).join('')}
+        </div>`;
     return `<div class="set-row" style="flex-wrap:wrap;gap:12px">
       <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:180px">
         <div class="tech-av">${t.nome.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase()}</div>
@@ -4525,8 +4860,7 @@ function renderEquipeConfig(){
       <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
         <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;user-select:none">
           <input type="checkbox" ${m.split?'checked':''} onchange="toggleModuloTec('${t.id}','split',this.checked)"> ❄️ Split</label>
-        ${ramoTemVRF()?`<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;user-select:none">
-          <input type="checkbox" ${m.vrf?'checked':''} onchange="toggleModuloTec('${t.id}','vrf',this.checked)"> 🌡️ VRF</label>`:''}
+        ${ramoTemVRF()?vrfControl:''}
         ${!t.uid&&!t.conviteCodigo?`<button class="btn btn-primary btn-sm" onclick="gerarConviteTecnico('${t.id}')">✉️ Gerar código de convite</button>`:''}
         ${!t.uid&&t.conviteCodigo?`<button class="btn btn-ghost btn-sm" onclick="_mostrarModalConvite('${t.id}')">👁️ Ver convite</button>`:''}
         <button class="btn btn-ghost btn-sm" onclick="openModalTecnico('${t.id}')">✏️ Editar</button>
@@ -4538,7 +4872,8 @@ function renderEquipeConfig(){
 
 function openModalTecnico(id){
   const t=id?tecnicos.find(x=>x.id===id):null;
-  const m=t?(t.modulos||{split:true,vrf:false}):{split:true,vrf:false};
+  const m=t?(t.modulos||{split:true,vrf:false,vrfObras:[]}):{split:true,vrf:false,vrfObras:[]};
+  const mVrfObras=m.vrfObras||[]; // Story 13, Etapa 3: m.vrf (booleano) -> m.vrfObras (lista)
   showModal(`
     <div class="modal-head"><h2>${t?'✏️ Editar técnico':'👷 Novo técnico'}</h2></div>
     <div class="modal-body">
@@ -4557,14 +4892,24 @@ function openModalTecnico(id){
             <span class="mod-name">Sistema Split</span>
             <span class="mod-tick">${svgIco('check','ico-sm')}</span>
           </label>
-          ${ramoTemVRF()?`<label class="mod-card" id="modCardVrf">
-            <input type="checkbox" id="tVrf" ${m.vrf?'checked':''} onchange="document.getElementById('modCardVrf').classList.toggle('on',this.checked)">
+          ${ramoTemVRF()&&vrfObras.length<=1?`<label class="mod-card" id="modCardVrf">
+            <input type="checkbox" id="tVrf" ${mVrfObras.length?'checked':''} onchange="document.getElementById('modCardVrf').classList.toggle('on',this.checked)">
             <span class="mod-ico">${svgIco('vrf')}</span>
             <span class="mod-name">Sistema VRF</span>
             <span class="mod-tick">${svgIco('check','ico-sm')}</span>
           </label>`:''}
         </div>
-        <p style="font-size:12px;color:var(--gray-400);margin-top:8px">No login, o técnico só vê os módulos marcados aqui.</p>
+        ${ramoTemVRF()&&vrfObras.length>1?`
+        <div class="fg" style="margin-top:12px">
+          <label>🌡️ Obras VRF liberadas</label>
+          <div style="display:flex;flex-direction:column;gap:8px;margin-top:6px">
+            ${vrfObras.map(o=>`<label style="display:flex;align-items:center;gap:8px;font-size:13.5px;cursor:pointer;user-select:none">
+              <input type="checkbox" class="tObra" value="${o.id}" ${mVrfObras.includes(o.id)?'checked':''}>
+              ${escapeHtml(o.nome||'Obra sem nome')}
+            </label>`).join('')}
+          </div>
+        </div>`:''}
+        <p style="font-size:12px;color:var(--gray-400);margin-top:8px">No login, o técnico só vê os módulos e obras marcados aqui.</p>
       </div>
     </div>
     <div class="modal-foot">
@@ -4573,9 +4918,10 @@ function openModalTecnico(id){
     </div>`);
   // estado visual inicial dos cards de módulo
   if(m.split)document.getElementById('modCardSplit').classList.add('on');
-  // Sistema VRF é exclusivo do Ramo refrigeração (Story 9) -- modCardVrf nem existe no
-  // DOM pra outros Ramos, então não faz sentido tentar marcá-lo.
-  if(m.vrf&&ramoTemVRF())document.getElementById('modCardVrf').classList.add('on');
+  // Sistema VRF é exclusivo do Ramo refrigeração (Story 9) -- modCardVrf só existe no DOM
+  // quando o workspace tem VRF E 1 obra só (Story 13, Etapa 3); com 2+ obras a lista de
+  // checkboxes por obra substitui o card único (sem elemento pra marcar aqui).
+  if(mVrfObras.length&&ramoTemVRF()&&vrfObras.length<=1)document.getElementById('modCardVrf').classList.add('on');
 }
 
 /* Concede acesso real ao workspace pro uid que o técnico enviou (AD-2/AD-11) -- só um
@@ -4746,15 +5092,27 @@ function _renomearTecnicoEmDados(nomeAntigo,nome){
 async function salvarTecnico(id){
   const nome=document.getElementById('tNome').value.trim();
   const uid=(document.getElementById('tUid').value||'').trim();
-  // Ramo sem VRF (Story 9): #tVrf não existe no DOM (modCardVrf nem foi renderizado) --
-  // preserva o que o técnico já tinha (false pra um técnico novo), sem clobbar dado.
+  // Ramo sem VRF (Story 9): nem #tVrf nem .tObra existem no DOM (modCardVrf nem foi
+  // renderizado) -- preserva o que o técnico já tinha, sem clobbar dado. Story 13, Etapa 3:
+  // workspace com 1 obra só usa #tVrf (checkbox único, mesmo comportamento de sempre);
+  // com 2+ obras usa os checkboxes .tObra (um por obra, ver openModalTecnico()).
   const tVrfEl=document.getElementById('tVrf');
-  let vrfMod=false;
-  if(tVrfEl)vrfMod=tVrfEl.checked;
-  else if(id){const t0=tecnicos.find(x=>x.id===id);vrfMod=!!(t0&&t0.modulos&&t0.modulos.vrf);}
-  const mods={split:document.getElementById('tSplit').checked,vrf:vrfMod};
+  const obraCheckboxes=document.querySelectorAll('.tObra');
+  let vrfObrasNovo;
+  if(obraCheckboxes.length){
+    vrfObrasNovo=[...obraCheckboxes].filter(c=>c.checked).map(c=>c.value);
+  }else if(tVrfEl){
+    const unica=vrfObras[0];
+    vrfObrasNovo=(tVrfEl.checked&&unica)?[unica.id]:[];
+  }else if(id){
+    const t0=tecnicos.find(x=>x.id===id);
+    vrfObrasNovo=(t0&&t0.modulos&&t0.modulos.vrfObras)||[];
+  }else{
+    vrfObrasNovo=[];
+  }
+  const mods={split:document.getElementById('tSplit').checked,vrf:vrfObrasNovo.length>0,vrfObras:vrfObrasNovo};
   if(!nome){toast('Informe o nome','warn');return;}
-  if(!mods.split&&!mods.vrf){toast('Libere pelo menos um módulo','warn');return;}
+  if(!mods.split&&!mods.vrfObras.length){toast('Libere pelo menos um módulo','warn');return;}
   if(id){
     const t=tecnicos.find(x=>x.id===id);if(!t)return;
     if(tecnicos.some(x=>x.id!==id&&x.nome.toLowerCase()===nome.toLowerCase())){toast('Já existe técnico com esse nome','warn');return;}
@@ -4824,9 +5182,40 @@ function toggleModuloTec(id,mod,val){
   // passar pelo checkbox gateado em renderEquipeConfig/openModalTecnico (console, ou
   // qualquer código futuro), o write em si nunca liga VRF pra quem não tem o Ramo.
   if(mod==='vrf'&&!ramoTemVRF())return;
-  if(!t.modulos)t.modulos={split:true,vrf:false};
-  t.modulos[mod]=val;
-  if(!t.modulos.split&&!t.modulos.vrf){t.modulos[mod]=true;toast('O técnico precisa de pelo menos um módulo','warn');renderView('config');return;}
+  if(!t.modulos)t.modulos={split:true,vrf:false,vrfObras:[]};
+  if(!Array.isArray(t.modulos.vrfObras))t.modulos.vrfObras=[];
+  if(mod==='vrf'){
+    // Story 13, Etapa 3: este checkbox único só existe (na UI) quando o workspace tem 1 obra
+    // só -- mesmo comportamento de sempre, mas por baixo já grava como membership de lista
+    // (id da única obra), pronto pro dia que uma 2ª obra existir (aí a UI passa pros
+    // checkboxes por obra de toggleObraTec, abaixo).
+    const unica=vrfObras[0];if(!unica)return;
+    t.modulos.vrfObras=val?[unica.id]:[];
+  }else{
+    t.modulos[mod]=val;
+  }
+  if(!t.modulos.split&&!t.modulos.vrfObras.length){
+    if(mod==='split'){t.modulos.split=true;}else{const unica=vrfObras[0];t.modulos.vrfObras=unica?[unica.id]:[];}
+    toast('O técnico precisa de pelo menos um módulo','warn');renderView('config');return;
+  }
+  saveTecnicos();toast('Acesso de '+t.nome+' atualizado','success');
+}
+/* liga/desliga UMA obra específica pra um técnico -- Story 13, Etapa 3. Usado quando o
+   workspace tem 2+ obras (checkboxes por obra em renderEquipeConfig/openModalTecnico);
+   toggleModuloTec('vrf',...) acima cobre o caso de 1 obra só. */
+function toggleObraTec(tecId,obraId,val){
+  const t=tecnicos.find(x=>x.id===tecId);if(!t)return;
+  if(!ramoTemVRF())return; // defesa em profundidade -- mesmo espírito de toggleModuloTec
+  if(!t.modulos)t.modulos={split:true,vrf:false,vrfObras:[]};
+  if(!Array.isArray(t.modulos.vrfObras))t.modulos.vrfObras=[];
+  const antes=t.modulos.vrfObras.slice();
+  const idx=t.modulos.vrfObras.indexOf(obraId);
+  if(val&&idx<0)t.modulos.vrfObras.push(obraId);
+  if(!val&&idx>=0)t.modulos.vrfObras.splice(idx,1);
+  if(!t.modulos.split&&!t.modulos.vrfObras.length){
+    t.modulos.vrfObras=antes; // desfaz -- nunca deixa o técnico sem nenhum módulo
+    toast('O técnico precisa de pelo menos um módulo','warn');renderView('config');return;
+  }
   saveTecnicos();toast('Acesso de '+t.nome+' atualizado','success');
 }
 
@@ -6288,7 +6677,11 @@ async function pubPayloadOS(os){
 
 /* ── monta o conteúdo de um andar da obra VRF ── */
 async function pubPayloadObra(andarId){
-  const andar=(vrfObra.andares||[]).find(a=>a.id===andarId);
+  // code review (item 3): busca em TODAS as obras, não só vrfObraAtual() -- desde que
+  // republicarAtivos() passou a percorrer andares de todas as obras (não só a selecionada na
+  // sessão), um andarId aqui pode pertencer a uma obra diferente da que está aberta agora.
+  const obra=vrfObras.find(o=>(o.andares||[]).some(a=>a.id===andarId));
+  const andar=obra&&(obra.andares||[]).find(a=>a.id===andarId);
   if(!andar)return null;
   const prog=(vrfProgresso||{})[andarId]||{};
   const fotosDoAndar=(vrfFotos||{})[andarId]||{};
@@ -6315,11 +6708,13 @@ async function pubPayloadObra(andarId){
   }
   const totEt=fases.reduce((s,f)=>s+f.etapas.length,0);
   const totOk=fases.reduce((s,f)=>s+f.etapas.filter(e=>e.ok).length,0);
-  const ultCk=(vrfCheckins||[]).slice().reverse().find(c=>c.data);
+  // achado direto ao lado do item 3 (mesma classe do item 1/2): sem escopar por obra, o link
+  // público de uma obra podia mostrar técnico/hora do último check-in de OUTRA obra.
+  const ultCk=(vrfCheckins||[]).slice().reverse().find(c=>c.data&&_vrfPertenceObra(c.obraId,obra.id));
   return {
     tipo:'obra',
     empresa:WORKSPACE_NOME||'',
-    titulo:vrfObra.nome||'Obra VRF',
+    titulo:(obra&&obra.nome)||'Obra VRF',
     servico:'Instalação VRF · '+(andar.nome||'Ambiente'),
     endereco:'',
     data:'',
@@ -6369,11 +6764,11 @@ async function gerarLinkOS(id){
 /* ── gera (ou reaproveita) o link de um andar da obra ── */
 async function gerarLinkObra(andarId){
   if(!WORKSPACE||!fbReady){toast('Aguarde a sincronização terminar antes de gerar o link','warn');return;}
-  const andar=(vrfObra.andares||[]).find(a=>a.id===andarId);if(!andar)return;
+  const andar=(vrfObraAtual().andares||[]).find(a=>a.id===andarId);if(!andar)return;
   if(!andar.pubToken){andar.pubToken=_pubToken();andar.pubExpira=Date.now()+PUB_VALIDADE_MS;saveVrfObra();}
   toast('Preparando o link...');
   const ok=await publicarAcompanhamento(andar.pubToken,await pubPayloadObra(andarId),andar.pubExpira);
-  abrirModalLink(andar.pubToken,(vrfObra.nome||'Obra')+' — '+andar.nome,ok,'obra',andarId);
+  abrirModalLink(andar.pubToken,(vrfObraAtual().nome||'Obra')+' — '+andar.nome,ok,'obra',andarId);
 }
 
 function abrirModalLink(token,nome,publicado,tipo,id){
@@ -6409,7 +6804,7 @@ async function revogarLink(tipo,id){
     os.pubExpira=Date.now();saveOS();
     ok=await publicarAcompanhamento(os.pubToken,await pubPayloadOS(os),os.pubExpira);
   }else if(tipo==='obra'){
-    const andar=(vrfObra.andares||[]).find(a=>a.id===id);
+    const andar=(vrfObraAtual().andares||[]).find(a=>a.id===id);
     if(!andar||!andar.pubToken){toast('Link não encontrado','warn');return;}
     andar.pubExpira=Date.now();saveVrfObra();
     const p=await pubPayloadObra(id);
@@ -6443,7 +6838,11 @@ async function republicarAtivos(){
       // apagaria o campo expiraEm do documento e "des-revogaria"/"des-expiraria" o link
       if(os.pubToken)await publicarAcompanhamento(os.pubToken,await pubPayloadOS(os),os.pubExpira);
     }
-    for(const a of (vrfObra.andares||[])){
+    // code review (item 3): TODAS as obras, não só vrfObraAtual() -- senão andares de
+    // qualquer obra que não seja a última selecionada na sessão paravam de ter o link
+    // renovado e expiravam silenciosamente. pubPayloadObra() já resolve a obra dona de cada
+    // andarId sozinho (ajustado junto), então não depende de qual obra está selecionada.
+    for(const a of vrfObras.flatMap(o=>o.andares||[])){
       if(a.pubToken){const p=await pubPayloadObra(a.id);if(p)await publicarAcompanhamento(a.pubToken,p,a.pubExpira);}
     }
   }catch(e){fbLog('Falha na republicação automática: '+(e&&e.code)+' — '+(e&&e.message),'erro');/* best-effort: não bloqueia nem propaga */}

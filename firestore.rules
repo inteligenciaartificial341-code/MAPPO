@@ -129,5 +129,22 @@ service cloud.firestore {
       );
       allow write: if isMember(wsId) && isAtivo(wsId) && (docId != 'mappo_tecnicos' || isGestor(wsId));
     }
+
+    /* ── Avaliação do app (Story 14, feedback do piloto) ──────
+       Coleção raiz, fora de qualquer workspace -- write-only do lado do cliente:
+       nenhum perfil (gestor/técnico) lê de volta, nem o próprio autor (Never do
+       Intent: sem tela/painel de leitura dentro do app, sem conceito de admin
+       client-side). Leitura só pelo dono do projeto, direto no Firebase Console
+       ou Admin SDK, fora do alcance destas regras.
+       isMember(workspaceId enviado) -- nunca um workspaceId arbitrário; qualquer
+       papel serve (CAP-15 não restringe por perfil, só por ser membro real). */
+    match /feedback/{id} {
+      allow create: if isRealAuth()
+        && isMember(request.resource.data.workspaceId)
+        && request.resource.data.nota is number
+        && request.resource.data.nota >= 1
+        && request.resource.data.nota <= 5;
+      allow read, update, delete: if false;
+    }
   }
 }
