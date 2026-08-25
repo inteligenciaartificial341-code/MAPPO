@@ -3396,7 +3396,7 @@ function osCardHTML(os){
       <div class="os-meta-i">${svgIco('config','ico-sm')} ${escapeHtml(os.tipo)}</div>
       <div class="os-meta-i">${svgIco('user','ico-sm')} ${escapeHtml(os.tecnico)}</div>
       <div class="os-meta-i">${svgIco('calendar','ico-sm')} ${fmtDate(os.data)} ${os.hora||''}</div>
-      <div class="os-meta-i">${svgIco('splits','ico-sm')} ${splits} split${splits>1?'s':''}</div>
+      <div class="os-meta-i">${svgIco('splits','ico-sm')} ${ramoTemVRF()?`${splits} split${splits>1?'s':''}`:`${splits} ${splits>1?'itens':'item'}`}</div>
     </div>
     ${etapasHTML}
   </div>`;
@@ -5453,7 +5453,7 @@ function openModalOS(){
         <div class="fg"><label>Data</label><input type="date" id="oData" value="${hoje()}"></div>
         <div class="fg"><label>Horário</label><input type="time" id="oHora" value="08:00"></div>
       </div>
-      ${ramoTemVRF()?`<div class="fg"><label>Quantidade de splits</label><select id="oSplits">${Array.from({length:10},(_,i)=>`<option value="${i+1}">${i+1} split${i>0?'s':''}</option>`).join('')}</select></div>`:''}
+      <div class="fg"><label>${ramoTemVRF()?'Quantidade de splits':'Quantidade de itens'}</label><select id="oSplits">${Array.from({length:10},(_,i)=>`<option value="${i+1}">${i+1} ${ramoTemVRF()?'split'+(i>0?'s':''):(i>0?'itens':'item')}</option>`).join('')}</select></div>
       <div class="fg"><label>Observações</label><textarea id="oObs" placeholder="Andar, ambiente, detalhes..."></textarea></div>
     </div>
     <div class="modal-foot">
@@ -5471,7 +5471,8 @@ function criarOS(){
   // sem <option> nenhuma e .value vem vazio. Bloqueia aqui em vez de criar uma OS sem tipo.
   const tipoSel=document.getElementById('oTipo').value;
   if(!tipoSel){toast('Cadastre ao menos uma categoria em Configurações → Financeiro antes de criar uma OS','warn');return;}
-  // campo só existe quando ramoTemVRF() (Story 15) -- Ramo sem Split nasce com 1 equipamento
+  // #oSplits sempre existe no DOM desde a Story 16 (rótulo "splits"/"itens" conforme
+  // ramoTemVRF(), mas o campo nunca é escondido) -- oSplitsEl? aqui é só defensivo.
   const oSplitsEl=document.getElementById('oSplits');
   const qtd=oSplitsEl?(parseInt(oSplitsEl.value)||1):1;
   const os={
@@ -5499,13 +5500,14 @@ function openDetalhe(id){
   const lbl={pendente:'🟡 Pendente',andamento:'🔵 Em andamento',concluida:'🟢 Concluída',atrasada:'🔴 Atrasada',revisao:'🟠 Em revisão'};
   const splits=os.qtdSplits||1;
 
+  const vrf=ramoTemVRF();
   const equipHTML=(os.equipamentos||[]).map((e,i)=>`
     <div class="card" style="box-shadow:none;border:1px solid var(--gray-200);margin-bottom:10px">
       <div class="card-pad" style="padding:14px">
-        <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--gray-400);margin-bottom:10px">Split ${i+1} ${e.marca?'· '+escapeHtml(e.marca):''} ${escapeHtml(e.modelo||'')}</div>
+        <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--gray-400);margin-bottom:10px">${vrf?'Split':'Item'} ${i+1}${vrf?` ${e.marca?'· '+escapeHtml(e.marca):''} ${escapeHtml(e.modelo||'')}`:''}</div>
         <div class="frow" style="gap:10px">
-          <div><div style="font-size:11px;color:var(--gray-400);margin-bottom:4px">Evaporadora</div>${e.fotoEvap?`<img src="${e.fotoEvap}" onclick="openLightbox('${e.fotoEvap}')" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid var(--green)">`:`<div style="aspect-ratio:4/3;background:var(--gray-100);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px">📷</div>`}</div>
-          <div><div style="font-size:11px;color:var(--gray-400);margin-bottom:4px">Condensadora</div>${e.fotoCond?`<img src="${e.fotoCond}" onclick="openLightbox('${e.fotoCond}')" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid var(--green)">`:`<div style="aspect-ratio:4/3;background:var(--gray-100);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px">📷</div>`}</div>
+          <div><div style="font-size:11px;color:var(--gray-400);margin-bottom:4px">${vrf?'Evaporadora':'Antes'}</div>${e.fotoEvap?`<img src="${e.fotoEvap}" onclick="openLightbox('${e.fotoEvap}')" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid var(--green)">`:`<div style="aspect-ratio:4/3;background:var(--gray-100);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px">📷</div>`}</div>
+          <div><div style="font-size:11px;color:var(--gray-400);margin-bottom:4px">${vrf?'Condensadora':'Depois'}</div>${e.fotoCond?`<img src="${e.fotoCond}" onclick="openLightbox('${e.fotoCond}')" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid var(--green)">`:`<div style="aspect-ratio:4/3;background:var(--gray-100);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px">📷</div>`}</div>
         </div>
       </div>
     </div>`).join('');
@@ -5531,7 +5533,7 @@ function openDetalhe(id){
         <div class="fg" style="margin-bottom:10px"><label>Status</label><div style="font-size:15px">${lbl[s]}</div></div>
         <div class="fg" style="margin-bottom:10px"><label>Técnico</label><div style="font-size:15px">👷 ${escapeHtml(os.tecnico)}</div></div>
         <div class="fg" style="margin-bottom:10px"><label>Data / Hora</label><div style="font-size:15px">📅 ${fmtDate(os.data)} ${os.hora||''}</div></div>
-        <div class="fg" style="margin-bottom:10px"><label>Splits</label><div style="font-size:15px">❄️ ${splits}</div></div>
+        <div class="fg" style="margin-bottom:10px"><label>${vrf?'Splits':'Itens'}</label><div style="font-size:15px">${vrf?`❄️ ${splits}`:`📷 ${splits} ${splits>1?'itens':'item'}`}</div></div>
       </div>
       <div class="fg" style="margin-bottom:12px"><label>Endereço</label><div style="font-size:14px">📍 ${escapeHtml(os.endereco)}</div></div>
       ${os.obs?`<div class="fg" style="margin-bottom:12px"><label>Observações</label><div style="font-size:14px">${escapeHtml(os.obs)}</div></div>`:''}
@@ -5974,7 +5976,7 @@ function secTec(titulo,list){
   <div class="os-grid">${list.map(o=>{
     const atual=etapaAtual(o);
     return `<div class="os-card st-${statusReal(o)}" onclick="abrirExecucao('${o.id}')">
-      <div class="os-card-top"><div><div class="os-client">${escapeHtml(o.cliente)}</div><div class="os-addr">🔧 ${escapeHtml(o.tipo)} · ❄️ ${o.qtdSplits||1} split${(o.qtdSplits||1)>1?'s':''}</div></div></div>
+      <div class="os-card-top"><div><div class="os-client">${escapeHtml(o.cliente)}</div><div class="os-addr">🔧 ${escapeHtml(o.tipo)} · ${ramoTemVRF()?`❄️ ${o.qtdSplits||1} split${(o.qtdSplits||1)>1?'s':''}`:`📷 ${o.qtdSplits||1} ${(o.qtdSplits||1)>1?'itens':'item'}`}</div></div></div>
       ${o.notaGestor?`<div style="margin-top:8px;padding:8px 10px;background:var(--yellow-bg);border-radius:8px;font-size:12px;color:#92600e">📝 ${escapeHtml(o.notaGestor)}</div>`:''}
       ${o.status==='revisao'&&o.motivoRevisao?`<div style="margin-top:8px;padding:8px 10px;background:#fdf6e3;border-radius:8px;font-size:12px;color:var(--gold-dark)">↩ Revisar: ${escapeHtml(o.motivoRevisao)}</div>`:''}
       <div class="os-meta"><div class="os-meta-i"><span>📍</span>${escapeHtml(o.endereco.substring(0,30))}</div><div class="os-meta-i"><span>📅</span>${fmtDate(o.data)}</div>${o.valor!=null?`<div class="os-meta-i"><span>💰</span>${fmtMoeda(o.valor)}${o.valorStatus?' · '+(o.valorStatus==='pago'?'Pago':'A pagar'):''}</div>`:''}</div>
@@ -6277,7 +6279,7 @@ function renderTarefasGestor(){
   };
   return `
   <div class="page-head">
-    <div><div class="page-title">Tarefas Adicionais</div><div class="page-desc">Trabalhos personalizados fora do Split e do VRF</div></div>
+    <div><div class="page-title">Tarefas Adicionais</div><div class="page-desc">Trabalhos personalizados fora do ${ramoTemVRF()?'Split':escapeHtml(moduloSplitAtual().nome)} e do VRF</div></div>
     <button class="btn btn-primary btn-sm" onclick="openModalTarefa()">${svgIco('plus','ico-sm')} Nova tarefa</button>
   </div>
   ${ativas.length?ativas.map(card).join(''):`<div class="card">${emptyState('tarefas','Nenhuma tarefa ativa','Crie uma tarefa com nome próprio, limite de fotos e bloco de notas — sem precisar mexer no sistema.')}<div style="text-align:center;margin-top:14px;padding-bottom:14px"><button class="btn btn-primary btn-sm" onclick="openModalTarefa()">${svgIco('plus','ico-sm')} Criar primeira tarefa</button></div></div>`}
@@ -6549,11 +6551,13 @@ function abrirExecucao(id){
 
 function renderExecucao(){
   const os=execOS;
-  const equipTabs=os.equipamentos.map((e,i)=>{const done=e.fotoEvap&&e.fotoCond;return `<button class="fbtn ${done?'active':''}" onclick="switchEquipTab(${i})" id="etab${i}">${done?'✅':''} Split ${i+1}</button>`}).join('');
+  const vrf=ramoTemVRF();
+  const itemLbl=vrf?'Split':'Item';
+  const equipTabs=os.equipamentos.map((e,i)=>{const done=e.fotoEvap&&e.fotoCond;return `<button class="fbtn ${done?'active':''}" onclick="switchEquipTab(${i})" id="etab${i}">${done?'✅':''} ${itemLbl} ${i+1}</button>`}).join('');
   const c=document.getElementById('contentArea');
   c.innerHTML=`
     <button class="btn btn-ghost btn-sm" style="margin-bottom:16px" onclick="voltarExec()">${svgIco('back','ico-sm')} Voltar</button>
-    <div class="page-head"><div><div class="page-title">${escapeHtml(os.cliente)}</div><div class="page-desc">📍 ${escapeHtml(os.endereco)} · ❄️ ${os.qtdSplits||1} split${(os.qtdSplits||1)>1?'s':''}</div></div></div>
+    <div class="page-head"><div><div class="page-title">${escapeHtml(os.cliente)}</div><div class="page-desc">📍 ${escapeHtml(os.endereco)} · ${vrf?`❄️ ${os.qtdSplits||1} split${(os.qtdSplits||1)>1?'s':''}`:`📷 ${os.qtdSplits||1} ${(os.qtdSplits||1)>1?'itens':'item'}`}</div></div></div>
 
     <!-- 1 CHECK-IN -->
     <div class="card" style="margin-bottom:16px"><div class="card-pad">
@@ -6564,8 +6568,8 @@ function renderExecucao(){
 
     <!-- 2 EQUIPAMENTOS -->
     <div class="card" style="margin-bottom:16px"><div class="card-pad">
-      <h3 style="font-family:'Inter',sans-serif;letter-spacing:-.02em;font-size:18px;margin-bottom:4px">2. Equipamentos</h3>
-      <p style="font-size:13px;color:var(--gray-400);margin-bottom:14px">Marca, modelo e foto das etiquetas de cada split</p>
+      <h3 style="font-family:'Inter',sans-serif;letter-spacing:-.02em;font-size:18px;margin-bottom:4px">${vrf?'2. Equipamentos':'2. Registro fotográfico'}</h3>
+      <p style="font-size:13px;color:var(--gray-400);margin-bottom:14px">${vrf?'Marca, modelo e foto das etiquetas de cada split':'Registre uma foto do item antes e depois do serviço'}</p>
       <div class="filters" style="margin-bottom:16px">${equipTabs}</div>
       <div id="equipPanelArea"></div>
     </div></div>
@@ -6594,19 +6598,24 @@ function renderExecucao(){
   verificarConcluir();
 }
 
+/* Story 16: pra Ramos sem Split, "Split N"/Evaporadora/Condensadora viram "Item N"/Antes/
+   Depois só na EXIBIÇÃO -- os campos internos fotoEvap/fotoCond (e o array equipamentos)
+   NUNCA são renomeados, de propósito, pra não exigir migração de dado nem quebrar leituras
+   existentes (ex.: PDF). Não "limpar" esses nomes achando que estão errados. */
 function switchEquipTab(i){
   const e=execOS.equipamentos[i];
+  const vrf=ramoTemVRF();
   document.querySelectorAll('[id^="etab"]').forEach((t,idx)=>t.classList.toggle('active',idx===i&&!(execOS.equipamentos[idx].fotoEvap&&execOS.equipamentos[idx].fotoCond)));
   const area=document.getElementById('equipPanelArea');
   area.innerHTML=`
-    <div class="fg"><label>Marca</label><input type="text" value="${escapeHtml(e.marca||'')}" oninput="updEquip(${i},'marca',this.value)" placeholder="LG, Daikin, Midea..."></div>
-    <div class="fg"><label>Modelo</label><input type="text" value="${escapeHtml(e.modelo||'')}" oninput="updEquip(${i},'modelo',this.value)" placeholder="Modelo do aparelho"></div>
-    <div class="fg"><label>📷 Etiqueta — Evaporadora</label>
+    ${vrf?`<div class="fg"><label>Marca</label><input type="text" value="${escapeHtml(e.marca||'')}" oninput="updEquip(${i},'marca',this.value)" placeholder="LG, Daikin, Midea..."></div>
+    <div class="fg"><label>Modelo</label><input type="text" value="${escapeHtml(e.modelo||'')}" oninput="updEquip(${i},'modelo',this.value)" placeholder="Modelo do aparelho"></div>`:''}
+    <div class="fg"><label>📷 ${vrf?'Etiqueta — Evaporadora':'Antes'}</label>
       <button class="btn ${e.fotoEvap?'btn-gold':'btn-ghost'}" style="width:100%" onclick="document.getElementById('fEvap${i}').click()">${e.fotoEvap?'✅ Foto enviada — trocar':'📷 Tirar foto'}</button>
       <input type="file" id="fEvap${i}" accept="image/*" style="display:none" onchange="onEquipFoto(event,${i},'evap')">
       ${e.fotoEvap?`<img src="${e.fotoEvap}" style="width:100%;margin-top:8px;border-radius:8px;border:2px solid var(--green)">`:''}
     </div>
-    <div class="fg"><label>📷 Etiqueta — Condensadora</label>
+    <div class="fg"><label>📷 ${vrf?'Etiqueta — Condensadora':'Depois'}</label>
       <button class="btn ${e.fotoCond?'btn-gold':'btn-ghost'}" style="width:100%" onclick="document.getElementById('fCond${i}').click()">${e.fotoCond?'✅ Foto enviada — trocar':'📷 Tirar foto'}</button>
       <input type="file" id="fCond${i}" accept="image/*" style="display:none" onchange="onEquipFoto(event,${i},'cond')">
       ${e.fotoCond?`<img src="${e.fotoCond}" style="width:100%;margin-top:8px;border-radius:8px;border:2px solid var(--green)">`:''}
@@ -6621,7 +6630,7 @@ function onEquipFoto(evt,i,tipo){
     if(tipo==='evap')execOS.equipamentos[i].fotoEvap=b64;
     else execOS.equipamentos[i].fotoCond=b64;
     saveExecOS();switchEquipTab(i);
-    document.querySelectorAll('[id^="etab"]')[i].innerHTML=(execOS.equipamentos[i].fotoEvap&&execOS.equipamentos[i].fotoCond?'✅':'')+' Split '+(i+1);
+    document.querySelectorAll('[id^="etab"]')[i].innerHTML=(execOS.equipamentos[i].fotoEvap&&execOS.equipamentos[i].fotoCond?'✅':'')+' '+(ramoTemVRF()?'Split':'Item')+' '+(i+1);
     verificarConcluir();toast('Foto salva','success');
   });
 }

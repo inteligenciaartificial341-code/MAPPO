@@ -87,6 +87,10 @@ MAPPO é hoje uma ferramenta interna real, em uso pela Elite Ar, de gestão de e
   - **intent:** Refrigeração mantém todo o vocabulário atual (rótulo de módulo, categorias de preço, campo de quantidade de splits) sem mudança. Qualquer outro Ramo — Predial ou um Ramo customizado digitado livremente no cadastro — recebe categorias de preço, rótulo de módulo e o dropdown "Tipo de Serviço" da OS genéricos e próprios (nunca cópia do vocabulário de Refrigeração), com indicação de que são editáveis, e o gestor edita cada um em Configurações sem afetar outro workspace.
   - **success:** Um workspace de Ramo não-refrigeração nunca mostra "Instalação Split"/"Sistema Split"/"Quantidade de splits" a menos que o próprio gestor tenha digitado isso; o cadastro aceita um Ramo fora dos 2 pré-definidos e esse workspace nunca herda o vocabulário de Refrigeração.
 
+- **CAP-17 — Registro fotográfico genérico (Antes/Depois) pra Ramos não-refrigeração**
+  - **intent:** A etapa "Equipamentos" da execução de OS (marca/modelo + foto de Evaporadora/Condensadora por "Split N") é estrutural e ficou de fora do CAP-16. Refrigeração mantém 100% igual. Qualquer outro Ramo recebe a mesma etapa genericizada — "Item N" no lugar de "Split N", as 2 fotos por item viram "Antes"/"Depois" (texto fixo por ora), campos de marca/modelo somem da UI.
+  - **success:** Um workspace não-refrigeração nunca mostra "Split"/"Evaporadora"/"Condensadora"/"marca"/"modelo" na execução de OS; Refrigeração continua idêntica.
+
 ## Constraints
 
 - Nenhuma mudança em `firestore.rules`/`firestore.indexes.json` vai a produção sem teste prévio no Firebase Emulator Suite.
@@ -103,6 +107,7 @@ MAPPO é hoje uma ferramenta interna real, em uso pela Elite Ar, de gestão de e
 - CAP-13: WhatsApp do proprietário é `62994299385`, mensagem pré-preenchida "sou gestor, queria utilizar o mappo".
 - CAP-14 é o item de maior escopo do pacote — `vrfObra` hoje é objeto único, não lista; virar lista reaproveita o padrão já existente de merge por id (`ITEM_LISTS`, igual `mappo_os`), sem inventar mecanismo novo (AD-5 preservado), mas toda função do VRF que assume "a obra" precisa passar a assumir "a obra selecionada" — superfície grande, atenção extra de desenho na story.
 - CAP-16: `PRECO_TEMPLATES.predial` hoje é cópia idêntica de `PRECO_TEMPLATES.refrigeracao` (bug de origem que motivou a capacidade) — corrigir junto. O dropdown "Tipo de Serviço" da criação de OS é lista HTML fixa hoje; vira Ramo-aware, pareado com a mesma lista de categorias da tabela de preço (nunca duas listas que podem divergir). Campo "Quantidade de splits" passa a aparecer só para Refrigeração. Ramo customizado nunca cai no pacote de vocabulário de Refrigeração — sempre no genérico-editável.
+- CAP-17: reaproveita a mesma estrutura de dado já existente (array `equipamentos`, campos internos `fotoEvap`/`fotoCond`, mesma função de compressão de foto) — só a exibição muda por Ramo, nomes de campo internos continuam os mesmos, evita migração de dado. Campo "Quantidade de splits" (escondido pra não-refrigeração desde o CAP-16) passa a SEMPRE aparecer, com rótulo "Quantidade de splits" (Refrigeração) ou "Quantidade de itens" (outros Ramos) — revisão consciente do limite que o CAP-16 tinha posto. Badge "❄️ N split(s)" (3 lugares: modal de detalhe, card de OS, cabeçalho de execução) vira texto genérico sem o emoji de neve pra quem não é Refrigeração. Página "Tarefas Adicionais" troca o subtítulo fixo "fora do Split e do VRF" por `moduloSplitAtual().nome` pra quem não é Refrigeração.
 
 ## Non-goals
 
@@ -122,6 +127,7 @@ MAPPO é hoje uma ferramenta interna real, em uso pela Elite Ar, de gestão de e
 - CAP-14 não inclui orçamento, prazo ou gestão de custo por obra — só o checklist/progresso já existente, agora por obra em vez de único.
 - CAP-15 não é um painel de analytics/NPS formal — só captura e lista o feedback bruto pro proprietário ler.
 - CAP-16 não inclui sugestão automática/IA de nomenclatura por Ramo — o vocabulário genérico é fixo e o gestor edita manualmente, sem geração assistida.
+- CAP-17 não torna "Antes"/"Depois" editável pelo gestor nesta rodada — texto fixo, revisitar conforme feedback do piloto.
 
 ## Success signal
 
@@ -145,3 +151,4 @@ Ao menos uma Empresa Contratante do piloto usa o MAPPO na operação diária rea
 - Testes unitários das funções de merge (`_mergeItens`, `_mergeLeafs`, etc.) entram nesta rodada, ou ficam para depois?
 - CAP-9: categorias exatas de serviço da tabela de preço, dentro de cada Ramo — a decidir na hora de construir a story (estrutura já definida: tabela por Ramo, "Conserto" foi só exemplo).
 - CAP-16: quantidade exata de categorias de preço genéricas default e o texto exato do hint "renomeie com sua atividade específica" — a decidir na hora de construir a story, mesmo espírito já usado pro texto do template de checklist.
+- CAP-17: rótulo exato da etapa genérica (hoje "Equipamentos") e o texto exato da instrução pro técnico — a decidir na hora de construir a story.

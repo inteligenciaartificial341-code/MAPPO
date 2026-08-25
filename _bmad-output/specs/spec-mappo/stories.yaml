@@ -231,3 +231,29 @@
     fallback genérico-editável, nunca fica sem checklist. Reverte o
     non-goal anterior de "máx. 2 Ramos" -- decisão consciente do
     proprietário, não esquecimento.
+
+- id: "16"
+  title: Registro fotográfico genérico (Antes/Depois) pra Ramos não-refrigeração
+  description: >-
+    Implementa CAP-17: a etapa "Equipamentos" da execução de OS
+    (marca/modelo + foto Evaporadora/Condensadora por "Split N") é
+    estrutural e ficou de fora da Story 15. Refrigeração mantém 100%
+    igual. Qualquer outro Ramo recebe a mesma etapa genericizada --
+    "Item N", fotos viram "Antes"/"Depois" (fixo por ora), campos de
+    marca/modelo somem da UI.
+  spec_checkpoint: false
+  done_checkpoint: false
+  invoke_dev_with: >-
+    Reaproveita a MESMA estrutura de dado já existente (array
+    equipamentos, campos internos fotoEvap/fotoCond, mesma função de
+    compressão de foto) -- só a exibição muda por Ramo, nomes de campo
+    internos continuam os mesmos, sem migração de dado. "Quantidade de
+    splits" (escondido pra não-refrigeração desde a Story 15) passa a
+    SEMPRE aparecer, rótulo "Quantidade de splits" (Refrigeração) ou
+    "Quantidade de itens" (outros Ramos). Badge "❄️ N split(s)" (3
+    lugares: modal de detalhe, card de OS, cabeçalho de execução) vira
+    texto genérico sem o emoji de neve pra quem não é Refrigeração.
+    Achado extra da mesma varredura: página "Tarefas Adicionais" troca
+    o subtítulo fixo "fora do Split e do VRF" por moduloSplitAtual().nome
+    pra quem não é Refrigeração. Rótulo exato da etapa genérica e texto
+    da instrução ao técnico ficam a critério de quem implementar.
