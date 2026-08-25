@@ -7,15 +7,15 @@ paradigm: 'Local-first monolith (single-file SPA + sync engine custom por merge)
 scope: 'Multi-tenant (workspaces por Empresa Contratante), autenticação real, templates de checklist por Ramo, PWA — implementa prd-mappo-2026-08-22'
 status: final
 created: '2026-08-22'
-updated: '2026-08-24'
-binds: [FR-1, FR-2, FR-3, FR-4, FR-5, FR-6, FR-7, FR-8, FR-9, FR-10, FR-11, FR-12, FR-13, FR-14, FR-15, FR-16, FR-17]
-sources: ['_bmad-output/planning-artifacts/prds/prd-mappo-2026-08-22/prd.md', '_bmad-output/planning-artifacts/briefs/brief-mappo-2026-08-21/brief.md', '_bmad-output/planning-artifacts/briefs/brief-mappo-2026-08-22/brief.md', '_audit/mappo-initial-audit.md', 'AGENTS.md']
+updated: '2026-08-25'
+binds: [FR-1, FR-2, FR-3, FR-4, FR-5, FR-6, FR-7, FR-8, FR-9, FR-10, FR-11, FR-12, FR-13, FR-14, FR-15, FR-16, FR-17, CAP-9, CAP-10, CAP-11, CAP-12, CAP-13, CAP-14, CAP-15]
+sources: ['_bmad-output/planning-artifacts/prds/prd-mappo-2026-08-22/prd.md', '_bmad-output/planning-artifacts/briefs/brief-mappo-2026-08-21/brief.md', '_bmad-output/planning-artifacts/briefs/brief-mappo-2026-08-22/brief.md', '_audit/mappo-initial-audit.md', 'AGENTS.md', '_bmad-output/specs/spec-mappo/SPEC.md']
 companions: []
 ---
 
 # Architecture Spine — MAPPO — Pivô Multi-Tenant
 
-> ✅ As 7 stories de `_bmad-output/specs/spec-mappo/stories.yaml` estão implementadas e publicadas. A pré-condição original (OQ-1, regras publicadas em produção não confirmadas) foi resolvida na Story 1 — as regras encontradas de fato eram `allow read, write: if true`, corrigidas e testadas no Emulator Suite antes de publicar.
+> ✅ As 14 stories de `_bmad-output/specs/spec-mappo/stories.yaml` (épico spec-mappo inteiro) estão implementadas e publicadas. A pré-condição original (OQ-1, regras publicadas em produção não confirmadas) foi resolvida na Story 1 — as regras encontradas de fato eram `allow read, write: if true`, corrigidas e testadas no Emulator Suite antes de publicar. Validado contra o código real em 2026-08-25 (3 revisores independentes) — achados incorporados nesta atualização, relatório completo em `reviews/relatorio-validacao-2026-08-25.html`.
 
 ## Design Paradigm
 
@@ -63,7 +63,7 @@ graph LR
 
 ### AD-3 — `WORKSPACE` vira estado de sessão, resolvido uma vez, não parâmetro por chamada
 
-- **Binds:** todas as funções que tocam o Firestore (hoje 6 pontos de chamada + a declaração — `index.html:924,1160,1427,1452,1468,4801,4892`)
+- **Binds:** todas as funções que tocam o Firestore. Citação por número de linha aposentada nesta atualização (envelhecia a cada story num arquivo single-file que só cresce — `index.html` tinha ~4800 linhas quando esta AD nasceu, tem 7035 hoje) — a declaração real é sempre localizável via `grep -n "^let WORKSPACE="` no `index.html` atual.
 - **Prevents:** refatoração ampla que passa `workspaceId` como argumento explícito por 17+ funções — contra a política de mudança cirúrgica.
 - **Rule:** `WORKSPACE` deixa de ser `const` fixa e vira variável de módulo (`let`) resolvida uma única vez: dentro do `onAuthStateChanged` de `fbInit`, depois que o `uid` autentica E o documento de membership (AD-2) resolve — antes de `initSync()`/`fbBoot()` prosseguir. Estende a mesma garantia que `fbReady` já impõe (nenhuma leitura/escrita antes do auth confirmar — corrigido nesta mesma sessão, commits `2702e80`/`9d264d5`): agora `fbReady` só vira `true` depois que **auth + membership + workspace** resolverem juntos, não só auth.
 
@@ -95,7 +95,7 @@ graph LR
 
 - **Binds:** FR-2, FR-4, toda sincronização
 - **Prevents:** (a) codificar `members/{uid}` como `{json: "..."}` — `firestore.rules` não consegue fazer `JSON.parse` para checar `role`, então isso quebraria AD-2; (b) "por consistência", tentar migrar dado comum (OS, checklist, etc.) para campos reais — isso quebraria o motor de merge (AD-5), que opera sobre blob JSON parseado no cliente.
-- **Rule:** `workspaces/{workspaceId}/members/{uid}` é o único tipo de documento novo com campos reais no topo (`role`, `convidadoPor`, etc.), porque as regras precisam lê-lo diretamente. Todo outro documento — incluindo o checklist clonado (AD-4) — usa o envelope existente `{json, updatedAt, by}` e passa pelo motor de sync (AD-5) sem exceção.
+- **Rule:** `workspaces/{workspaceId}/members/{uid}` é o único tipo de documento novo, DENTRO de um workspace, com campos reais no topo (`role`, `convidadoPor`, etc.), porque as regras precisam lê-lo diretamente. Todo outro documento que sincroniza via `SYNC_KEYS` dentro de um workspace — incluindo o checklist clonado (AD-4) — usa o envelope existente `{json, updatedAt, by}` e passa pelo motor de sync (AD-5) sem exceção. **Escopo corrigido nesta atualização** (achado da validação de 2026-08-25): essa regra vale para dado *sincronizado dentro de um workspace*; coleções-raiz fora de qualquer workspace, que nunca voltam pro cliente via `SYNC_KEYS`, seguem o padrão da AD-13, não este — a formulação original ("todo outro documento... sem exceção") não deixava essa fronteira clara, e a Story 14 (`feedback/{id}`) expôs a ambiguidade.
 
 ### AD-9 — Toda captura de foto passa por uma função de compressão única
 
@@ -122,6 +122,19 @@ graph LR
 - **Prevents:** exatamente a falha que gerou o risco original (63 ocorrências de `innerHTML=` no código, escape aplicado de forma inconsistente) se repetir: um novo ponto de renderização esquecer o escape.
 - **Rule:** todo dado de usuário (nome, endereço, observação, rótulo) que entra em `innerHTML` passa por uma única função de escape compartilhada antes da interpolação — nunca escape ad-hoc por chamada. A função de escape é a mesma para a página pública e para o app autenticado; não há dois caminhos de sanitização.
 
+### AD-13 — Coleção-raiz write-only com campos reais é o padrão pra dado que não sincroniza com o cliente
+
+- **Binds:** CAP-12, CAP-15 (adotado retroativamente também por AD-11/`userWorkspaces`, que já seguia este formato sem estar nomeado)
+- **Prevents:** a próxima coleção-raiz (log de auditoria, evento de analytics, o que vier) inventar um shape ad-hoc — o padrão já se repetiu 3 vezes de forma independente (`userWorkspaces/{uid}`, `convites/{codigo}`, `feedback/{id}`) sem nunca ter sido declarado como convenção.
+- **Rule:** uma coleção pensada pra (a) ser consultada antes de se saber qual workspace é o do usuário, (b) ser escrita mas nunca lida de volta pelo cliente, ou (c) ser lida só pelo dono do projeto via Console/Admin SDK, vive na RAIZ do Firestore — nunca sob `workspaces/{wsId}/data/`. Usa campos reais no topo (nunca o envelope `{json,updatedAt,by}` da AD-8/AD-5 — esse envelope existe pro motor de sync conseguir mesclar objeto contra objeto, e nada aqui volta pro cliente pra precisar de merge). Nunca entra em `SYNC_KEYS`. `[ADOPTED]`
+
+### AD-14 — Lista de atribuição de técnico por recurso vive em `mappo_tecnicos`, nunca na entidade — e é só client-side até virar regra
+
+- **Binds:** CAP-14
+- **Prevents:** a divergência concreta que a revisão adversarial de 2026-08-25 encontrou — uma feature futura escolher "campo na entidade" (padrão pré-existente, ex. `os.tecnico`) enquanto outra escolhe "array no técnico" (padrão que a Story 13 inaugurou, `t.modulos.vrfObras`) pro mesmo tipo de necessidade, sem reconciliação entre os dois: reatribuir por um caminho só trava o dono novo e deixa o antigo com acesso fantasma.
+- **Rule:** quando uma feature precisa restringir um técnico a um SUBCONJUNTO de um recurso dentro do mesmo workspace (não o recurso inteiro, isso já é AD-2), a lista de atribuição vive como um array dentro do próprio registro do técnico em `mappo_tecnicos` (padrão `t.modulos.<recurso>Ids`, como `vrfObras`) — nunca como campo "quem tem acesso" na entidade-alvo. Motivo: `mappo_tecnicos` é o único tipo de documento hoje com escrita travada a gestor em `firestore.rules` (`docId != 'mappo_tecnicos' || isGestor(wsId)`); colocar a lista em qualquer outro lugar deixaria qualquer técnico se autoconceder acesso editando e sincronizando o próprio blob local.
+- **Limite conhecido, registrado aqui pra não ser esquecido:** este gate hoje só existe no cliente (`vrfObrasPermitidas()` e equivalentes). `firestore.rules` autoriza a granularidade de papel+workspace (AD-2), não checa a lista de atribuição em si — qualquer técnico membro do workspace ainda pode ler/escrever `mappo_vrf_obras` (ou qualquer outro `data/{docId}` exceto `mappo_tecnicos`) direto via SDK, ignorando `vrfObrasPermitidas()`. Nenhuma feature futura pode tratar essa lista como fronteira de segurança real sem antes reforçar a regra correspondente — ver Deferred.
+
 ## Consistency Conventions
 
 | Concern | Convention |
@@ -145,10 +158,11 @@ graph LR
 
 ```text
 {project-root}/
-  index.html          # app inteiro — zonas por banner-comentário (ver Design Paradigm)
-  manifest.json        # NOVO — FR-17, ícones já existentes (icon-192.png, icon-512.png)
-  sw.js                 # NOVO — FR-17, Service Worker mínimo (cache do shell)
-  firestore.rules       # regras: userWorkspaces/{uid} + workspaces/{wsId}/data/{doc} + workspaces/{wsId}/members/{uid}
+  index.html          # app inteiro — zonas por banner-comentário (ver Design Paradigm), 7035 linhas
+  manifest.json        # FR-17, ícones já existentes (icon-192.png, icon-512.png)
+  sw.js                 # FR-17, Service Worker mínimo (cache do shell)
+  avatar-1.svg..avatar-6.svg  # NOVO — CAP-11 (Story 10), avatares do mapa, estrutura idêntica pra animação CSS
+  firestore.rules       # regras: userWorkspaces/{uid} (AD-11) + convites/{codigo} + feedback/{id} (AD-13) + workspaces/{wsId}/data/{doc} + workspaces/{wsId}/members/{uid}
   firestore.indexes.json # permanece vazio — nenhuma query introduzida (AD-1)
 ```
 
@@ -207,6 +221,13 @@ sequenceDiagram
 | FR-15 — Sanitização contra XSS | Todo ponto de `innerHTML` com dado de usuário (63 ocorrências mapeadas na auditoria) | AD-12 |
 | FR-16 — Sincronização offline-first | Zona "Sincronização em nuvem" inteira | AD-3, AD-5, AD-8 |
 | FR-17 — PWA | Novos `manifest.json` + `sw.js` | Structural Seed |
+| CAP-9 — Aba Financeira (preço por Ramo, valor na OS) | Mesmo padrão de clone-por-Ramo da AD-4 (`precoConfig`) | AD-4, AD-8 |
+| CAP-10 — VRF restrito ao Ramo + checklist editável | `ramoTemVRF()` como gate de tela (mesmo formato de risco que gates existentes) + `vrfFasesConfig` clonado (AD-4) | AD-4 |
+| CAP-11 — Mapa: painel, avatar do prestador, histórico | `avatar-1.svg`..`avatar-6.svg` (Structural Seed) + `mappo_avatares` (segue AD-8, evita reforçar regra em `mappo_tecnicos`) | AD-8 |
+| CAP-12 — Convite de prestador gerado pelo gestor | `convites/{codigo}` (coleção-raiz) | AD-13 |
+| CAP-13 — Pontos de entrada (WhatsApp/Compartilhar) | UI pura, sem estado novo no Firestore | — |
+| CAP-14 — Multi-obra no VRF (`vrfObra`→`vrfObras`) | Zona "VRF — estrutura de dados de obra"; migração não-destrutiva (chave singular nunca apagada) | AD-5 (lista por id, sem mecanismo novo), AD-14 |
+| CAP-15 — Avaliação do app (feedback do piloto) | `feedback/{id}` (coleção-raiz, write-only) | AD-13 |
 
 ## Deferred
 
@@ -218,10 +239,12 @@ sequenceDiagram
 - **Firebase Storage para fotos** — MVP entrega só o aviso de falha >1MB (FR-16, ver AD-9 para a compressão); migração completa é PRD §6.2, fora de escopo.
 - **TWA/Capacitor, Play Store, iOS nativo** — PWA (FR-17) é o único empacotamento desta espinha; o resto é evolução, PRD §6.2.
 - **Recuperação de senha self-service, login social** — PRD §6.2/`[NOTE FOR PM]`; FR-1 desta espinha cobre só conta real e-mail/senha.
-- **Autorização por recurso dentro do mesmo workspace** (ex.: um técnico só escrever em OS atribuída a ele, não em qualquer OS do workspace) — as ADs desta espinha autorizam por papel (gestor/técnico) e por workspace, não por dono do recurso. Não é requisito do PRD hoje; fica nomeado aqui para não ser inventado silenciosamente por uma implementação e divergir de outra.
+- **Autorização por recurso dentro do mesmo workspace, reforçada em regra** — a AD-14 (nova, 2026-08-25) já formaliza a convenção de nome de campo (lista de atribuição em `mappo_tecnicos`) e já cobre um caso real (Story 13, obras VRF) — não é mais 100% não-implementado. O que continua deferred: hoje esse gate é só client-side (AD-14 registra isso explicitamente); reforçar de verdade em `firestore.rules` (checar a lista de atribuição do próprio `request.auth.uid` antes de liberar leitura/escrita de cada recurso) exige uma regra bem mais cara/complexa que as existentes e não foi feito. Não é requisito do PRD hoje; continua nomeado pra não virar suposição de segurança real sem ter sido implementada.
+- **Granularidade de merge por campo (não por folha) em objetos aninhados como `modulos`** — `_mergeItens` trata `modulos` (que hoje carrega `split`, `vrf` e, desde a Story 13, `vrfObras`) como um campo único no merge, não folha a folha como `_mergeLeafs` já faz pra `vrfProgresso`/`vrfFotos`/`vrfNotas`. Uma segunda sub-lista de atribuição dentro de `modulos` corre risco real de reversão silenciosa por edição concorrente não relacionada (achado da revisão adversarial de 2026-08-25, `index.html:1602-1621`). Se outra lista de atribuição no padrão da AD-14 for adicionada no futuro, considerar um `LEAF_MAPS` dedicado em vez de aninhar em `modulos`.
 - **Duplicidade de nome em `mappo_tecnicos` no mesmo workspace** — limitação pré-existente do merge por `nome` (AD-6), não resolvida por esta espinha.
-- **Verificar vigência das versões pinadas** (Firebase compat SDK 10.12.2 — camada legada de transição, não o caminho novo do SDK modular; jsPDF 2.5.1 é um patch antigo dentro do 2.x) antes do rollout multi-tenant — nenhuma foi checada contra a web nesta sessão (sem acesso à internet); nenhuma migração é implicada por esta espinha (AD-7), só uma verificação de segurança/manutenção pendente.
-- **Firebase App Check** — protege Firestore/Auth contra bots e uso fora do app real (hoje as chaves públicas do Firebase, visíveis no código-cliente, permitem qualquer um bater direto na API). Pronto para o piloto — maior custo-benefício, não muda nenhuma AD existente. Verificado ativo/atual na web (2026-08-24).
+- **jsPDF 2.5.1 — reclassificado de manutenção para segurança** (checado contra a web em 2026-08-25): atual é 4.2.1, 2 majors à frente. O CVE de path traversal (CVE-2025-68428) é exclusivo do build Node e não se aplica ao MAPPO (100% client-side). Mas há CVEs de DoS via `addImage` com imagem malformada (PNG/BMP/GIF) e injeção via `addJS`/AcroForm corrigidos só em 4.0.0–4.2.0, não exclusivos de Node — o MAPPO usa exatamente esse padrão (fotos de usuário entrando em PDF via `addImage`, AD-9). Avaliar upgrade ou mitigação antes de escalar o piloto.
+- **Firebase compat SDK 10.12.2 — item de manutenção normal, sem urgência de segurança confirmada** (checado contra a web em 2026-08-25): 2 majors atrás do atual (12.18.0), mas sem depreciação ativa — o RFC de depreciação do compat/namespaced API foi proposto e depois **pausado** pelo time Firebase (discussion #7611), sem decisão final. Compat continua recebendo correção de bug. Vale checar o changelog v10→v12 antes de um rollout multi-tenant maior, sem pressa de segurança.
+- **Firebase App Check** — protege Firestore/Auth contra bots e uso fora do app real (hoje as chaves públicas do Firebase, visíveis no código-cliente, permitem qualquer um bater direto na API). Pronto para o piloto — maior custo-benefício, não muda nenhuma AD existente. Verificado ativo/atual na web (2026-08-24). **Ressalva adicionada em 2026-08-25:** antes de habilitar, decidir explicitamente o tratamento da Página Pública anônima (AD-10) — App Check por padrão desafia justamente o tipo de tráfego que a Página Pública existe pra servir (visitante que nunca rodou o PWA real, chegando por link do WhatsApp). Se a Página Pública ganhar escrita no futuro (ex.: aprovação do cliente), habilitar App Check sem essa decisão prévia pode quebrar em produção um dos dois lados, dependendo de qual for implementado primeiro.
 - **Backup automático do Firestore** (exportação agendada, `gcloud firestore export`) — hoje só existe a exigência de backup manual antes de migração (`AGENTS.md`). Pronto para o piloto, antes de acumular dado de cliente real.
 - **Firebase Crashlytics / Cloud Logging** — hoje o único log é `fbLog`, interno ao app (painel de diagnóstico); ninguém sabe de um erro sem o cliente reclamar. Pronto para o piloto.
 - **Firebase Hosting clássico** (não "App Hosting", que mira Next.js/SSR e não serve pra um app estático) substituindo GitHub Pages — unificaria deploy e banco no mesmo console; os "preview channels" resolveriam o item de staging acima sem projeto Firebase separado. Cresce depois — GitHub Pages funciona por ora.
