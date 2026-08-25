@@ -83,6 +83,10 @@ MAPPO é hoje uma ferramenta interna real, em uso pela Elite Ar, de gestão de e
   - **intent:** Empresas do piloto enviam feedback (nota + texto livre) sobre o app, visível só para o proprietário.
   - **success:** Um feedback enviado aparece para o proprietário com data e nome do workspace de origem.
 
+- **CAP-16 — Vocabulário de serviço genérico e editável por Ramo, + Ramo customizado no cadastro**
+  - **intent:** Refrigeração mantém todo o vocabulário atual (rótulo de módulo, categorias de preço, campo de quantidade de splits) sem mudança. Qualquer outro Ramo — Predial ou um Ramo customizado digitado livremente no cadastro — recebe categorias de preço, rótulo de módulo e o dropdown "Tipo de Serviço" da OS genéricos e próprios (nunca cópia do vocabulário de Refrigeração), com indicação de que são editáveis, e o gestor edita cada um em Configurações sem afetar outro workspace.
+  - **success:** Um workspace de Ramo não-refrigeração nunca mostra "Instalação Split"/"Sistema Split"/"Quantidade de splits" a menos que o próprio gestor tenha digitado isso; o cadastro aceita um Ramo fora dos 2 pré-definidos e esse workspace nunca herda o vocabulário de Refrigeração.
+
 ## Constraints
 
 - Nenhuma mudança em `firestore.rules`/`firestore.indexes.json` vai a produção sem teste prévio no Firebase Emulator Suite.
@@ -98,6 +102,7 @@ MAPPO é hoje uma ferramenta interna real, em uso pela Elite Ar, de gestão de e
 - CAP-12: código de convite é de uso único — 1 convite = 1 prestador, consumido ao vincular.
 - CAP-13: WhatsApp do proprietário é `62994299385`, mensagem pré-preenchida "sou gestor, queria utilizar o mappo".
 - CAP-14 é o item de maior escopo do pacote — `vrfObra` hoje é objeto único, não lista; virar lista reaproveita o padrão já existente de merge por id (`ITEM_LISTS`, igual `mappo_os`), sem inventar mecanismo novo (AD-5 preservado), mas toda função do VRF que assume "a obra" precisa passar a assumir "a obra selecionada" — superfície grande, atenção extra de desenho na story.
+- CAP-16: `PRECO_TEMPLATES.predial` hoje é cópia idêntica de `PRECO_TEMPLATES.refrigeracao` (bug de origem que motivou a capacidade) — corrigir junto. O dropdown "Tipo de Serviço" da criação de OS é lista HTML fixa hoje; vira Ramo-aware, pareado com a mesma lista de categorias da tabela de preço (nunca duas listas que podem divergir). Campo "Quantidade de splits" passa a aparecer só para Refrigeração. Ramo customizado nunca cai no pacote de vocabulário de Refrigeração — sempre no genérico-editável.
 
 ## Non-goals
 
@@ -107,7 +112,6 @@ MAPPO é hoje uma ferramenta interna real, em uso pela Elite Ar, de gestão de e
 - Onboarding self-service sem intervenção manual.
 - Empacotamento além de PWA (TWA/Capacitor, Play Store, app nativo iOS).
 - Migração de fotos para Firebase Storage — mantém-se só o aviso tático de limite de 1MB.
-- Mais de 2 Ramos com Template de Checklist pronto.
 - Recuperação de senha self-service, login social.
 - Autorização por recurso dentro do mesmo workspace (ex.: Técnico restrito só às próprias OS).
 - Ambiente de staging / projeto Firebase separado.
@@ -117,6 +121,7 @@ MAPPO é hoje uma ferramenta interna real, em uso pela Elite Ar, de gestão de e
 - CAP-11 não inclui replay de trajeto real no mapa — avatar tem só 2 estados visuais (parado/andando), não segue o caminho percorrido de verdade.
 - CAP-14 não inclui orçamento, prazo ou gestão de custo por obra — só o checklist/progresso já existente, agora por obra em vez de único.
 - CAP-15 não é um painel de analytics/NPS formal — só captura e lista o feedback bruto pro proprietário ler.
+- CAP-16 não inclui sugestão automática/IA de nomenclatura por Ramo — o vocabulário genérico é fixo e o gestor edita manualmente, sem geração assistida.
 
 ## Success signal
 
@@ -126,7 +131,7 @@ Ao menos uma Empresa Contratante do piloto usa o MAPPO na operação diária rea
 
 - Uma pessoa (`uid`) pertence a exatamente um workspace — o produto não modela hoje pertencimento a múltiplas empresas simultâneas.
 - Nenhuma meta de prazo foi dada para o início do piloto — tratado como "quando o bloqueante de segurança (CAP-1, CAP-2) estiver resolvido".
-- Os 2 Ramos do MVP: Refrigeração/Climatização (reaproveita o checklist VRF/VRV existente) e Manutenção Predial Geral — os dois implementados e no ar (Story 2).
+- Os 2 Ramos com vocabulário próprio hoje: Refrigeração/Climatização (reaproveita o checklist VRF/VRV existente) e Manutenção Predial Geral — os dois implementados e no ar (Story 2). Desde CAP-16, o cadastro aceita qualquer Ramo digitado livremente, que recebe o pacote genérico-editável (nunca o vocabulário de Refrigeração).
 - Empresas que exigem app nativo desde o dia 1 (sem aceitar PWA) ficam fora do v1.
 - Se uma Empresa Contratante escolher um Ramo sem Template de Checklist pronto ainda (fora dos 2 do MVP), o sistema oferece o Template genérico mais próximo e sinaliza que pode ser ajustado manualmente.
 
@@ -139,3 +144,4 @@ Ao menos uma Empresa Contratante do piloto usa o MAPPO na operação diária rea
 - Os técnicos já consentiram formalmente com o rastreamento de GPS ao vivo hoje, fora do app (termo assinado)?
 - Testes unitários das funções de merge (`_mergeItens`, `_mergeLeafs`, etc.) entram nesta rodada, ou ficam para depois?
 - CAP-9: categorias exatas de serviço da tabela de preço, dentro de cada Ramo — a decidir na hora de construir a story (estrutura já definida: tabela por Ramo, "Conserto" foi só exemplo).
+- CAP-16: quantidade exata de categorias de preço genéricas default e o texto exato do hint "renomeie com sua atividade específica" — a decidir na hora de construir a story, mesmo espírito já usado pro texto do template de checklist.

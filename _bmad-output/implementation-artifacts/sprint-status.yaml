@@ -7,7 +7,7 @@
 # stories.yaml para atualizar isto -- vai continuar caindo no mesmo fallback manual.
 
 generated: 08-22-2026 16:20
-last_updated: 08-25-2026 00:20
+last_updated: 08-25-2026 09:15
 project: mappo
 project_key: MAPPO
 tracking_system: file-system
@@ -29,6 +29,7 @@ development_status:
   1-12-pontos-entrada-whatsapp-compartilhar: review
   1-13-multi-obra-vrf: review
   1-14-avaliacao-app-feedback: review
+  1-15-vocabulario-servico-generico-ramo-customizado: review
   epic-1-retrospective: optional
 
 action_items: []

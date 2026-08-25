@@ -818,12 +818,14 @@
     <h2>Cadastrar empresa</h2>
     <div class="fg login-field"><label>Nome da empresa</label><input type="text" id="cadEmpresa" placeholder="Ex.: Elite Ar"></div>
     <div class="fg login-field"><label>Ramo de atuação</label>
-      <select id="cadRamo">
+      <select id="cadRamo" onchange="document.getElementById('cadRamoOutroWrap').style.display=this.value==='outro'?'':'none'">
         <option value="">Selecione…</option>
         <option value="refrigeracao">Refrigeração/Climatização</option>
         <option value="predial">Manutenção Predial Geral</option>
+        <option value="outro">Outro, qual?</option>
       </select>
     </div>
+    <div class="fg login-field" id="cadRamoOutroWrap" style="display:none"><label>Qual o ramo da sua empresa?</label><input type="text" id="cadRamoOutro" placeholder="Ex.: Elétrica Predial"></div>
     <div class="fg login-field"><label>Seu nome</label><input type="text" id="cadNome" placeholder="Seu nome completo"></div>
     <div class="fg login-field"><label>E-mail</label><input type="email" id="cadEmail" placeholder="voce@empresa.com" autocomplete="username"></div>
     <div class="fg login-field"><label>Senha</label><input type="password" id="cadSenha" placeholder="Mínimo 6 caracteres" autocomplete="new-password"></div>
@@ -910,7 +912,7 @@
     <nav class="sidebar-nav">
       <div class="nav-section-label">Sistemas</div>
       <button class="nav-item" data-view="splits" onclick="nav('splits')">
-        <span class="nav-ico" id="navico-splits"></span> Sistema Split
+        <span class="nav-ico" id="navico-splits"></span> <span id="navLblSplit">Sistema Split</span>
       </button>
       <button class="nav-item" data-view="vrf" onclick="nav('vrf')">
         <span class="nav-ico" id="navico-vrf"></span> Sistema VRF
@@ -1024,7 +1026,7 @@ const SYNC_KEYS=[
   'mappo_vrf_obra','mappo_vrf_obras','mappo_vrf_progresso','mappo_vrf_fotos','mappo_vrf_notas',
   'mappo_vrf_relatorios','mappo_vrf_checkins','mappo_vrf_fotos_meta','mappo_locations','mappo_tarefas','mappo_live',
   'mappo_checklist_config','mappo_preco_config','mappo_financeiro_notas','mappo_vrf_fases_config',
-  'mappo_localizacao_historico','mappo_avatares'
+  'mappo_localizacao_historico','mappo_avatares','mappo_modulo_config'
 ];
 
 /* ── Estado do monitor de alterações ── */
@@ -1289,21 +1291,21 @@ function _aplicarSessaoResolvida(info){
   let wsAnterior=null;
   try{wsAnterior=localStorage.getItem('mappo_last_ws');}catch(e){}
   if(wsAnterior&&wsAnterior!==info.workspaceId){
+    // Troca de workspace no mesmo aparelho (bug real encontrado testando 2 empresas seguidas
+    // no mesmo navegador: técnicos da empresa anterior apareciam -- e, ao interagir, chegavam
+    // a ser gravados de verdade -- na empresa nova). Limpar só o localStorage nunca foi
+    // suficiente: toda variável de estado em memória (tecnicos, osList, clientes,
+    // manutencoes, tarefas, settings, quase todo o VRF...) continua com o valor do workspace
+    // ANTERIOR até algo repopulá-la -- e uma lista manual de "o que resetar" já ficou pra trás
+    // repetidas vezes conforme o app cresceu (só 6 das ~21 chaves estavam nela). Recarregar a
+    // página é a única garantia que cobre TODA variável, inclusive as que ainda não existem
+    // hoje -- a sessão do Firebase persiste, então o boot re-resolve tudo sozinho, limpo.
     SYNC_KEYS.forEach(k=>{try{localStorage.removeItem(k);}catch(e){}});
     try{localStorage.removeItem('mappo_touch');}catch(e){}
-    _pend={};_localTouch={};
-    // limpar só o localStorage não basta (code review): as variáveis em memória
-    // (vrfFasesConfig e as 3 config "objeto único" irmãs -- checklistConfig, precoConfig,
-    // financeiroNotas -- e, desde a Story 10, avataresTecnicos/localizacaoHistorico)
-    // continuam com o valor do workspace ANTERIOR até algo repopulá-las.
-    // Se o workspace novo ainda não tem o doc correspondente na nuvem (ex.: Predial nunca
-    // teve vrfFasesConfig, ou qualquer workspace que nunca salvou), _aplicarNaMemoria pra
-    // essa chave nunca dispara e o valor antigo vaza pro workspace novo (mesmo AD-1 do
-    // comentário acima, só que em memória em vez de localStorage). Reseta pro "vazio"
-    // correto de cada uma (mesmo shape da inicialização no boot).
-    vrfFasesConfig=null;checklistConfig=null;precoConfig=null;financeiroNotas=[];
-    avataresTecnicos={};localizacaoHistorico=[];
-    fbLog('Troca de workspace neste aparelho — dado local anterior descartado','info');
+    try{localStorage.setItem('mappo_last_ws',info.workspaceId);}catch(e){}
+    fbLog('Troca de workspace neste aparelho — recarregando com dado local limpo','info');
+    location.reload();
+    return;
   }
   try{localStorage.setItem('mappo_last_ws',info.workspaceId);}catch(e){}
   session={perfil:info.role,nome:info.nome||info.uid,uid:info.uid,role:info.role==='gestor'?'Gestor':'Técnico de Campo'};
@@ -1362,6 +1364,29 @@ function _slugify(s){
   return(s||'').toString().normalize('NFD').replace(/[̀-ͯ]/g,'')
     .toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,40);
 }
+/* Ramo customizado ("Outro, qual?" no cadastro) -- código review (achado alto, 2
+   revisores): sem esta guarda, digitar "refrigeracao" fazia o workspace herdar de
+   verdade o vocabulário/módulo VRF de Refrigeração (RAMO_TEMPLATES/ramoTemVRF() batem
+   por string exata); e digitar uma chave herdada de Object.prototype (constructor,
+   toString, __proto__ etc.) fazia RAMO_TEMPLATES[ramo] resolver pra uma FUNÇÃO em vez
+   de undefined, quebrando o fallback "||RAMO_TEMPLATES.predial" e travando o cadastro
+   DEPOIS que o workspace já tinha sido criado no Firestore (órfão). Duas camadas:
+   (1) whitelist de caractere -- só letras/números/espaços/hífen, barra qualquer símbolo
+   (inclusive "_", o que já cobre __proto__ sozinho); (2) lista explícita de nomes
+   reservados (as 3 opções do próprio <select>) e de chaves perigosas de Object.prototype.
+   Retorna null quando válido, ou a mensagem de erro pro toast. */
+const RAMO_RESERVADOS=new Set(['refrigeracao','predial','outro']);
+const RAMO_CHAVES_PERIGOSAS=new Set(['constructor','prototype','tostring','valueof','hasownproperty','isprototypeof','propertyisenumerable','tolocalestring']);
+function _ramoCustomInvalido(txt){
+  const bruto=(txt||'').trim();
+  if(!bruto)return'Informe o ramo de atuação da empresa';
+  if(!/^[a-zA-ZÀ-ÿ0-9 -]+$/.test(bruto))return'Use só letras, números, espaços e hífen';
+  const norm=bruto.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');
+  if(!norm)return'Informe o ramo de atuação da empresa';
+  if(RAMO_RESERVADOS.has(norm))return'Esse Ramo já está na lista -- selecione a opção correspondente acima';
+  if(RAMO_CHAVES_PERIGOSAS.has(norm))return'Esse nome não pode ser usado -- escolha outro';
+  return null;
+}
 function _mensagemErroAuth(code){
   if(code==='auth/invalid-credential'||code==='auth/wrong-password'||code==='auth/user-not-found')return'E-mail ou senha incorretos';
   if(code==='auth/invalid-email')return'E-mail inválido';
@@ -1375,12 +1400,23 @@ function _mensagemErroAuth(code){
    members/{uid} (bootstrap) e userWorkspaces/{uid} atomicamente (AD-2/AD-11). */
 async function cadastrarEmpresa(){
   const empresa=(document.getElementById('cadEmpresa').value||'').trim();
-  const ramo=(document.getElementById('cadRamo').value||'').trim();
+  const ramoSel=(document.getElementById('cadRamo').value||'').trim();
+  const ramoOutroEl=document.getElementById('cadRamoOutro');
+  const ramoOutro=((ramoOutroEl&&ramoOutroEl.value)||'').trim();
   const nome=(document.getElementById('cadNome').value||'').trim();
   const email=(document.getElementById('cadEmail').value||'').trim();
   const senha=document.getElementById('cadSenha').value||'';
   if(!empresa||!nome){toast('Preencha o nome da empresa e o seu nome','warn');return;}
-  if(!ramo||!RAMO_TEMPLATES[ramo]){toast('Selecione o ramo de atuação da empresa','warn');return;}
+  if(!ramoSel){toast('Selecione o ramo de atuação da empresa','warn');return;}
+  if(ramoSel==='outro'){
+    const erroRamo=_ramoCustomInvalido(ramoOutro);
+    if(erroRamo){toast(erroRamo,'warn');return;}
+  }
+  // Ramo customizado ("outro"): a string digitada tal qual vira o valor salvo em
+  // workspaces/{wsId}.ramo -- nunca uma chave de RAMO_TEMPLATES (Design Notes da story).
+  // Validada acima (_ramoCustomInvalido) antes de aceitar -- nunca colide com uma chave
+  // reservada nem com Object.prototype.
+  const ramo=ramoSel==='outro'?ramoOutro:ramoSel;
   if(!email||!senha){toast('Informe e-mail e senha','warn');return;}
   if(senha.length<6){toast('Senha precisa de pelo menos 6 caracteres','warn');return;}
   const wsId=_slugify(empresa);
@@ -1406,14 +1442,18 @@ async function cadastrarEmpresa(){
     await batch.commit();
     // clona o template do Ramo (nunca por referência) e grava local ANTES de resolver o
     // workspace: fbSeedFromLocal só sobe uma chave que já existe no localStorage, e
-    // _resolverWorkspace->initSync roda logo a seguir (ver nota em fbSeedFromLocal)
-    checklistConfig=JSON.parse(JSON.stringify(RAMO_TEMPLATES[ramo]));
+    // _resolverWorkspace->initSync roda logo a seguir (ver nota em fbSeedFromLocal).
+    // Ramo customizado ("outro") não é chave de RAMO_TEMPLATES/PRECO_TEMPLATES -- cai no
+    // pacote genérico da Predial, nunca no de Refrigeração (Design Notes da story).
+    checklistConfig=JSON.parse(JSON.stringify(RAMO_TEMPLATES[ramo]||RAMO_TEMPLATES.predial));
     saveChecklistConfig();
-    precoConfig=JSON.parse(JSON.stringify(PRECO_TEMPLATES[ramo]));
+    precoConfig=JSON.parse(JSON.stringify(PRECO_TEMPLATES[ramo]||PRECO_TEMPLATES.predial));
     savePrecoConfig();
+    moduloConfig=JSON.parse(JSON.stringify(_moduloDefaultParaRamo(ramo)));
+    saveModuloConfig();
     // VRF é exclusivo do Ramo refrigeração (Story 9) -- só clona o checklist editável
-    // pra quem de fato usa o módulo; Predial nunca chega a lê-lo (vrfFasesAtuais() nem
-    // é chamado, já que a UI toda é escondida por ramoTemVRF()).
+    // pra quem de fato usa o módulo; Predial/customizado nunca chega a lê-lo (vrfFasesAtuais()
+    // nem é chamado, já que a UI toda é escondida por ramoTemVRF()).
     if(ramo==='refrigeracao'){
       vrfFasesConfig=JSON.parse(JSON.stringify(VRF_FASES));
       saveVrfFasesConfig();
@@ -1744,6 +1784,7 @@ function _aplicarNaMemoria(key,val){
     case'mappo_settings':settings=val;break;
     case'mappo_checklist_config':checklistConfig=val;break;
     case'mappo_preco_config':precoConfig=val;break;
+    case'mappo_modulo_config':moduloConfig=val;break;
     case'mappo_vrf_fases_config':vrfFasesConfig=val;break;
     // mappo_vrf_obra (singular) não tem mais variável própria em memória (Story 13, Etapa 1)
     // -- o pull continua atualizando o localStorage (ver SYNC_KEYS), só não alimenta nada
@@ -1839,6 +1880,9 @@ function fbApply(key,jsonStr,remoteMs){
 /* Reage a mudanças remotas: re-renderiza a tela atual quando faz sentido */
 function fbOnRemoteChange(key){
   if(typeof currentView==='undefined'||!session)return;
+  // gestor renomeou o módulo em outro aparelho: reaplica antes de decidir o que re-renderizar
+  // (VIEW_META.splits precisa estar atualizado ANTES do re-render abaixo usar 'topo da tela')
+  if(key==='mappo_modulo_config'&&typeof _aplicarModuloVocabulario==='function')_aplicarModuloVocabulario();
   // o técnico lançou algo em outro aparelho: os links do cliente também se atualizam
   if(typeof agendarRepublicacao==='function'&&PUB_KEYS.includes(key))agendarRepublicacao();
   // mapa: sempre atualiza marcadores
@@ -1869,7 +1913,10 @@ function fbOnRemoteChange(key){
     'mappo_preco_config':['financeiro'],
     'mappo_financeiro_notas':['financeiro'],
     'mappo_vrf_fases_config':['vrf','vrf-andares','config'],
-    'mappo_localizacao_historico':['mapa']
+    'mappo_localizacao_historico':['mapa'],
+    // Story 15: nome/desc do módulo "Sistema Split" aparece em config (editor), dashboard/home
+    // (cards de boas-vindas) e na própria tela do módulo (page-title de renderSplits).
+    'mappo_modulo_config':['config','dashboard','home','splits']
   };
   const views=reRender[key]||[];
   if(views.includes(currentView)&&typeof renderView==='function'){
@@ -2033,15 +2080,11 @@ async function syncManual(){
    Sem senha em texto plano (AD-6): o acesso de cada técnico é o próprio uid do Firebase Auth,
    vinculado via convite de uso único que o próprio prestador consome (ver prestadorEntrar()) --
    ou, no fallback avançado, colado manualmente pelo gestor aqui em Configurações → Equipe. */
-let tecnicos = JSON.parse(localStorage.getItem('mappo_tecnicos')||'null');
-if(!tecnicos||!tecnicos.length){
-  tecnicos = ['Carlos Silva','João Pereira','Marcos Souza','Rafael Lima'].map((n,i)=>({
-    id:'tec_'+(i+1), nome:n, uid:null,
-    modulos:{split:true,vrf:false,vrfObras:[]}, ativo:true,
-    criadoEm:new Date().toISOString()
-  }));
-  localStorage.setItem('mappo_tecnicos',JSON.stringify(tecnicos));
-}
+// code review: nascia com 4 técnicos de demonstração fake ('Carlos Silva' etc, resíduo de
+// quando o app era só a Elite Ar) -- toda empresa nova subia esses nomes de verdade pro
+// Firestore no primeiro fbSeedFromLocal(). Workspace novo nasce vazio; renderEquipeConfig()
+// já tem o empty-state certo ("Nenhum técnico cadastrado. Adicione o primeiro.").
+let tecnicos = JSON.parse(localStorage.getItem('mappo_tecnicos')||'[]')||[];
 function saveTecnicos(){localStorage.setItem('mappo_tecnicos',JSON.stringify(tecnicos));}
 function nomesTecnicos(){return tecnicos.filter(t=>t.ativo!==false).map(t=>t.nome);}
 function getTecnico(nome){return tecnicos.find(t=>t.nome===nome);}
@@ -2395,13 +2438,15 @@ function saveChecklistConfig(){localStorage.setItem('mappo_checklist_config',JSO
 /* Fonte do checklist do Ramo quando checklistConfig ainda não chegou neste aparelho
    (ex.: técnico autentica num workspace predial recém-criado antes do fbSeedFromLocal
    descer mappo_checklist_config): usa RAMO_TEMPLATES[WORKSPACE_RAMO] em vez de cair
-   direto nas constantes de refrigeração -- só cai nelas quando o ramo é mesmo
-   desconhecido (workspace anterior a esta story, ex.: Elite Ar). Só leitura: não
-   muta RAMO_TEMPLATES nem o array retornado (quem chama sempre faz .map com spread). */
+   direto nas constantes de refrigeração -- só cai nelas quando o ramo é literalmente
+   null (workspace anterior a esta story, ex.: Elite Ar). Qualquer Ramo customizado
+   (string não-vazia, não reconhecida em RAMO_TEMPLATES) cai no checklist da Predial --
+   nunca herda o de Refrigeração (Story 15). Só leitura: não muta RAMO_TEMPLATES nem o
+   array retornado (quem chama sempre faz .map com spread). */
 function _fallbackChecklistRamo(manut){
-  const tpl=WORKSPACE_RAMO&&RAMO_TEMPLATES[WORKSPACE_RAMO];
-  if(tpl)return manut?tpl.manutencao:tpl.instalacao;
-  return manut?CHECKLIST_MANUT:CHECKLIST_BASE;
+  if(WORKSPACE_RAMO==null)return manut?CHECKLIST_MANUT:CHECKLIST_BASE;
+  const tpl=RAMO_TEMPLATES[WORKSPACE_RAMO]||RAMO_TEMPLATES.predial;
+  return manut?tpl.manutencao:tpl.instalacao;
 }
 /* Escolhe o checklist certo conforme o tipo de serviço da OS */
 function ehManutencao(tipo){return /manuten/i.test(tipo||'');}
@@ -2443,8 +2488,12 @@ const PRECO_TEMPLATES = {
     {id:'visita_tec',nome:'Visita Técnica',valor:null},
     {id:'livre',nome:'Outro / Serviço avulso',valor:null},
   ],
+  // Story 15: deixa de ser cópia de .refrigeracao -- vocabulário genérico, editável em
+  // Configurações/Financeiro (hint de renomear na própria UI). É também o pacote que
+  // qualquer Ramo customizado ("Outro, qual?" no cadastro) reusa via _fallbackPrecoRamo --
+  // nunca o de refrigeração.
   predial:[
-    {id:'inst_split',nome:'Instalação Split',valor:null},
+    {id:'serv_padrao',nome:'Serviço Padrão',valor:null},
     {id:'manut_prev',nome:'Manutenção Preventiva',valor:null},
     {id:'manut_corr',nome:'Manutenção Corretiva',valor:null},
     {id:'manut_limp',nome:'Manutenção Limpeza',valor:null},
@@ -2461,12 +2510,13 @@ let precoConfig = JSON.parse(localStorage.getItem('mappo_preco_config')||'null')
 function savePrecoConfig(){localStorage.setItem('mappo_preco_config',JSON.stringify(precoConfig));}
 
 /* Fonte da tabela quando precoConfig ainda não chegou neste aparelho: usa
-   PRECO_TEMPLATES[WORKSPACE_RAMO] quando o Ramo é conhecido, só cai no de
-   refrigeração quando o Ramo é mesmo desconhecido (workspace anterior à Story 2).
-   Só leitura: nunca muta PRECO_TEMPLATES nem o array retornado. */
+   PRECO_TEMPLATES[WORKSPACE_RAMO] quando o Ramo é conhecido, só cai no de refrigeração
+   quando o Ramo é literalmente null (workspace anterior à Story 2). Qualquer Ramo
+   customizado (string não reconhecida) cai no genérico da Predial -- nunca herda o de
+   refrigeração (Story 15). Só leitura: nunca muta PRECO_TEMPLATES nem o array retornado. */
 function _fallbackPrecoRamo(){
-  const tpl=WORKSPACE_RAMO&&PRECO_TEMPLATES[WORKSPACE_RAMO];
-  return tpl||PRECO_TEMPLATES.refrigeracao;
+  if(WORKSPACE_RAMO==null)return PRECO_TEMPLATES.refrigeracao;
+  return PRECO_TEMPLATES[WORKSPACE_RAMO]||PRECO_TEMPLATES.predial;
 }
 /* Workspace sem precoConfig ainda: só cria o clone no momento em que o gestor edita de
    verdade (nunca no boot, sem migração forçada). Sempre clona (JSON.parse(JSON.stringify(...))):
@@ -2487,6 +2537,58 @@ function valorDoTipo(tipo){
   const fonte=_precoCfgExibicao();
   const item=(fonte||[]).find(c=>_normTipo(c.nome)===_normTipo(tipo));
   return(item&&item.valor!=null)?item.valor:null;
+}
+
+/* ═══ VOCABULÁRIO DO MÓDULO "SISTEMA SPLIT" (Story 15) ═══
+   Mesmo padrão de checklistConfig/precoConfig: clonado por workspace no cadastro,
+   editável em Configurações, objeto único sincronizado (mais recente vence, sem merge
+   por campo -- ver _aplicarNaMemoria/SYNC_KEYS). Refrigeração (ou WORKSPACE_RAMO===null,
+   legado) mantém o nome/desc de sempre -- "Sistema Split" já é o vocabulário certo pra
+   esse Ramo, sem edição necessária (renderConfig só mostra a UI de edição quando
+   !ramoTemVRF()). Qualquer outro Ramo (Predial ou customizado) nasce com um rótulo
+   NEUTRO -- code review (achado médio): o texto default anterior ("Renomeie com o nome
+   da sua atividade específica") era uma instrução pro GESTOR, mas vazava pra telas do
+   TÉCNICO (que não tem acesso a Configurações pra corrigir) e pro topSub geral. O hint de
+   renomear agora vive só dentro do editor em Configurações (renderModuloConfig, texto de
+   apoio/placeholder) -- nunca numa view do dia a dia. */
+function _moduloDefaultParaRamo(ramo){
+  if(ramo==null||ramo==='refrigeracao')return{nome:'Sistema Split',desc:'Instalação e serviço de splits'};
+  return{nome:'Serviços',desc:'Ordens de serviço da sua empresa'};
+}
+let moduloConfig = JSON.parse(localStorage.getItem('mappo_modulo_config')||'null');
+function saveModuloConfig(){localStorage.setItem('mappo_modulo_config',JSON.stringify(moduloConfig));}
+/* Fonte quando moduloConfig ainda não chegou neste aparelho: mesmo espírito de
+   _fallbackChecklistRamo/_fallbackPrecoRamo. Só leitura: nunca muta o objeto retornado. */
+function _fallbackModuloRamo(){
+  return _moduloDefaultParaRamo(WORKSPACE_RAMO);
+}
+/* Workspace sem moduloConfig ainda: só cria o clone no momento em que o gestor edita de
+   verdade (nunca no boot, sem migração forçada). Sempre clona: nunca aponta pro objeto
+   do fallback. */
+function _garantirModuloConfig(){
+  if(!moduloConfig)moduloConfig=JSON.parse(JSON.stringify(_fallbackModuloRamo()));
+}
+/* Accessor único pro nome/desc do módulo "Sistema Split" -- todo ponto de UI que hoje
+   mostra esse texto fixo passa a ler daqui (sidebar, dashboard, topo da tela, checkbox
+   de técnico). Só leitura: se ainda não há clone, mostra o fallback vigente sem
+   persistir nada. */
+function moduloSplitAtual(){
+  return moduloConfig||_fallbackModuloRamo();
+}
+/* Reaplica o vocabulário do módulo nos pontos que não são recalculados a cada render:
+   VIEW_META.splits (objeto estático, lido em nav() via lookup direto -- ver Design Notes
+   da story) e o rótulo já pintado no DOM da sidebar/topo. Chamada no boot pós-resolução
+   de Ramo (entrarApp) e de novo sempre que moduloConfig for salvo/chegar da nuvem. */
+function _aplicarModuloVocabulario(){
+  const m=moduloSplitAtual();
+  VIEW_META.splits=[m.nome,m.desc];
+  const lbl=document.getElementById('navLblSplit');
+  if(lbl)lbl.textContent=m.nome;
+  if(typeof currentView!=='undefined'&&currentView==='splits'){
+    const tt=document.getElementById('topTitle'),ts=document.getElementById('topSub');
+    if(tt)tt.textContent=m.nome;
+    if(ts)ts.textContent=m.desc;
+  }
 }
 
 const ETAPAS = ['checkin','equipamentos','checklist','assinatura'];
@@ -2553,6 +2655,9 @@ function entrarApp(){
   // "Tarefa Adicional" vira o item principal (relabelada) pros demais Ramos.
   const lblTarefas=document.getElementById('navLblTarefas');
   if(lblTarefas)lblTarefas.textContent=ramoTemVRF()?'Tarefa Adicional':'Criar Tarefas';
+  // Story 15: nome/desc do módulo "Sistema Split" (genérico e editável fora de Refrigeração)
+  // -- sidebar, VIEW_META.splits (topo da tela) e o que mais lê moduloSplitAtual().
+  _aplicarModuloVocabulario();
   // técnico vê só os módulos que o gestor liberou
   if(session.perfil==='tecnico'){
     aplicarMenuTecnico();
@@ -2591,8 +2696,12 @@ function renderTecnicoHome(){
     if(m.split)cards.push(`
       <div class="bv-card" onclick="nav('ordens')">
         <div class="bv-card-ico">${svgIco('splits')}</div>
-        <div class="bv-card-name">Sistema Split</div>
-        <div class="bv-card-desc">Suas ordens de serviço de instalação e manutenção</div>
+        <div class="bv-card-name">${escapeHtml(moduloSplitAtual().nome)}</div>
+        <!-- code review (achado médio): descrição usava texto fixo mesmo quando o nome já
+             era dinâmico -- contradição pra Ramo não-refrigeração. Refrigeração mantém o
+             texto de sempre (invariante "nada muda visualmente" da story); só o não-VRF
+             passa a ler moduloSplitAtual().desc. -->
+        <div class="bv-card-desc">${ramoTemVRF()?'Suas ordens de serviço de instalação e manutenção':escapeHtml(moduloSplitAtual().desc)}</div>
         <div class="bv-card-go">Abrir ${svgIco('arrow-right','ico-sm')}</div>
       </div>`);
     if(minhasObrasVRF.length&&ramoTemVRF())cards.push(`
@@ -2621,7 +2730,7 @@ function renderTecnicoHome(){
     blocos+=`
     <div class="card vrf-dash-card" onclick="nav('ordens')">
       <div class="vrf-dash-left">
-        <div class="vrf-dash-tag">${svgIco('splits','ico-sm')} Sistema Split</div>
+        <div class="vrf-dash-tag">${svgIco('splits','ico-sm')} ${escapeHtml(moduloSplitAtual().nome)}</div>
         <div class="vrf-dash-nome">${minhas.length} ordem${minhas.length!==1?'ns':''} de serviço</div>
         <div class="vrf-dash-meta">${pend} pendente${pend!==1?'s':''} · ${and} em andamento</div>
       </div>
@@ -3119,8 +3228,8 @@ function renderBemVindoGestor(){
     <div class="bv-cards">
       <div class="bv-card" onclick="nav('ordens')">
         <div class="bv-card-ico">${svgIco('splits')}</div>
-        <div class="bv-card-name">Sistema Split</div>
-        <div class="bv-card-desc">Ordens de serviço, instalação e manutenção de splits</div>
+        <div class="bv-card-name">${escapeHtml(moduloSplitAtual().nome)}</div>
+        <div class="bv-card-desc">${ramoTemVRF()?'Ordens de serviço, instalação e manutenção de splits':escapeHtml(moduloSplitAtual().desc)}</div>
         <div class="bv-card-go">Começar ${svgIco('arrow-right','ico-sm')}</div>
       </div>
       ${ramoTemVRF()?`<div class="bv-card" onclick="nav('vrf')">
@@ -3409,21 +3518,29 @@ function renderHistoricoLocalizacao(){
 
 /* ═══════════ SPLITS ═══════════ */
 function renderSplits(){
-  const splitOS=osList.filter(o=>o.tipo&&o.tipo.toLowerCase().includes('split'));
+  // Story 15, code review (achado crítico, 3 revisores): filtro por substring 'split' só
+  // faz sentido pro Ramo que de fato usa esse vocabulário (Refrigeração/legado). Pra
+  // qualquer outro Ramo o módulo cobre QUALQUER tipo de serviço genérico -- filtrar por
+  // 'split' deixava a tela sempre zerada, mesmo com OS reais sincronizadas (a categoria
+  // da Predial não tem mais essa palavra desde que virou "Serviço Padrão").
+  const vrf=ramoTemVRF();
+  const m=moduloSplitAtual();
+  const splitOS=vrf?osList.filter(o=>o.tipo&&o.tipo.toLowerCase().includes('split')):osList;
   return `
   <div class="page-head">
-    <div><div class="page-title">Sistema Split</div><div class="page-desc">Instalação e serviço de aparelhos split</div></div>
-    <button class="btn btn-primary" onclick="openModalOS()">${svgIco('plus','ico-sm')} Nova instalação</button>
+    <div><div class="page-title">${escapeHtml(m.nome)}</div><div class="page-desc">${vrf?'Instalação e serviço de aparelhos split':escapeHtml(m.desc)}</div></div>
+    <button class="btn btn-primary" onclick="openModalOS()">${svgIco('plus','ico-sm')} ${vrf?'Nova instalação':'Nova OS'}</button>
   </div>
   <div class="stats-grid">
-    <div class="stat s-total"><div class="stat-label">Instalações</div><div class="stat-num">${splitOS.length}</div></div>
+    <div class="stat s-total"><div class="stat-label">${vrf?'Instalações':'Ordens'}</div><div class="stat-num">${splitOS.length}</div></div>
     <div class="stat s-done"><div class="stat-label">Concluídas</div><div class="stat-num">${splitOS.filter(o=>o.status==='concluida').length}</div></div>
-    <div class="stat s-prog"><div class="stat-label">Splits instalados</div><div class="stat-num">${splitOS.filter(o=>o.status==='concluida').reduce((a,o)=>a+(o.qtdSplits||1),0)}</div></div>
+    ${vrf?`<div class="stat s-prog"><div class="stat-label">Splits instalados</div><div class="stat-num">${splitOS.filter(o=>o.status==='concluida').reduce((a,o)=>a+(o.qtdSplits||1),0)}</div></div>`
+      :`<div class="stat s-prog"><div class="stat-label">Em andamento</div><div class="stat-num">${splitOS.filter(o=>o.status==='andamento').length}</div></div>`}
     <div class="stat s-pend"><div class="stat-label">Em aberto</div><div class="stat-num">${splitOS.filter(o=>o.status!=='concluida').length}</div></div>
   </div>
   <div class="card">
-    <div class="card-head"><h3>Ordens de instalação split</h3></div>
-    <div class="card-pad">${splitOS.length?`<div class="os-grid">${splitOS.map(osCardHTML).join('')}</div>`:emptyState('splits','Nenhuma instalação split','Crie uma OS do tipo Instalação Split.')}</div>
+    <div class="card-head"><h3>${vrf?'Ordens de instalação split':'Ordens de serviço — '+escapeHtml(m.nome)}</h3></div>
+    <div class="card-pad">${splitOS.length?`<div class="os-grid">${splitOS.map(osCardHTML).join('')}</div>`:emptyState('splits',vrf?'Nenhuma instalação split':'Nenhuma OS ainda',vrf?'Crie uma OS do tipo Instalação Split.':'Crie uma OS pra começar.')}</div>
   </div>`;
 }
 
@@ -4456,6 +4573,11 @@ function renderConfig(){
     <div class="card-pad" style="padding-top:6px">${renderVrfFasesConfig()}</div>
   </div>`:''}
 
+  ${!ramoTemVRF()?`<div class="card" style="margin-bottom:22px">
+    <div class="card-head"><h3>🏷️ Nome do módulo principal</h3></div>
+    <div class="card-pad" style="padding-top:6px">${renderModuloConfig()}</div>
+  </div>`:''}
+
   <div class="two-col">
     <div class="card">
       <div class="card-head"><h3>Notificações de manutenção</h3></div>
@@ -4512,11 +4634,15 @@ function setField(k,v){settings[k]=v;saveSettings();}
    ════════════════════════════════════════ */
 /* Template a usar quando checklistConfig ainda não existe: o do Ramo do workspace
    quando conhecido (RAMO_TEMPLATES[WORKSPACE_RAMO], já com o campo nome — mesmo
-   formato clonado em cadastrarEmpresa()); só cai no fallback de refrigeração
-   (RAMO_TEMPLATES.refrigeracao, mesmo conteúdo de CHECKLIST_BASE/CHECKLIST_MANUT)
-   quando o ramo é mesmo desconhecido (workspace anterior a esta story). */
+   formato clonado em cadastrarEmpresa()); só cai no fallback de refrigeração quando o
+   ramo é literalmente null (workspace anterior a esta story, ex.: Elite Ar). Ramo
+   customizado (string não reconhecida) cai no template da Predial -- mesma regra de
+   _fallbackChecklistRamo (Story 15): nunca herda o de Refrigeração aqui também, senão a
+   tela de Configurações mostraria um checklist diferente do que checklistDoTipo() de
+   fato usa pra Ramo customizado. */
 function _templateRamoFallback(){
-  return(WORKSPACE_RAMO&&RAMO_TEMPLATES[WORKSPACE_RAMO])||RAMO_TEMPLATES.refrigeracao;
+  if(WORKSPACE_RAMO==null)return RAMO_TEMPLATES.refrigeracao;
+  return RAMO_TEMPLATES[WORKSPACE_RAMO]||RAMO_TEMPLATES.predial;
 }
 /* Workspace sem checklistConfig ainda (ex.: Elite Ar, pré-Story-2, ou um aparelho que
    ainda não recebeu o mappo_checklist_config sincronizado): só cria o clone no momento
@@ -4580,6 +4706,35 @@ function adicionarItemChecklist(grupo){
   checklistConfig[grupo].push({id,label,critico:false});
   if(input)input.value='';
   saveChecklistConfig();renderView('config');toast('Item adicionado','success');
+}
+
+/* ════════════════════════════════════════
+   GESTÃO DO VOCABULÁRIO DO MÓDULO (Configurações, Story 15)
+   Editor cirúrgico do nome/descrição do módulo "Sistema Split" -- só aparece pra quem
+   não é Refrigeração (!ramoTemVRF()): esse Ramo já tem o nome certo, sem necessidade de
+   editar. Mesmo padrão de renderChecklistConfig/renderPrecoConfig: campo simples,
+   salva no clique, sem reordenar/remover (é um rótulo único, não uma lista).
+   ════════════════════════════════════════ */
+function renderModuloConfig(){
+  const m=moduloSplitAtual();
+  return `
+    <p style="font-size:12px;color:var(--gray-400);margin-bottom:10px">📌 Refrigeração usa "Sistema Split" por padrão -- seu Ramo pode renomear esse módulo com a atividade principal da empresa (ex.: "Manutenção Elétrica").</p>
+    <div class="fg"><label>Nome do módulo</label><input type="text" id="moduloNome" value="${escapeHtml(m.nome)}" placeholder="Ex.: Manutenção Elétrica"></div>
+    <div class="fg"><label>Descrição curta</label><input type="text" id="moduloDesc" value="${escapeHtml(m.desc)}" placeholder="Ex.: Instalação e manutenção de sistemas elétricos"></div>
+    <button class="btn btn-primary btn-sm" onclick="salvarModuloConfig()">${svgIco('check','ico-sm')} Salvar</button>`;
+}
+function salvarModuloConfig(){
+  _garantirModuloConfig();
+  const nome=(document.getElementById('moduloNome').value||'').trim();
+  const desc=(document.getElementById('moduloDesc').value||'').trim();
+  if(!nome){toast('O nome do módulo não pode ficar vazio','warn');return;}
+  if(!desc){toast('A descrição não pode ficar vazia','warn');return;}
+  moduloConfig.nome=nome;
+  moduloConfig.desc=desc;
+  saveModuloConfig();
+  _aplicarModuloVocabulario();
+  renderView('config');
+  toast('Nome do módulo atualizado','success');
 }
 
 /* ════════════════════════════════════════
@@ -4689,6 +4844,7 @@ function adicionarEtapaVrf(faseId){
 function renderPrecoConfig(){
   const cfg=_precoCfgExibicao();
   return `
+    ${!ramoTemVRF()?'<p style="font-size:12px;color:var(--gray-400);margin-bottom:10px">📌 Categorias genéricas -- renomeie/edite pra encaixar na atividade da sua empresa.</p>':''}
     ${(cfg||[]).map((c,idx)=>`<div class="set-row" style="gap:8px">
       <div class="set-info" style="flex:1"><div class="st">${escapeHtml(c.nome)}</div></div>
       <div style="display:flex;align-items:center;gap:6px">
@@ -4908,7 +5064,7 @@ function renderEquipeConfig(){
       </div>
       <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
         <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;user-select:none">
-          <input type="checkbox" ${m.split?'checked':''} onchange="toggleModuloTec('${t.id}','split',this.checked)"> ❄️ Split</label>
+          <input type="checkbox" ${m.split?'checked':''} onchange="toggleModuloTec('${t.id}','split',this.checked)"> ❄️ ${escapeHtml(moduloSplitAtual().nome)}</label>
         ${ramoTemVRF()?vrfControl:''}
         ${!t.uid&&!t.conviteCodigo?`<button class="btn btn-primary btn-sm" onclick="gerarConviteTecnico('${t.id}')">✉️ Gerar código de convite</button>`:''}
         ${!t.uid&&t.conviteCodigo?`<button class="btn btn-ghost btn-sm" onclick="_mostrarModalConvite('${t.id}')">👁️ Ver convite</button>`:''}
@@ -4938,7 +5094,7 @@ function openModalTecnico(id){
           <label class="mod-card" id="modCardSplit">
             <input type="checkbox" id="tSplit" ${m.split?'checked':''} onchange="document.getElementById('modCardSplit').classList.toggle('on',this.checked)">
             <span class="mod-ico">${svgIco('splits')}</span>
-            <span class="mod-name">Sistema Split</span>
+            <span class="mod-name">${escapeHtml(moduloSplitAtual().nome)}</span>
             <span class="mod-tick">${svgIco('check','ico-sm')}</span>
           </label>
           ${ramoTemVRF()&&vrfObras.length<=1?`<label class="mod-card" id="modCardVrf">
@@ -5289,7 +5445,7 @@ function openModalOS(){
       <div class="fg"><label>Endereço</label><input type="text" id="oEndereco" placeholder="Rua, número, bairro, cidade"></div>
       <div class="frow">
         <div class="fg"><label>Tipo de serviço</label><select id="oTipo">
-          <option>Instalação Split</option><option>Manutenção Preventiva</option><option>Manutenção Corretiva</option><option>Manutenção Limpeza</option><option>Visita Técnica</option><option>Outro / Serviço avulso</option>
+          ${_precoCfgExibicao().map(c=>`<option>${escapeHtml(c.nome)}</option>`).join('')}
         </select></div>
         <div class="fg"><label>Técnico</label><select id="oTecnico">${nomesTecnicos().map(t=>`<option>${t}</option>`).join('')}</select></div>
       </div>
@@ -5297,7 +5453,7 @@ function openModalOS(){
         <div class="fg"><label>Data</label><input type="date" id="oData" value="${hoje()}"></div>
         <div class="fg"><label>Horário</label><input type="time" id="oHora" value="08:00"></div>
       </div>
-      <div class="fg"><label>Quantidade de splits</label><select id="oSplits">${Array.from({length:10},(_,i)=>`<option value="${i+1}">${i+1} split${i>0?'s':''}</option>`).join('')}</select></div>
+      ${ramoTemVRF()?`<div class="fg"><label>Quantidade de splits</label><select id="oSplits">${Array.from({length:10},(_,i)=>`<option value="${i+1}">${i+1} split${i>0?'s':''}</option>`).join('')}</select></div>`:''}
       <div class="fg"><label>Observações</label><textarea id="oObs" placeholder="Andar, ambiente, detalhes..."></textarea></div>
     </div>
     <div class="modal-foot">
@@ -5310,19 +5466,26 @@ function criarOS(){
   const cliente=document.getElementById('oCliente').value.trim();
   const endereco=document.getElementById('oEndereco').value.trim();
   if(!cliente||!endereco){toast('Preencha cliente e endereço','warn');return;}
-  const qtd=parseInt(document.getElementById('oSplits').value)||1;
+  // code review (achado médio): #oTipo agora renderiza a partir de _precoCfgExibicao()
+  // (Story 15) -- se o gestor apagar todas as categorias em Financeiro, o <select> nasce
+  // sem <option> nenhuma e .value vem vazio. Bloqueia aqui em vez de criar uma OS sem tipo.
+  const tipoSel=document.getElementById('oTipo').value;
+  if(!tipoSel){toast('Cadastre ao menos uma categoria em Configurações → Financeiro antes de criar uma OS','warn');return;}
+  // campo só existe quando ramoTemVRF() (Story 15) -- Ramo sem Split nasce com 1 equipamento
+  const oSplitsEl=document.getElementById('oSplits');
+  const qtd=oSplitsEl?(parseInt(oSplitsEl.value)||1):1;
   const os={
     id:'os_'+Date.now(),cliente,endereco,
-    tipo:document.getElementById('oTipo').value,
+    tipo:tipoSel,
     tecnico:document.getElementById('oTecnico').value,
     data:document.getElementById('oData').value,
     hora:document.getElementById('oHora').value,
     obs:document.getElementById('oObs').value,
     notaGestor:'',
     qtdSplits:qtd,status:'pendente',
-    checklist:checklistDoTipo(document.getElementById('oTipo').value),
+    checklist:checklistDoTipo(tipoSel),
     equipamentos:Array.from({length:qtd},(_,i)=>({idx:i,marca:'',modelo:'',fotoEvap:null,fotoCond:null})),
-    valor:valorDoTipo(document.getElementById('oTipo').value),valorStatus:null,
+    valor:valorDoTipo(tipoSel),valorStatus:null,
     criadaEm:new Date().toISOString(),
   };
   osList.unshift(os);saveOS();closeModal();renderView(currentView);atualizarBadges();

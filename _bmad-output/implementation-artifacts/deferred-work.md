@@ -173,3 +173,15 @@ Itens reais, encontrados durante revisão, que não são problema desta story es
 - source_spec: `_bmad-output/specs/spec-mappo/stories/11-convite-prestador-gerado-gestor.md`
   summary: Um técnico removido de um workspace e reconvidado depois (novo convite, mesmo uid) nunca consegue consumir o novo código -- `userWorkspaces/{uid}` já existe apontando pro workspace antigo, e a regra bloqueia update nesse documento (`allow update, delete: if false`), então a transação inteira falha com permission-denied.
   evidence: Mesma limitação já existe no fluxo manual antigo (`_vincularAcessoTecnico` faz o mesmo `set()` sem merge) -- não é regressão desta story, é a mesma assunção documentada em AD-11/comentário da própria regra ("uma pessoa pertence a 1 workspace", sem reatribuição modelada). Falha de forma segura (permission-denied, nenhum dado corrompido), só a mensagem de erro genérica não explica a causa real pro usuário.
+
+- source_spec: `_bmad-output/specs/spec-mappo/stories/15-vocabulario-servico-generico-ramo-customizado.md`
+  summary: Ícone do módulo (`svgIco('splits')`, um aparelho de ar-condicionado) e o emoji ❄️ no checkbox do técnico continuam fixos mesmo depois do gestor renomear o módulo -- uma empresa "Manutenção Elétrica" ainda vê ícone de ar-condicionado em todo lugar.
+  evidence: Achado do blind-hunter -- genericizar o rótulo de texto foi feito, mas o ícone é um SVG fixo (`ICONS.splits`), não um parâmetro do `moduloConfig`. Corrigir direito exige desenhar/escolher um ícone genérico, decisão de design fora do escopo cirúrgico desta story.
+
+- source_spec: `_bmad-output/specs/spec-mappo/stories/15-vocabulario-servico-generico-ramo-customizado.md`
+  summary: O texto do Ramo customizado digitado no cadastro (ex.: "Elétrica Predial") não é reaproveitado como sugestão de nome do módulo -- o gestor digita a mesma informação de novo em Configurações logo depois de cadastrar.
+  evidence: Achado do blind-hunter -- `_moduloDefaultParaRamo` só decide refrigeração-vs-não, não lê o texto do Ramo customizado. Melhoria de UX real, não um bug; baixo custo de implementar depois se o proprietário quiser.
+
+- source_spec: `_bmad-output/specs/spec-mappo/stories/15-vocabulario-servico-generico-ramo-customizado.md`
+  summary: Nome de Ramo customizado sem normalização (maiúsculas/acentos) nem limite de tamanho -- "Elétrica"/"eletrica"/"ELÉTRICA" viram Ramos diferentes pro app, e o campo aceita texto de qualquer tamanho.
+  evidence: Achado do blind-hunter -- mesmo risco que qualquer campo de texto livre já aceito no app hoje (ex.: nome da empresa também não é normalizado). Baixa severidade -- afeta só o próprio workspace de quem digitou, não vaza pra outra empresa.

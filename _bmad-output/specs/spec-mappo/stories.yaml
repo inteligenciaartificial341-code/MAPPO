@@ -207,3 +207,27 @@
     Simples e de baixo risco -- sem painel de analytics/NPS formal, só
     captura e lista o feedback bruto (com data e workspace de origem)
     pro proprietário ler.
+
+- id: "15"
+  title: Vocabulário de serviço genérico e editável por Ramo, + Ramo customizado no cadastro
+  description: >-
+    Implementa CAP-16: Refrigeração mantém todo vocabulário atual sem
+    mudança. Qualquer outro Ramo (Predial ou customizado) recebe
+    categorias de preço, rótulo de módulo e dropdown "Tipo de Serviço"
+    genéricos e próprios, editáveis pelo gestor. Cadastro ganha opção
+    "Outro, qual?" pra Ramo customizado.
+  spec_checkpoint: false
+  done_checkpoint: false
+  invoke_dev_with: >-
+    PRECO_TEMPLATES.predial hoje é cópia idêntica de
+    PRECO_TEMPLATES.refrigeracao (bug de origem) -- corrigir junto.
+    Dropdown "Tipo de Serviço" da OS (hoje HTML fixo) vira Ramo-aware,
+    pareado com a mesma lista de categorias da tabela de preço -- nunca
+    duas listas que podem divergir. "Quantidade de splits" só aparece
+    pra Refrigeração. Ramo customizado nunca herda o pacote de
+    Refrigeração -- sempre o genérico-editável, com hint tipo "renomeie
+    com sua atividade específica" (texto exato a critério de quem
+    implementar). Checklist (RAMO_TEMPLATES) pra Ramo customizado usa
+    fallback genérico-editável, nunca fica sem checklist. Reverte o
+    non-goal anterior de "máx. 2 Ramos" -- decisão consciente do
+    proprietário, não esquecimento.
