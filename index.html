@@ -802,8 +802,7 @@
     <div class="login-hint" id="loginHint">Gestor ou técnico: use a sua conta MAPPO.<br>
       <a href="#" onclick="event.preventDefault();mostrarCadastroEmpresa()" style="color:#fff;text-decoration:underline">Cadastrar minha empresa</a>
       &nbsp;·&nbsp;
-      <a href="#" id="linkCriarContaTecnico" onclick="event.preventDefault();criarContaTecnico()" style="color:#fff;text-decoration:underline">Sou prestador de serviço</a>
-      <span style="display:block;opacity:.75;font-size:12px;margin-top:4px">(preencha e-mail e senha aqui em cima antes de clicar)</span>
+      <a href="#" id="linkCriarContaTecnico" onclick="event.preventDefault();mostrarPrestadorBox()" style="color:#fff;text-decoration:underline">Sou prestador de serviço</a>
     </div>
     <!-- Story 12: WhatsApp do Paulo (dono/proprietário do MAPPO) -- gestor novo sem convite
          nenhum pede acesso direto por aqui, em paralelo ao autocadastro "Cadastrar minha
@@ -815,6 +814,7 @@
   </div>
 
   <div class="login-box" id="cadastroBox" style="display:none">
+    <a href="#" class="login-back" onclick="event.preventDefault();mostrarLogin()" style="display:inline-block;margin-bottom:14px;color:#fff;opacity:.85;text-decoration:none;font-size:14px">← Voltar</a>
     <h2>Cadastrar empresa</h2>
     <div class="fg login-field"><label>Nome da empresa</label><input type="text" id="cadEmpresa" placeholder="Ex.: Elite Ar"></div>
     <div class="fg login-field"><label>Ramo de atuação</label>
@@ -828,10 +828,26 @@
     <div class="fg login-field"><label>E-mail</label><input type="email" id="cadEmail" placeholder="voce@empresa.com" autocomplete="username"></div>
     <div class="fg login-field"><label>Senha</label><input type="password" id="cadSenha" placeholder="Mínimo 6 caracteres" autocomplete="new-password"></div>
     <button class="btn-entrar" onclick="cadastrarEmpresa()">Criar empresa →</button>
-    <div class="login-hint">Você vira o gestor desta empresa.<br><a href="#" onclick="event.preventDefault();mostrarLogin()" style="color:#fff;text-decoration:underline">Já tenho conta — entrar</a></div>
+    <div class="login-hint">Você vira o gestor desta empresa.</div>
+  </div>
+
+  <!-- Story 11 (revisão): "Sou prestador de serviço" virou um único passo -- nome+e-mail+senha+
+       código juntos, em vez de reaproveitar os campos de login lá em cima (confuso, exigia
+       preencher a tela errada antes) + uma segunda tela só de nome+código depois. -->
+  <div class="login-box" id="prestadorBox" style="display:none">
+    <a href="#" class="login-back" onclick="event.preventDefault();mostrarLogin()" style="display:inline-block;margin-bottom:14px;color:#fff;opacity:.85;text-decoration:none;font-size:14px">← Voltar</a>
+    <h2>Sou prestador de serviço</h2>
+    <div class="login-hint" style="margin-top:0">Informe seus dados e o código de convite que o seu gestor te enviou.</div>
+    <div class="fg login-field" style="margin-top:16px"><label>Seu nome</label><input type="text" id="prestNome" placeholder="Seu nome completo"></div>
+    <div class="fg login-field"><label>E-mail</label><input type="email" id="prestEmail" placeholder="voce@exemplo.com" autocomplete="username"></div>
+    <div class="fg login-field"><label>Senha</label><input type="password" id="prestSenha" placeholder="Mínimo 6 caracteres" autocomplete="new-password"></div>
+    <div class="fg login-field"><label>Código de convite (opcional se ainda não recebeu)</label><input type="text" id="prestCodigo" placeholder="Ex.: A1B2C3D4" autocapitalize="characters"></div>
+    <button class="btn-entrar" onclick="prestadorEntrar()">Entrar →</button>
+    <div class="login-hint" style="margin-top:14px">Ainda sem código? Pode criar a conta mesmo assim — na próxima tela dá pra colar o código depois, ou usar o acesso manual avançado.</div>
   </div>
 
   <div class="login-box" id="semAcessoBox" style="display:none">
+    <a href="#" class="login-back" onclick="event.preventDefault();_sairSemAcesso()" style="display:inline-block;margin-bottom:14px;color:#fff;opacity:.85;text-decoration:none;font-size:14px">← Voltar</a>
     <h2>Conta criada</h2>
     <div class="login-hint" style="margin-top:0">Sua conta foi autenticada. Informe seu nome e o código de convite que o seu gestor te enviou pra entrar direto.</div>
     <div class="fg login-field" style="margin-top:16px"><label>Seu nome</label><input type="text" id="conviteNome" placeholder="Seu nome completo"></div>
@@ -844,14 +860,13 @@
     <div class="fg login-field" id="semAcessoUidWrap" style="margin-top:14px;display:none"><label>Seu código de acesso (fallback manual)</label><input type="text" id="semAcessoUid" readonly onclick="this.select()">
       <button class="btn-entrar" style="margin-top:10px" onclick="_tentarNovamenteAcesso()">Já fui adicionado — tentar de novo</button>
     </div>
-    <div class="login-hint"><a href="#" onclick="event.preventDefault();_sairSemAcesso()" style="color:#fff;text-decoration:underline">Sair</a></div>
   </div>
 
   <div class="login-box" id="pendenteBox" style="display:none">
+    <a href="#" class="login-back" onclick="event.preventDefault();_sairSemAcesso()" style="display:inline-block;margin-bottom:14px;color:#fff;opacity:.85;text-decoration:none;font-size:14px">← Voltar</a>
     <h2>Aguardando aprovação</h2>
     <div class="login-hint" style="margin-top:0">Sua empresa foi cadastrada e está aguardando aprovação. Assim que for liberada, você já poderá usar o MAPPO normalmente.</div>
     <button class="btn-entrar" onclick="_tentarNovamenteAcesso()">Já fui aprovado — tentar de novo</button>
-    <div class="login-hint"><a href="#" onclick="event.preventDefault();_sairSemAcesso()" style="color:#fff;text-decoration:underline">Sair</a></div>
   </div>
 </div>
 
@@ -1299,12 +1314,13 @@ function _aplicarSessaoResolvida(info){
 
 /* ── Telas de login/cadastro ── */
 function _mostrarBoxLogin(id){
-  ['loginBox','cadastroBox','semAcessoBox','pendenteBox'].forEach(b=>{
+  ['loginBox','cadastroBox','prestadorBox','semAcessoBox','pendenteBox'].forEach(b=>{
     const el=document.getElementById(b);if(el)el.style.display=(b===id)?'':'none';
   });
 }
 function mostrarLogin(){_mostrarBoxLogin('loginBox');}
 function mostrarCadastroEmpresa(){_mostrarBoxLogin('cadastroBox');}
+function mostrarPrestadorBox(){_mostrarBoxLogin('prestadorBox');}
 function _mostrarSemAcesso(user){
   document.getElementById('app').classList.remove('active');
   document.body.classList.remove('has-rail');
@@ -1419,34 +1435,52 @@ async function cadastrarEmpresa(){
   if(btn){btn.disabled=false;btn.textContent='Criar empresa →';}
 }
 
-/* Conta de acesso do técnico: só cria a conta no Firebase Auth, sem workspace nenhum.
-   O gestor concede o acesso de verdade depois, vinculando o uid em Configurações → Equipe. */
-async function criarContaTecnico(){
-  const emailEl=document.getElementById('loginEmail');
-  const passEl=document.getElementById('loginPass');
+/* Story 11 (revisão): "Sou prestador de serviço" cria a conta e, se já tiver o código, consome
+   o convite no mesmo passo -- substitui o fluxo antigo de 2 telas (criarContaTecnico()
+   reaproveitando os campos de login lá em cima, depois uma tela separada só de nome+código).
+   Código é OPCIONAL aqui de propósito: quem ainda não tem o código do gestor (ex.: vai receber
+   depois, ou vai usar o fallback avançado de UID manual) ainda precisa conseguir criar a conta
+   -- só não consome convite nenhum, e o _resolverWorkspace() natural do fim pousa em
+   semAcessoBox (nome+código de novo, ou "Avançado: colar UID manualmente"). _signupInProgress
+   (mesmo flag de cadastrarEmpresa()) suprime a resolução automática de workspace enquanto os
+   passos rodam em sequência -- sem isso, o onAuthStateChanged global reagiria no meio do
+   caminho e piscaria semAcessoBox antes da hora. Se o convite informado falhar (código
+   errado/já usado), NÃO desfaz a conta -- mesmo pouso em semAcessoBox pra tentar de novo. */
+let _prestadorEntrando=false;
+async function prestadorEntrar(){
+  if(_prestadorEntrando)return;
+  const nomeEl=document.getElementById('prestNome');
+  const emailEl=document.getElementById('prestEmail');
+  const senhaEl=document.getElementById('prestSenha');
+  const codigoEl=document.getElementById('prestCodigo');
+  const nome=(nomeEl.value||'').trim();
   const email=(emailEl.value||'').trim();
-  const senha=passEl.value||'';
-  if(!email||!senha){toast('Preencha e-mail e senha aqui em cima e clique de novo em "Sou prestador de serviço"','warn');emailEl.focus();return;}
-  if(senha.length<6){toast('Senha precisa de pelo menos 6 caracteres','warn');passEl.focus();return;}
+  const senha=senhaEl.value||'';
+  const codigo=(codigoEl.value||'').trim().toUpperCase();
+  if(!nome){toast('Informe seu nome','warn');nomeEl.focus();return;}
+  if(!email||!senha){toast('Informe e-mail e senha','warn');(email?senhaEl:emailEl).focus();return;}
+  if(senha.length<6){toast('Senha precisa de pelo menos 6 caracteres','warn');senhaEl.focus();return;}
   if(!fbApp||!fbDB){toast('Sem conexão com a nuvem — tente novamente em instantes','error');return;}
-  const link=document.getElementById('linkCriarContaTecnico');
-  if(link){
-    if(link.dataset.busy==='1')return; // clique duplo não dispara duas contas
-    link.dataset.busy='1';link.style.opacity='.5';link.style.pointerEvents='none';
-  }
-  // campo reaproveitado do login: aqui é criação de conta, não autenticação de uma já existente
-  const autocompleteAntigo=passEl.getAttribute('autocomplete');
-  passEl.setAttribute('autocomplete','new-password');
+  const btn=document.querySelector('#prestadorBox .btn-entrar');
+  _prestadorEntrando=true;
+  if(btn){btn.disabled=true;btn.textContent='Entrando…';}
+  _signupInProgress=true;
+  let cred=null;
   try{
-    await firebase.auth().createUserWithEmailAndPassword(email,senha);
-    toast('Conta criada — informe seu nome e o código de convite do seu gestor','success');
+    cred=await firebase.auth().createUserWithEmailAndPassword(email,senha);
   }catch(e){
-    fbLog('Falha ao criar conta de técnico: '+e.code+' — '+e.message,'erro');
+    _signupInProgress=false;
+    _prestadorEntrando=false;
+    if(btn){btn.disabled=false;btn.textContent='Entrar →';}
+    fbLog('Falha ao criar conta de prestador: '+e.code+' — '+e.message,'erro');
     toast(_mensagemErroAuth(e.code),'error');
-  }finally{
-    passEl.setAttribute('autocomplete',autocompleteAntigo||'current-password');
-    if(link){link.dataset.busy='0';link.style.opacity='';link.style.pointerEvents='';}
+    return;
   }
+  if(codigo)await _consumirConviteTecnico(nome,codigo); // nunca lança -- sucesso/falha avaliado abaixo
+  _signupInProgress=false;
+  await _resolverWorkspace(cred.user,_aplicarSessaoResolvida,_mostrarSemAcesso);
+  _prestadorEntrando=false;
+  if(btn){btn.disabled=false;btn.textContent='Entrar →';}
 }
 
 /* Story 11: fluxo principal do prestador pra entrar sem o gestor colar UID nenhum --
@@ -1455,20 +1489,30 @@ async function criarContaTecnico(){
    ver Design Notes da story). Consome convites/{codigo} e cria members/{uid} do próprio
    uid autenticado na MESMA transação -- firestore.rules exige as duas coisas juntas. */
 let _consumindoConvite=false;
-async function _consumirConviteTecnico(){
-  if(_consumindoConvite)return; // trava contra duplo clique/duas transações da mesma conta
-  const nomeEl=document.getElementById('conviteNome');
-  const codigoEl=document.getElementById('conviteCodigo');
-  const nome=(nomeEl.value||'').trim();
-  const codigo=(codigoEl.value||'').trim().toUpperCase();
-  if(!nome){toast('Informe seu nome','warn');nomeEl.focus();return;}
-  if(!codigo){toast('Informe o código de convite','warn');codigoEl.focus();return;}
-  if(!fbApp||!fbDB){toast('Sem conexão com a nuvem — tente novamente em instantes','error');return;}
+/* Aceita nome/código por parâmetro (prestadorEntrar(), passo único novo) ou, se omitidos, lê
+   de #conviteNome/#conviteCodigo (fallback em semAcessoBox -- quem já tem conta e só precisa
+   tentar de novo). Nunca lança: devolve true/false pro chamador decidir o que fazer a seguir
+   -- quem chama com parâmetros próprios (prestadorEntrar) já gerencia seu próprio botão/estado
+   e resolve o workspace por conta própria depois, sucesso ou falha. */
+async function _consumirConviteTecnico(nomeParam,codigoParam){
+  if(_consumindoConvite)return false; // trava contra duplo clique/duas transações da mesma conta
+  const usaDom=nomeParam===undefined&&codigoParam===undefined;
+  let nome=nomeParam,codigo=codigoParam,nomeEl=null,codigoEl=null;
+  if(usaDom){
+    nomeEl=document.getElementById('conviteNome');
+    codigoEl=document.getElementById('conviteCodigo');
+    nome=(nomeEl.value||'').trim();
+    codigo=(codigoEl.value||'').trim().toUpperCase();
+    if(!nome){toast('Informe seu nome','warn');nomeEl.focus();return false;}
+    if(!codigo){toast('Informe o código de convite','warn');codigoEl.focus();return false;}
+  }
+  if(!fbApp||!fbDB){if(usaDom)toast('Sem conexão com a nuvem — tente novamente em instantes','error');return false;}
   const user=firebase.auth().currentUser;
-  if(!user){toast('Sessão perdida — saia e entre de novo','error');return;}
-  const btn=document.querySelector('#semAcessoBox .btn-entrar');
+  if(!user){if(usaDom)toast('Sessão perdida — saia e entre de novo','error');return false;}
+  const btn=usaDom?document.querySelector('#semAcessoBox .btn-entrar'):null;
   _consumindoConvite=true;
   if(btn){btn.disabled=true;btn.textContent='Entrando…';}
+  let ok=false;
   try{
     const conviteRef=fbDB.collection('convites').doc(codigo);
     await fbDB.runTransaction(async tx=>{
@@ -1482,15 +1526,19 @@ async function _consumirConviteTecnico(){
       tx.set(uwRef,{workspaceId:d.workspaceId});
       tx.update(conviteRef,{usado:true,usadoPor:user.uid,usadoEm:firebase.firestore.FieldValue.serverTimestamp()});
     });
-    toast('Vínculo feito — entrando…','success');
-    await _resolverWorkspace(user,_aplicarSessaoResolvida,_mostrarSemAcesso);
+    ok=true;
+    if(usaDom){
+      toast('Vínculo feito — entrando…','success');
+      await _resolverWorkspace(user,_aplicarSessaoResolvida,_mostrarSemAcesso);
+    }
   }catch(e){
     fbLog('Falha ao consumir convite: '+(e.code||'')+' — '+(e.message||''),'erro');
-    toast('Código inválido ou já utilizado','error');
+    if(usaDom)toast('Código inválido ou já utilizado','error');
   }finally{
     _consumindoConvite=false;
     if(btn){btn.disabled=false;btn.textContent='Entrar com o código →';}
   }
+  return ok;
 }
 
 /* Envia uma chave pro Firestore */
@@ -1983,7 +2031,8 @@ async function syncManual(){
 
 /* ── TÉCNICOS DINÂMICOS (gestor gerencia em Configurações) ──
    Sem senha em texto plano (AD-6): o acesso de cada técnico é o próprio uid do Firebase Auth,
-   vinculado pelo gestor depois que o técnico cria a conta dele (ver criarContaTecnico()). */
+   vinculado via convite de uso único que o próprio prestador consome (ver prestadorEntrar()) --
+   ou, no fallback avançado, colado manualmente pelo gestor aqui em Configurações → Equipe. */
 let tecnicos = JSON.parse(localStorage.getItem('mappo_tecnicos')||'null');
 if(!tecnicos||!tecnicos.length){
   tecnicos = ['Carlos Silva','João Pereira','Marcos Souza','Rafael Lima'].map((n,i)=>({
@@ -4882,7 +4931,7 @@ function openModalTecnico(id){
       <details class="fg" style="margin-top:2px">
         <summary style="cursor:pointer;font-size:13px;color:var(--gray-500)">Avançado: colar UID manualmente (fallback)</summary>
         <div style="margin-top:8px"><label>Código de acesso do técnico (UID)</label><input type="text" id="tUid" value="${t?escapeHtml(t.uid||''):''}" placeholder="Cole aqui o código que ele te enviou">
-        <p style="font-size:12px;color:var(--gray-400);margin-top:5px">Alternativa ao convite: peça pro técnico abrir a tela de login e clicar em "Sou prestador de serviço" → "Avançado: já mandei meu código de acesso pro gestor colar manualmente" — ele te envia o código mostrado lá. Sem esse código nem um convite consumido, ele não consegue entrar.</p></div>
+        <p style="font-size:12px;color:var(--gray-400);margin-top:5px">Alternativa ao convite: peça pro técnico abrir a tela de login, clicar em "Sou prestador de serviço" e criar a conta dele (pode deixar o código em branco) — na tela seguinte, ele clica em "Avançado: já mandei meu código de acesso pro gestor colar manualmente" e te envia o código mostrado lá. Sem esse código nem um convite consumido, ele não consegue entrar.</p></div>
       </details>
       <div class="fg"><label>Módulos liberados</label>
         <div class="mod-grid">
