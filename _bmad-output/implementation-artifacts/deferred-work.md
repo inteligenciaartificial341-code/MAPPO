@@ -185,3 +185,19 @@ Itens reais, encontrados durante revisão, que não são problema desta story es
 - source_spec: `_bmad-output/specs/spec-mappo/stories/15-vocabulario-servico-generico-ramo-customizado.md`
   summary: Nome de Ramo customizado sem normalização (maiúsculas/acentos) nem limite de tamanho -- "Elétrica"/"eletrica"/"ELÉTRICA" viram Ramos diferentes pro app, e o campo aceita texto de qualquer tamanho.
   evidence: Achado do blind-hunter -- mesmo risco que qualquer campo de texto livre já aceito no app hoje (ex.: nome da empresa também não é normalizado). Baixa severidade -- afeta só o próprio workspace de quem digitou, não vaza pra outra empresa.
+
+- source_spec: `_bmad-output/specs/spec-mappo/stories/17-minitutorial-guiado-coach-marks-spotlight.md`
+  summary: Reabrir o tour do prestador via botão "?" enquanto ele está dentro do sub-contexto VRF (`navbarContexto==='vrf'`) mostra quase nenhum passo -- `getNavItems()` troca os itens da navbar pra `vrf`/`vrf-mapa`/`vrf-fotos`/`home` nesse contexto, então os seletores `data-nav="ordens"/"tarefas"/"manutencoes"` de `TOUR_TECNICO` não existem no DOM e são pulados (comportamento tecnicamente correto pela regra de "pular passo sem alvo", mas o resultado prático é um tour quase vazio).
+  evidence: `getNavItems()` (index.html ~2797-2805) confirma a troca de itens nesse contexto; `TOUR_TECNICO` não tem variante ciente de `navbarContexto`. Resolver exigiria um terceiro roteiro de tour (ou lógica de contexto), fora do escopo desta story.
+
+- source_spec: `_bmad-output/specs/spec-mappo/stories/17-minitutorial-guiado-coach-marks-spotlight.md`
+  summary: O tour não tem suporte a teclado (Esc/Enter/setas) nem semântica ARIA (`role="dialog"`, `aria-live` nos passos, rótulo acessível nos dots de progresso) -- usuário de leitor de tela ou navegação só por teclado não consegue operar o tour.
+  evidence: Revisão confirmou ausência total de handlers de teclado e atributos ARIA no `.tour-card`/`.tour-dots`. Consistente com o padrão de acessibilidade já baixo do resto do app (nenhum outro modal/overlay existente tem ARIA), então não é regressão introduzida por esta story especificamente, mas é uma lacuna real que vale endereçar numa passada de acessibilidade dedicada.
+
+- source_spec: `_bmad-output/specs/spec-mappo/stories/17-minitutorial-guiado-coach-marks-spotlight.md`
+  summary: Nenhuma telemetria registra se o usuário concluiu, pulou, ou abandonou o tour num passo específico -- não há como saber se o minitutorial está ajudando ou onde as pessoas desistem.
+  evidence: Ideia de produto legítima (mesmo espírito do CAP-15/feedback), mas explicitamente fora do escopo desta story -- exigiria uma nova coleção-raiz write-only (padrão AD-13) e decisão de design própria.
+
+- source_spec: `_bmad-output/specs/spec-mappo/stories/17-minitutorial-guiado-coach-marks-spotlight.md`
+  summary: Os listeners de `resize`/`scroll` do tour (`_tourReposicionar`) não usam debounce/`requestAnimationFrame`, e o de `scroll` usa `capture:true` (dispara em qualquer scroll de container interno da página) -- cada disparo faz `querySelector`+`getBoundingClientRect`+escritas de estilo sem lote.
+  evidence: Baixo risco prático dado o volume de eventos esperado (tour ativo só por segundos, poucos elementos na tela), mas é o padrão correto a seguir se o mecanismo for reaproveitado em algo com mais reposicionamentos por segundo no futuro.

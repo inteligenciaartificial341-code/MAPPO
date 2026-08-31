@@ -91,6 +91,10 @@ MAPPO é hoje uma ferramenta interna real, em uso pela Elite Ar, de gestão de e
   - **intent:** A etapa "Equipamentos" da execução de OS (marca/modelo + foto de Evaporadora/Condensadora por "Split N") é estrutural e ficou de fora do CAP-16. Refrigeração mantém 100% igual. Qualquer outro Ramo recebe a mesma etapa genericizada — "Item N" no lugar de "Split N", as 2 fotos por item viram "Antes"/"Depois" (texto fixo por ora), campos de marca/modelo somem da UI.
   - **success:** Um workspace não-refrigeração nunca mostra "Split"/"Evaporadora"/"Condensadora"/"marca"/"modelo" na execução de OS; Refrigeração continua idêntica.
 
+- **CAP-18 — Minitutorial guiado (coach-marks/spotlight) pro primeiro acesso**
+  - **intent:** Todo novo usuário (Gestor e Prestador) vê, no primeiro login, um tour guiado por passos — tela escurecida com um recorte iluminado sobre o elemento real da vez, mais instrução do que ele faz e como usar. Gestor e Prestador recebem tours distintos, cada um cobrindo só as opções do próprio perfil.
+  - **success:** Um usuário que nunca logou antes vê a sequência de passos do seu perfil no primeiro login, consegue avançar/pular cada passo, e o tour não reaparece sozinho depois disso no mesmo navegador; um botão fixo reabre o tour a qualquer momento.
+
 ## Constraints
 
 - Nenhuma mudança em `firestore.rules`/`firestore.indexes.json` vai a produção sem teste prévio no Firebase Emulator Suite.
@@ -108,6 +112,7 @@ MAPPO é hoje uma ferramenta interna real, em uso pela Elite Ar, de gestão de e
 - CAP-14 é o item de maior escopo do pacote — `vrfObra` hoje é objeto único, não lista; virar lista reaproveita o padrão já existente de merge por id (`ITEM_LISTS`, igual `mappo_os`), sem inventar mecanismo novo (AD-5 preservado), mas toda função do VRF que assume "a obra" precisa passar a assumir "a obra selecionada" — superfície grande, atenção extra de desenho na story.
 - CAP-16: `PRECO_TEMPLATES.predial` hoje é cópia idêntica de `PRECO_TEMPLATES.refrigeracao` (bug de origem que motivou a capacidade) — corrigir junto. O dropdown "Tipo de Serviço" da criação de OS é lista HTML fixa hoje; vira Ramo-aware, pareado com a mesma lista de categorias da tabela de preço (nunca duas listas que podem divergir). Campo "Quantidade de splits" passa a aparecer só para Refrigeração. Ramo customizado nunca cai no pacote de vocabulário de Refrigeração — sempre no genérico-editável.
 - CAP-17: reaproveita a mesma estrutura de dado já existente (array `equipamentos`, campos internos `fotoEvap`/`fotoCond`, mesma função de compressão de foto) — só a exibição muda por Ramo, nomes de campo internos continuam os mesmos, evita migração de dado. Campo "Quantidade de splits" (escondido pra não-refrigeração desde o CAP-16) passa a SEMPRE aparecer, com rótulo "Quantidade de splits" (Refrigeração) ou "Quantidade de itens" (outros Ramos) — revisão consciente do limite que o CAP-16 tinha posto. Badge "❄️ N split(s)" (3 lugares: modal de detalhe, card de OS, cabeçalho de execução) vira texto genérico sem o emoji de neve pra quem não é Refrigeração. Página "Tarefas Adicionais" troca o subtítulo fixo "fora do Split e do VRF" por `moduloSplitAtual().nome` pra quem não é Refrigeração.
+- CAP-18: spotlight mira o elemento real do DOM via seletor CSS (`box-shadow` grande ou `clip-path`), nunca posição fixa em pixel nem screenshot — se a sidebar for reordenada ou um rótulo mudar no futuro, o tour se realinha sozinho. Sem dependência nova. Passos dirigidos por dados (array por perfil: seletor, título, texto); qualquer passo sobre o módulo genérico usa `moduloSplitAtual().nome` dinamicamente — não pode hardcodar vocabulário de Refrigeração (mesma disciplina do CAP-16/CAP-17). Dispara automaticamente após a sessão resolver, antes de qualquer navegação real. Flag "já viu" fica em `localStorage` por uid — preferência de UI, não dado de negócio, não sincroniza com Firestore, não toca `firestore.rules`.
 
 ## Non-goals
 
@@ -128,6 +133,7 @@ MAPPO é hoje uma ferramenta interna real, em uso pela Elite Ar, de gestão de e
 - CAP-15 não é um painel de analytics/NPS formal — só captura e lista o feedback bruto pro proprietário ler.
 - CAP-16 não inclui sugestão automática/IA de nomenclatura por Ramo — o vocabulário genérico é fixo e o gestor edita manualmente, sem geração assistida.
 - CAP-17 não torna "Antes"/"Depois" editável pelo gestor nesta rodada — texto fixo, revisitar conforme feedback do piloto.
+- CAP-18 não sincroniza "já viu o tutorial" entre dispositivos/navegadores do mesmo usuário — fica só em `localStorage` local; o botão de reabrir cobre o caso de reaparecer.
 
 ## Success signal
 
@@ -152,3 +158,4 @@ Ao menos uma Empresa Contratante do piloto usa o MAPPO na operação diária rea
 - CAP-9: categorias exatas de serviço da tabela de preço, dentro de cada Ramo — a decidir na hora de construir a story (estrutura já definida: tabela por Ramo, "Conserto" foi só exemplo).
 - CAP-16: quantidade exata de categorias de preço genéricas default e o texto exato do hint "renomeie com sua atividade específica" — a decidir na hora de construir a story, mesmo espírito já usado pro texto do template de checklist.
 - CAP-17: rótulo exato da etapa genérica (hoje "Equipamentos") e o texto exato da instrução pro técnico — a decidir na hora de construir a story.
+- CAP-18: quantidade exata de passos por tour, texto exato de cada passo, e posição/ícone específico do botão de reabrir — a decidir na hora de construir a story, mesmo espírito já usado nas últimas stories.

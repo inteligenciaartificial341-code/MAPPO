@@ -773,6 +773,26 @@
   .pub-zoom{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:3000;display:none;align-items:center;justify-content:center;padding:16px;cursor:zoom-out;}
   .pub-zoom.on{display:flex;}
   .pub-zoom img{max-width:100%;max-height:100%;border-radius:8px;}
+
+  /* ═══════════ TUTORIAL GUIADO (coach-marks/spotlight) — Story 17 ═══════════ */
+  .tour-backdrop{position:fixed;inset:0;z-index:4000;background:transparent;}
+  .tour-spot{position:fixed;z-index:4001;border-radius:10px;box-shadow:0 0 0 9999px rgba(15,26,31,.78);pointer-events:none;transition:top .22s ease,left .22s ease,width .22s ease,height .22s ease;}
+  .tour-card{position:fixed;z-index:4002;background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow-lg);padding:18px 20px;max-width:300px;width:calc(100% - 32px);transition:top .22s ease,left .22s ease;}
+  .tour-card h4{font-size:15px;font-weight:700;color:var(--petrol-dark);margin-bottom:6px;}
+  .tour-card p{font-size:13px;line-height:1.5;color:var(--gray-600);margin-bottom:14px;}
+  .tour-dots{display:flex;gap:5px;margin-bottom:14px;}
+  .tour-dot{width:6px;height:6px;border-radius:50%;background:var(--gray-300);transition:all .15s;}
+  .tour-dot.active{background:var(--petrol);width:16px;border-radius:4px;}
+  .tour-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;}
+  .tour-foot-right{display:flex;align-items:center;gap:8px;}
+  .tour-skip{background:none;border:none;color:var(--gray-500);font-size:13px;font-weight:600;cursor:pointer;padding:6px 4px;}
+  .tour-skip:hover{color:var(--gray-700);}
+  .tour-back{background:none;border:1.5px solid var(--gray-300);color:var(--gray-600);border-radius:var(--radius-sm);padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;}
+  .tour-back:hover{background:var(--gray-50);}
+  .tour-next{background:var(--petrol);color:#fff;border:none;border-radius:var(--radius-sm);padding:9px 18px;font-size:13.5px;font-weight:700;cursor:pointer;white-space:nowrap;}
+  .tour-next:hover{background:var(--petrol-dark);}
+  .btn-tour{background:none;border:none;color:rgba(255,255,255,.5);padding:6px;border-radius:50%;transition:color .15s,background .15s;}
+  .btn-tour:hover{color:#fff;background:rgba(255,255,255,.1);}
 </style>
 <!-- Firebase SDK (compat) -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -943,6 +963,7 @@
           <div class="un" id="userName">Elite Ar</div>
           <div class="ur" id="userRole">Gestor</div>
         </div>
+        <button class="btn-tour" onclick="_tourIniciar(session.perfil)" title="Ver tutorial guiado">?</button>
         <button class="btn-sair" onclick="logout()" title="Sair">⏻</button>
       </div>
     </div>
@@ -983,6 +1004,9 @@
 
 <!-- MODAIS injetados -->
 <div id="modalRoot"></div>
+
+<!-- TUTORIAL GUIADO (coach-marks/spotlight) injetado — Story 17 -->
+<div id="tourRoot"></div>
 
 <script>
 /* ════════════════════════════════════════
@@ -2145,6 +2169,7 @@ const ICONS={
   financeiro:'<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
   share:'<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>',
   star:'<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
+  help:'<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
 };
 function svgIco(name,cls){return `<svg class="ico ${cls||''}" viewBox="0 0 24 24">${ICONS[name]||''}</svg>`;}
 function ico(name,cls){return svgIco(name,cls);} // alias
@@ -2673,6 +2698,10 @@ function entrarApp(){
   }
   updateDate();
   startNotifChecker();
+  // Story 17: minitutorial guiado no primeiro acesso -- só dispara sozinho se este
+  // uid ainda não viu (flag em localStorage, mesmo padrão de _temConsentimentoGPS);
+  // login seguinte não reabre sozinho, só pelo botão "?" da sidebar.
+  if(!_temTourVisto())_tourIniciar(session.perfil);
 }
 
 /* ═══ HOME DO TÉCNICO — boas-vindas ou resumo do que tem em andamento ═══ */
@@ -2781,6 +2810,7 @@ function injetarIcones(){
   if(tgD)tgD.innerHTML=svgIco('desktop','ico-sm')+' Desktop';
   if(tgM)tgM.innerHTML=svgIco('mobile','ico-sm')+' Mobile';
   const bs=document.querySelector('.btn-sair');if(bs)bs.innerHTML=svgIco('power');
+  const bt=document.querySelector('.btn-tour');if(bt)bt.innerHTML=svgIco('help');
 }
 
 /* monta a barra de navegação (bottom mobile / rail desktop) */
@@ -5434,6 +5464,236 @@ function getTecnicoLoc(t){const locs=JSON.parse(localStorage.getItem('mappo_loca
    ════════════════════════════════════════ */
 function showModal(html,size){document.getElementById('modalRoot').innerHTML=`<div class="overlay open" id="curOverlay" onclick="if(event.target===this)closeModal()"><div class="modal ${size==='wide'?'modal-wide':''}">${html}</div></div>`;}
 function closeModal(){const o=document.getElementById('curOverlay');if(o){o.classList.remove('open');setTimeout(()=>document.getElementById('modalRoot').innerHTML='',200);}}
+
+/* ════════════════════════════════════════
+   TUTORIAL GUIADO (coach-marks/spotlight) — Story 17
+   Tour por passos no primeiro acesso: escurece a tela e ilumina (spotlight) o
+   elemento real do menu da vez via querySelector -- nunca posição fixa em
+   pixel/screenshot. Sequências distintas por perfil (TOUR_GESTOR/TOUR_TECNICO).
+   Passo cujo seletor não casa nenhum elemento VISÍVEL no DOM neste momento é
+   pulado silenciosamente -- nunca quebra o tour (menus condicionais: VRF fora
+   de Refrigeração, módulo não liberado pro técnico, etc.). Flag "já visto" fica
+   em localStorage por session.uid, mesmo padrão de
+   _temConsentimentoGPS/_gravarConsentimentoGPS (zona GPS ao vivo) -- nunca
+   sincroniza com Firestore. Reaberto a qualquer momento pelo botão "?" da
+   sidebar (sidebar-footer), independente da flag.
+   ════════════════════════════════════════ */
+const TOUR_VERSAO=1; // incrementar se o roteiro mudar de forma relevante -> reabre p/ todo mundo
+
+const TOUR_GESTOR=[
+  {sel:'.navbtn[data-nav="dashboard"]',titulo:'Painel',texto:'Visão geral da operação: ordens em andamento, alertas e indicadores.'},
+  {sel:'.navbtn[data-nav="ordens"]',titulo:'Ordens',texto:'Todas as ordens de serviço, filtráveis por status.'},
+  {sel:'.navbtn[data-nav="manutencoes"]',titulo:'Manutenções',texto:'Agenda de manutenções preventivas programadas.'},
+  {sel:'.navbtn[data-nav="clientes"]',titulo:'Clientes',texto:'Cadastro de clientes e locais atendidos.'},
+  {sel:'.navbtn[data-nav="mapa"]',titulo:'Mapa',texto:'Localização em tempo real dos prestadores em campo.'},
+  {sel:'[data-view="splits"]',titulo:()=>moduloSplitAtual().nome,texto:()=>moduloSplitAtual().desc||'Gerencie esse módulo por aqui.'},
+  {sel:'[data-view="vrf"]',titulo:'Sistema VRF',texto:'Acompanhe obras VRF por fase: checklist, fotos, mapa e relatórios.'},
+  {sel:'[data-view="tarefas"]',titulo:()=>ramoTemVRF()?'Tarefa Adicional':'Criar Tarefas',texto:'Crie e acompanhe tarefas fora do fluxo principal de ordens.'},
+  {sel:'[data-view="financeiro"]',titulo:'Financeiro',texto:'Veja valores a pagar/recebido por prestador e lance adiantamentos.'},
+  {sel:'[data-view="config"]',titulo:'Configurações',texto:'Cadastre técnicos, ajuste checklist e preços do seu Ramo.'},
+  {sel:'[data-view="compartilhar"]',titulo:'Compartilhar app',texto:'Envie o link do MAPPO pra um novo prestador ou colega.'},
+  {sel:'[data-view="avaliar"]',titulo:'Avaliar o app',texto:'Deixe seu feedback sobre o MAPPO — ajuda a melhorar o app.'},
+];
+const TOUR_TECNICO=[
+  {sel:'.navbtn[data-nav="home"]',titulo:'Início',texto:'Sua tela inicial: o que está em andamento agora.'},
+  {sel:'.navbtn[data-nav="ordens"]',titulo:'Ordens',texto:'Suas ordens de serviço de instalação e manutenção.'},
+  {sel:'.navbtn[data-nav="tarefas"]',titulo:'Tarefas',texto:'Tarefas adicionais atribuídas a você.'},
+  {sel:'.navbtn[data-nav="manutencoes"]',titulo:'Manutenções',texto:'Manutenções preventivas sob sua responsabilidade.'},
+  {sel:'.navbtn[data-nav="vrf"]',titulo:'VRF',texto:'Checklist de execução das obras VRF atribuídas a você.'},
+];
+
+let _tourPassos=[];
+let _tourIndice=-1;
+let _tourResizeHandler=null;
+
+/* flag "já viu o tour" -- mesmo padrão de _temConsentimentoGPS/_gravarConsentimentoGPS */
+function _temTourVisto(){
+  if(!session||!session.uid)return false;
+  try{
+    const raw=localStorage.getItem('mappo_tutorial_'+session.uid+'_visto');
+    if(!raw)return false;
+    const rec=JSON.parse(raw);
+    return !!rec&&rec.versao===TOUR_VERSAO;
+  }catch(e){console.error('[tour] leitura falhou',e.code,e.message);return false;}
+}
+function _gravarTourVisto(){
+  if(!session||!session.uid)return;
+  try{
+    localStorage.setItem('mappo_tutorial_'+session.uid+'_visto',JSON.stringify({versao:TOUR_VERSAO,ts:Date.now()}));
+  }catch(e){console.error('[tour] gravação falhou',e.code,e.message);}
+}
+
+/* Elemento-alvo do passo, só se existir E estiver de fato visível agora -- mesmo
+   tratamento (pular o passo) tanto pra seletor que não casa nada quanto pra
+   elemento presente no DOM mas sem área na tela (ex.: item do gestor escondido
+   pelo drawer da sidebar no mobile -- aqui o drawer é reaberto pra revelar o
+   alvo; item escondido por regra de perfil/Ramo, ex. VRF fora de Refrigeração,
+   segue sem alvo mesmo assim). */
+/* checagem PURA de existência -- sem efeito colateral nenhum (nunca chama
+   openSidebar()). Usada só pra "olhar adiante/atrás" nos passos (decidir se
+   mostra Voltar/Concluir) sem abrir o drawer por causa de um passo que ainda
+   nem está sendo exibido. Item de sidebar com o drawer fechado ainda conta como
+   "existe" aqui (largura/altura do elemento não dependem do transform que abre
+   o drawer -- só a posição) -- quando esse passo for de fato exibido,
+   _tourElVisivel() abre o drawer normalmente. */
+function _tourElExiste(sel){
+  let el;
+  try{el=document.querySelector(sel);}catch(e){return null;}
+  if(!el)return null;
+  const r=el.getBoundingClientRect();
+  if(r.width<=0&&r.height<=0)return null;
+  return el;
+}
+
+/* getBoundingClientRect() lido no mesmo tick síncrono em que openSidebar() foi
+   chamado mede a posição ANTES da transição CSS (.28s) do drawer rodar --
+   spotlight/card nasceriam alinhados com o drawer fechado. Reposiciona de novo
+   quando a transição termina (transitionend, com timeout de segurança caso o
+   evento não dispare -- ex. prefers-reduced-motion/transição interrompida). */
+function _tourAdiarReposicaoAposAbrirSidebar(sb){
+  let disparado=false;
+  const aoTerminar=()=>{
+    if(disparado)return;
+    disparado=true;
+    sb.removeEventListener('transitionend',aoTerminar);
+    clearTimeout(timer);
+    _tourReposicionar();
+  };
+  sb.addEventListener('transitionend',aoTerminar);
+  const timer=setTimeout(aoTerminar,320);
+}
+
+/* Elemento-alvo do passo que está DE FATO sendo exibido agora (nunca pra
+   "espiar" outro passo -- ver _tourElExiste) -- só se existir E estiver de fato
+   visível, mesmo tratamento (pular o passo) tanto pra seletor que não casa nada
+   quanto pra elemento presente no DOM mas sem área na tela. Item do gestor
+   escondido pelo drawer da sidebar no mobile: aqui o drawer é reaberto pra
+   revelar o alvo (item escondido por regra de perfil/Ramo, ex. VRF fora de
+   Refrigeração, segue sem alvo mesmo assim). */
+function _tourElVisivel(sel){
+  let el;
+  try{el=document.querySelector(sel);}catch(e){return null;}
+  if(!el)return null;
+  if(el.closest('.sidebar')){
+    const sb=document.getElementById('sidebar');
+    // drawer fechado (mobile/tela estreita) esconde a sidebar via transform -- abre
+    // pra revelar o alvo; no desktop-clean o CSS já a força visível, chamada inofensiva.
+    if(sb&&!sb.classList.contains('open')){
+      openSidebar();
+      _tourAdiarReposicaoAposAbrirSidebar(sb);
+    }
+  }
+  const r=el.getBoundingClientRect();
+  if(r.width<=0&&r.height<=0)return null;
+  return el;
+}
+
+function _tourExisteProximoVisivel(i){
+  for(let k=i+1;k<_tourPassos.length;k++){if(_tourElExiste(_tourPassos[k].sel))return true;}
+  return false;
+}
+function _tourExisteAnteriorVisivel(i){
+  for(let k=i-1;k>=0;k--){if(_tourElExiste(_tourPassos[k].sel))return true;}
+  return false;
+}
+
+function _tourIniciar(perfil){
+  _tourFechar(false); // fecha uma instância anterior (reabertura manual pelo "?") sem gravar "visto" de novo
+  _tourPassos=(perfil==='tecnico')?TOUR_TECNICO:TOUR_GESTOR;
+  _tourIndice=-1;
+  _tourAvancar(1);
+}
+
+/* avança (dir=1) ou volta (dir=-1) até achar o próximo passo com alvo visível
+   nessa direção. Pra frente, sem nenhum alvo visível restante (inclusive já no
+   primeiro passo), fecha o tour como concluído. Pra trás, sem alvo visível
+   anterior, não faz nada -- "Voltar" só aparece quando existe pra onde voltar
+   (_tourExisteAnteriorVisivel), isto aqui é só a rede de segurança: nunca fecha
+   o tour por causa de um clique em "Voltar". */
+function _tourAvancar(dir){
+  let i=_tourIndice+dir;
+  while(i>=0&&i<_tourPassos.length&&!_tourElVisivel(_tourPassos[i].sel))i+=dir;
+  if(i<0)return;
+  if(i>=_tourPassos.length){_tourFechar(true);return;}
+  _tourIndice=i;
+  _tourMostrarPasso(i);
+}
+
+function _tourMostrarPasso(i){
+  const passo=_tourPassos[i];
+  const titulo=escapeHtml(typeof passo.titulo==='function'?passo.titulo():passo.titulo);
+  const texto=escapeHtml(typeof passo.texto==='function'?passo.texto():passo.texto);
+  const ultimo=!_tourExisteProximoVisivel(i);
+  const temAnterior=_tourExisteAnteriorVisivel(i);
+  const dots=_tourPassos.map((_,idx)=>`<span class="tour-dot${idx===i?' active':''}"></span>`).join('');
+  const root=document.getElementById('tourRoot');
+  if(!root)return;
+  root.innerHTML=`
+    <div class="tour-backdrop" id="tourBackdrop" onclick="_tourFechar(true)"></div>
+    <div class="tour-spot" id="tourSpot"></div>
+    <div class="tour-card" id="tourCard">
+      <h4>${titulo}</h4>
+      <p>${texto}</p>
+      <div class="tour-dots">${dots}</div>
+      <div class="tour-foot">
+        <button class="tour-skip" onclick="_tourFechar(true)">Pular</button>
+        <div class="tour-foot-right">
+          ${temAnterior?'<button class="tour-back" onclick="_tourAvancar(-1)">← Voltar</button>':''}
+          <button class="tour-next" onclick="_tourAvancar(1)">${ultimo?'Concluir':'Próximo →'}</button>
+        </div>
+      </div>
+    </div>`;
+  _tourReposicionar();
+  if(!_tourResizeHandler){
+    _tourResizeHandler=()=>_tourReposicionar();
+    window.addEventListener('resize',_tourResizeHandler);
+    window.addEventListener('scroll',_tourResizeHandler,true); // capture: pega scroll de containers internos também
+  }
+}
+
+/* recorte + card seguem o alvo real em resize/scroll enquanto o tour está ativo
+   (nunca posição fixa em pixel) -- se o alvo sumiu entre um reposicionamento e
+   outro (ex.: resize cruzou o breakpoint mobile/desktop), avança como se o
+   passo não tivesse alvo, mesma regra de sempre. */
+function _tourReposicionar(){
+  if(_tourIndice<0||_tourIndice>=_tourPassos.length)return;
+  const el=_tourElVisivel(_tourPassos[_tourIndice].sel);
+  if(!el){_tourAvancar(1);return;}
+  const r=el.getBoundingClientRect();
+  const pad=6,gap=14;
+  const spot=document.getElementById('tourSpot');
+  if(spot){
+    spot.style.top=(r.top-pad)+'px';
+    spot.style.left=(r.left-pad)+'px';
+    spot.style.width=(r.width+pad*2)+'px';
+    spot.style.height=(r.height+pad*2)+'px';
+  }
+  const card=document.getElementById('tourCard');
+  if(card){
+    const vw=window.innerWidth,vh=window.innerHeight;
+    const cw=card.offsetWidth,ch=card.offsetHeight;
+    const espacoAbaixo=vh-(r.bottom+pad),espacoAcima=r.top-pad;
+    const top=(espacoAbaixo>=ch+gap||espacoAbaixo>=espacoAcima)?Math.min(r.bottom+pad+gap,vh-ch-10):Math.max(10,r.top-pad-gap-ch);
+    const left=Math.max(10,Math.min(r.left,vw-cw-10));
+    card.style.top=top+'px';
+    card.style.left=left+'px';
+  }
+}
+
+function _tourFechar(visto){
+  const root=document.getElementById('tourRoot');
+  if(root)root.innerHTML='';
+  if(_tourResizeHandler){
+    window.removeEventListener('resize',_tourResizeHandler);
+    window.removeEventListener('scroll',_tourResizeHandler,true);
+    _tourResizeHandler=null;
+  }
+  closeSidebar(); // o tour pode ter aberto o drawer sozinho (_tourElVisivel) -- mesmo
+                   // padrão de compartilharApp(): quem abre fora do fluxo de nav() fecha
+                   // de novo; seguro chamar mesmo se a sidebar já estava fechada.
+  _tourIndice=-1;
+  if(visto)_gravarTourVisto();
+}
 
 /* NOVA OS */
 function openModalOS(){

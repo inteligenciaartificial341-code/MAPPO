@@ -257,3 +257,29 @@
     o subtítulo fixo "fora do Split e do VRF" por moduloSplitAtual().nome
     pra quem não é Refrigeração. Rótulo exato da etapa genérica e texto
     da instrução ao técnico ficam a critério de quem implementar.
+
+- id: "17"
+  title: Minitutorial guiado (coach-marks/spotlight) pro primeiro acesso
+  description: >-
+    Implementa CAP-18: todo novo usuário (Gestor e Prestador) vê, no
+    primeiro login, um tour guiado por passos -- overlay escuro com
+    spotlight sobre o elemento real da vez, mais instrução do que ele
+    faz. Dois tours distintos, um por perfil, cobrindo só as opções
+    daquele perfil.
+  spec_checkpoint: false
+  done_checkpoint: false
+  invoke_dev_with: >-
+    Spotlight mira o elemento real do DOM via seletor CSS (box-shadow
+    grande ou clip-path), nunca posição fixa em pixel nem screenshot --
+    se a sidebar for reordenada ou um rótulo mudar, o tour se realinha
+    sozinho. Sem dependência nova (CSS+JS puro). Passos dirigidos por
+    dados (array por perfil: seletor, título, texto); qualquer passo
+    sobre o módulo genérico usa moduloSplitAtual().nome dinamicamente --
+    não hardcodar vocabulário de Refrigeração (mesma disciplina das
+    Stories 15/16). Dispara automaticamente após a sessão resolver,
+    antes de qualquer navegação real. Botão fixo reabre o tour a
+    qualquer momento. Flag "já viu" fica em localStorage por uid --
+    preferência de UI, não sincroniza com Firestore, não toca
+    firestore.rules. Quantidade exata de passos, texto de cada passo, e
+    posição/ícone do botão de reabrir ficam a critério de quem
+    implementar.
