@@ -3451,7 +3451,7 @@ function renderClientes(){
   ${lista.length?`<div class="os-grid">${lista.map(c=>{
     const total=c.visitas.length;
     const conc=c.visitas.filter(v=>v.status==='concluida').length;
-    return `<div class="os-card" onclick="openHistoricoCliente('${c.nome.replace(/'/g,"\\'")}')">
+    return `<div class="os-card" onclick="openHistoricoCliente('${escapeHtml(c.nome)}')">
       <div class="os-card-top">
         <div><div class="os-client">${escapeHtml(c.nome)}</div><div class="os-addr">📍 ${escapeHtml(c.endereco||'Sem endereço')}</div></div>
         <span class="badge b-concluida">${total} visita${total!==1?'s':''}</span>
@@ -3739,7 +3739,7 @@ function vrfRenderMissaoPainel(){
       const done=!!p[key];
       return `<div class="vrf-mis-step ${done?'done':''}" onclick="vrfToggleTec('${an.id}','${key}',this)">
         <span class="vrf-mis-chk">${done?svgIco('check','ico-sm'):''}</span>
-        <div><div class="vrf-mis-txt">${fase.etapas[+ei]}</div><div class="vrf-mis-fase">${fase.nome}</div></div>
+        <div><div class="vrf-mis-txt">${escapeHtml(fase.etapas[+ei])}</div><div class="vrf-mis-fase">${escapeHtml(fase.nome)}</div></div>
       </div>`;
     }).join('');
     return `<div class="vrf-mis-grupo">
@@ -3800,7 +3800,7 @@ function vrfRenderAndarPainel(andar){
       return `<li class="vrf-step ${done?'on':''} ${isMis?'inmis':''}">
         <div class="vrf-step-box" onclick="vrfToggleTec('${andar.id}','${key}',this.closest('.vrf-step'))"><span class="vrf-step-ck">${done?svgIco('check','ico-sm'):''}</span></div>
         <div class="vrf-step-body">
-          <span class="vrf-step-txt" onclick="vrfToggleTec('${andar.id}','${key}',this.closest('.vrf-step'))">${isMis?'<span class="vrf-mdot"></span>':''}${txt}</span>
+          <span class="vrf-step-txt" onclick="vrfToggleTec('${andar.id}','${key}',this.closest('.vrf-step'))">${isMis?'<span class="vrf-mdot"></span>':''}${escapeHtml(txt)}</span>
           ${nota?`<div class="vrf-step-note">${svgIco('edit','ico-sm')} ${escapeHtml(nota)}</div>`:''}
           ${fs.length?`<div class="vrf-step-photos">${fs.map((src,idx)=>`<img src="${src}" onclick="vrfVerFoto('${andar.id}','${key}',${idx},event)">`).join('')}</div>`:''}
           ${expandHTML}
@@ -3809,7 +3809,7 @@ function vrfRenderAndarPainel(andar){
       </li>`;
     }).join('');
     return `<div class="vrf-phase">
-      <div class="vrf-ph"><span class="vrf-ph-num">F${fi+1}</span><span class="vrf-ph-name">${f.nome}</span><span class="vrf-ph-count">${feito}/${f.etapas.length}</span></div>
+      <div class="vrf-ph"><span class="vrf-ph-num">F${fi+1}</span><span class="vrf-ph-name">${escapeHtml(f.nome)}</span><span class="vrf-ph-count">${feito}/${f.etapas.length}</span></div>
       <ul class="vrf-steps">${etapasHTML}</ul>
     </div>`;
   }).join('');
@@ -3896,7 +3896,7 @@ function vrfAbrirNota(andarId,key,ev){
   const atual=(vrfNotas[andarId]||{})[key]||'';
   showModal(`
     <div class="modal-head"><h2>Nota da etapa</h2></div>
-    <div class="modal-body"><div class="fg"><label>Observação</label><textarea id="vrfNotaTxt" style="min-height:110px" placeholder="Ex: faltou material, ajuste solicitado...">${atual}</textarea></div></div>
+    <div class="modal-body"><div class="fg"><label>Observação</label><textarea id="vrfNotaTxt" style="min-height:110px" placeholder="Ex: faltou material, ajuste solicitado...">${escapeHtml(atual)}</textarea></div></div>
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
       <button class="btn btn-primary" onclick="vrfSalvarNota('${andarId}','${key}')">${svgIco('check','ico-sm')} Salvar</button>
@@ -4246,8 +4246,8 @@ function renderVRFfotos(){
           <img src="${f.src}" loading="lazy">
           <div class="vrf-foto-cap">
             ${f.prestador?`<div class="vrf-foto-prest">${svgIco('clientes','ico-sm')} ${escapeHtml(f.prestador)}</div>`:''}
-            <div class="vrf-foto-etapa">${f.etapa||'—'}</div>
-            <div class="vrf-foto-fase">${f.fase||''}</div>
+            <div class="vrf-foto-etapa">${escapeHtml(f.etapa||'—')}</div>
+            <div class="vrf-foto-fase">${escapeHtml(f.fase||'')}</div>
             ${f.nota?`<div class="vrf-foto-nota">${svgIco('edit','ico-sm')} ${escapeHtml(f.nota)}</div>`:''}
           </div>
         </div>`).join('')}
@@ -4266,8 +4266,8 @@ function vrfVerFotoDetalhe(andarId,key,idx){
       <img src="${src}" style="width:100%;border-radius:12px 12px 0 0;display:block">
       <div style="padding:16px">
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--petrol);margin-bottom:4px">${an?escapeHtml(an.nome):''}</div>
-        <div style="font-size:15px;font-weight:600;color:var(--gray-800)">${fase?fase.etapas[+ei]:''}</div>
-        <div style="font-size:12.5px;color:var(--gray-500);margin-top:2px">${fase?fase.nome:''}</div>
+        <div style="font-size:15px;font-weight:600;color:var(--gray-800)">${fase?escapeHtml(fase.etapas[+ei]):''}</div>
+        <div style="font-size:12.5px;color:var(--gray-500);margin-top:2px">${fase?escapeHtml(fase.nome):''}</div>
         ${prestador?`<div style="font-size:12.5px;color:var(--gray-600);margin-top:8px;display:flex;align-items:center;gap:6px">${svgIco('clientes','ico-sm')} Registrada por <strong>${escapeHtml(prestador)}</strong></div>`:''}
         ${nota?`<div style="margin-top:10px;padding:10px;background:var(--gray-50);border-radius:8px;font-size:13px;color:var(--gray-600);font-style:italic">${svgIco('edit','ico-sm')} ${escapeHtml(nota)}</div>`:''}
       </div>
@@ -4285,7 +4285,7 @@ function vrfMissaoResumo(){
         ${keys.slice(0,3).map(key=>{
           const [fid,idx]=key.split('_');
           const fase=vrfFasesAtuais().find(f=>f.id===fid);
-          return fase?`<div style="padding:5px 0;display:flex;gap:8px;align-items:center;font-size:12.5px"><span style="width:6px;height:6px;border-radius:50%;background:var(--gold);flex-shrink:0"></span> ${fase.etapas[+idx]}</div>`:'';
+          return fase?`<div style="padding:5px 0;display:flex;gap:8px;align-items:center;font-size:12.5px"><span style="width:6px;height:6px;border-radius:50%;background:var(--gold);flex-shrink:0"></span> ${escapeHtml(fase.etapas[+idx])}</div>`:'';
         }).join('')}
         ${keys.length>3?`<div style="padding:3px 0 0 14px;color:var(--gray-400);font-size:12px">+${keys.length-3} outras neste andar</div>`:''}
       </div>`;
@@ -4377,13 +4377,13 @@ function vrfRenderMissaoSteps(){
   const missaoDoAndar=vrfMissaoAndar(andar.id);
   cont.innerHTML=vrfFasesAtuais().map(f=>`
     <div class="vrf-mfase">
-      <div class="vrf-mfase-head">${f.nome}</div>
+      <div class="vrf-mfase-head">${escapeHtml(f.nome)}</div>
       ${f.etapas.map((et,i)=>{
         const key=f.id+'_'+i;
         const on=missaoDoAndar.includes(key);
         return `<label class="vrf-mstep ${on?'on':''}" onclick="vrfToggleMissao('${andar.id}','${key}',this)">
           <span class="vrf-mstep-chk">${on?svgIco('check','ico-sm'):''}</span>
-          <span>${et}</span>
+          <span>${escapeHtml(et)}</span>
         </label>`;
       }).join('')}
     </div>`).join('');
@@ -4424,7 +4424,7 @@ function vrfAbrirAndar(andarId){
       return `<div class="vrf-etapa ${done?'done':''}">
         <div class="vrf-etapa-row" onclick="vrfToggleEtapa('${andarId}','${key}',this)">
           <span class="vrf-etapa-chk">${done?svgIco('check','ico-sm'):''}</span>
-          <span class="vrf-etapa-lbl">${et}</span>
+          <span class="vrf-etapa-lbl">${escapeHtml(et)}</span>
           ${fs.length?`<span class="vrf-etapa-fotos">${svgIco('camera','ico-sm')} ${fs.length}</span>`:''}
         </div>
         ${nota?`<div class="vrf-etapa-nota">${svgIco('edit','ico-sm')} ${escapeHtml(nota)}</div>`:''}
@@ -4433,7 +4433,7 @@ function vrfAbrirAndar(andarId){
     }).join('');
     return `<div class="vrf-fase">
       <div class="vrf-fase-head">
-        <span>${f.nome}</span>
+        <span>${escapeHtml(f.nome)}</span>
         <span class="vrf-fase-pct" style="color:${vrfCorProg(pctFase)}">${pctFase}%</span>
       </div>
       <div class="vrf-fase-etapas">${etapasHTML}</div>
@@ -4618,8 +4618,8 @@ function renderConfig(){
           <label class="switch"><input type="checkbox" ${settings.notifEmail?'checked':''} onchange="toggleSet('notifEmail',this.checked)"><span class="slider"></span></label></div>
         <div class="set-row"><div class="set-info"><div class="st">Notificações por SMS</div><div class="sd">Requer serviço externo (Twilio)</div></div>
           <label class="switch"><input type="checkbox" ${settings.notifSMS?'checked':''} onchange="toggleSet('notifSMS',this.checked)"><span class="slider"></span></label></div>
-        <div class="fg" style="margin-top:16px"><label>E-mail do gestor</label><input type="email" value="${settings.emailGestor||''}" onchange="setField('emailGestor',this.value)" placeholder="gestor@elitear.com"></div>
-        <div class="fg"><label>Telefone (SMS/WhatsApp)</label><input type="tel" value="${settings.telGestor||''}" onchange="setField('telGestor',this.value)" placeholder="+55 64 90000-0000"></div>
+        <div class="fg" style="margin-top:16px"><label>E-mail do gestor</label><input type="email" value="${escapeHtml(settings.emailGestor||'')}" onchange="setField('emailGestor',this.value)" placeholder="gestor@elitear.com"></div>
+        <div class="fg"><label>Telefone (SMS/WhatsApp)</label><input type="tel" value="${escapeHtml(settings.telGestor||'')}" onchange="setField('telGestor',this.value)" placeholder="+55 64 90000-0000"></div>
         <p style="font-size:12px;color:var(--gray-400);line-height:1.5">📌 E-mail e SMS reais precisam de serviço externo (EmailJS grátis para e-mail, Twilio para SMS). Os avisos na plataforma já funcionam.</p>
       </div>
     </div>
@@ -5707,7 +5707,7 @@ function openModalOS(){
         <div class="fg"><label>Tipo de serviço</label><select id="oTipo">
           ${_precoCfgExibicao().map(c=>`<option>${escapeHtml(c.nome)}</option>`).join('')}
         </select></div>
-        <div class="fg"><label>Técnico</label><select id="oTecnico">${nomesTecnicos().map(t=>`<option>${t}</option>`).join('')}</select></div>
+        <div class="fg"><label>Técnico</label><select id="oTecnico">${nomesTecnicos().map(t=>`<option>${escapeHtml(t)}</option>`).join('')}</select></div>
       </div>
       <div class="frow">
         <div class="fg"><label>Data</label><input type="date" id="oData" value="${hoje()}"></div>
@@ -6602,7 +6602,7 @@ function verTarefaDetalhe(id){
         ${(t.checkins&&t.checkins.length)?`<span>${svgIco('pin','ico-sm')} ${t.checkins.length} check-in${t.checkins.length!==1?'s':''}</span>`:`<span>${svgIco('pin','ico-sm')} Sem check-in ainda</span>`}
       </div>
       ${(t.checkins&&t.checkins.length)?`<div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--gray-400);margin-bottom:8px">Presença na obra</div>
-      <div class="tf-checkin-hist" style="margin-bottom:14px">${t.checkins.slice().reverse().map(c=>`<div class="tf-checkin-dia">${svgIco('pin','ico-sm')} ${fmtDate(c.data)} — ${c.hora}${c.lat?` · <span style="color:var(--petrol);cursor:pointer" onclick="abrirMapaCoord(${c.lat},${c.lng},'${(t.tecnico||'Técnico').replace(/'/g,"\\'")} — ${fmtDate(c.data)}')">ver no mapa</span>`:' <span style="color:var(--gray-400)">(sem GPS)</span>'}</div>`).join('')}</div>`:''}
+      <div class="tf-checkin-hist" style="margin-bottom:14px">${t.checkins.slice().reverse().map(c=>`<div class="tf-checkin-dia">${svgIco('pin','ico-sm')} ${fmtDate(c.data)} — ${c.hora}${c.lat?` · <span style="color:var(--petrol);cursor:pointer" onclick="abrirMapaCoord(${c.lat},${c.lng},'${escapeHtml(t.tecnico||'Técnico')} — ${fmtDate(c.data)}')">ver no mapa</span>`:' <span style="color:var(--gray-400)">(sem GPS)</span>'}</div>`).join('')}</div>`:''}
       <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--gray-400);margin-bottom:8px">Fotos (${nf}/${t.maxFotos})</div>
       ${nf?`<div class="tf-fotos-grid">${t.fotos.map(f=>`<div class="tf-foto"><img src="${f}" onclick="openLightbox('${f}')"></div>`).join('')}</div>`:'<p style="font-size:13px;color:var(--gray-400)">Nenhuma foto enviada ainda.</p>'}
       ${t.temNotas?`<div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--gray-400);margin:14px 0 8px">Notas do prestador</div>
