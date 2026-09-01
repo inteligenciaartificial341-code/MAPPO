@@ -4517,10 +4517,12 @@ function vrfToggleEtapa(andarId,key,el){
 function carregarJsPDF(cb){
   if(window.jspdf&&window.jspdf.jsPDF)return cb();
   const js=document.createElement('script');
-  js.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
-  // integrity (2026-09-01): hash calculado contra o conteúdo real da versão pinada (2.5.1);
-  // cdnjs confirmado com Access-Control-Allow-Origin:*. Atualizar junto se a versão mudar.
-  js.integrity='sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk';js.crossOrigin='anonymous';
+  js.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/4.2.1/jspdf.umd.min.js';
+  // 2.5.1 -> 4.2.1 (2026-09-01, code review): 2 majors atrás tinham CVE real de DoS/injeção
+  // em addImage/addJS -- MAPPO usa addImage (foto de usuário em PDF, AD-9). Sem breaking
+  // change de API entre as versões (changelog checado) -- mesma API usada aqui (text,
+  // setFont*, rect, addPage, splitTextToSize, addImage, save). Hash recalculado.
+  js.integrity='sha384-qovJwSBbRDPP5cEjCp8S0UP66wrvnjaa60XMOGzTNanrThcrGfXfnZkvgY8N1KT3';js.crossOrigin='anonymous';
   js.onload=()=>cb();
   js.onerror=()=>{toast('Não foi possível carregar o gerador de PDF. Verifique a internet.','warn');};
   document.head.appendChild(js);
