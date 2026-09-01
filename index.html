@@ -10,6 +10,24 @@
 <meta name="apple-mobile-web-app-title" content="MAPPO">
 <link rel="manifest" href="manifest.json">
 <title>MAPPO — Gestão de Equipes em Campo</title>
+<!-- SEO básico (2026-09-01): antes disso a página não tinha description/OG/canonical
+     nenhum, só tags de PWA -- sem sinal nenhum pro Google indexar/exibir corretamente.
+     App fica atrás de login, então o alcance disso é limitado por natureza (o rastreador
+     só vê a tela de login) -- isso resolve "aparecer ao buscar o nome", não ranqueamento
+     competitivo, que exigiria conteúdo público/backlinks/domínio próprio. -->
+<meta name="description" content="MAPPO é o sistema de gestão de equipes em campo da Elite Ar: ordens de serviço, obras VRF, check-in por GPS e acompanhamento em tempo real, direto do celular.">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://inteligenciaartificial341-code.github.io/MAPPO/">
+<meta property="og:type" content="website">
+<meta property="og:title" content="MAPPO — Gestão de Equipes em Campo">
+<meta property="og:description" content="Ordens de serviço, obras VRF, check-in por GPS e acompanhamento em tempo real, direto do celular.">
+<meta property="og:url" content="https://inteligenciaartificial341-code.github.io/MAPPO/">
+<meta property="og:image" content="https://inteligenciaartificial341-code.github.io/MAPPO/icon-512.png">
+<meta property="og:locale" content="pt_BR">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="MAPPO — Gestão de Equipes em Campo">
+<meta name="twitter:description" content="Ordens de serviço, obras VRF, check-in por GPS e acompanhamento em tempo real, direto do celular.">
+<meta name="twitter:image" content="https://inteligenciaartificial341-code.github.io/MAPPO/icon-512.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -794,10 +812,12 @@
   .btn-tour{background:none;border:none;color:rgba(255,255,255,.5);padding:6px;border-radius:50%;transition:color .15s,background .15s;}
   .btn-tour:hover{color:#fff;background:rgba(255,255,255,.1);}
 </style>
-<!-- Firebase SDK (compat) -->
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<!-- Firebase SDK (compat) -- integrity (2026-09-01): hash calculado contra o conteúdo real
+     servido pela versão pinada (10.12.2); gstatic confirmado com Access-Control-Allow-Origin:*,
+     necessário pro crossorigin funcionar. Atualizar o hash junto se a versão pinada mudar. -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js" integrity="sha384-AQ3POAMqIhwS81FrUH95ekxqBZHeP5tG2JfEL3+7GuTtfRLWnrRh32UxwzM+//A9" crossorigin="anonymous"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js" integrity="sha384-TnlRYaR4JYz/lpaGuaiU61PjNberSA4vjLjtF+oRC/IkohkJqnWxw5EmDSOt1vA1" crossorigin="anonymous"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js" integrity="sha384-qn4Jh88HhJA8dplNQyGjOh9OGI4izVhrfj/qIFgaKcdgOE06pXqIKGlsCILZcLAC" crossorigin="anonymous"></script>
 </head>
 <body>
 <div class="statusbar-fill"></div>
@@ -1327,9 +1347,20 @@ function _aplicarSessaoResolvida(info){
     SYNC_KEYS.forEach(k=>{try{localStorage.removeItem(k);}catch(e){}});
     try{localStorage.removeItem('mappo_touch');}catch(e){}
     try{localStorage.setItem('mappo_last_ws',info.workspaceId);}catch(e){}
-    fbLog('Troca de workspace neste aparelho — recarregando com dado local limpo','info');
-    location.reload();
-    return;
+    // code review (2026-09-01): se o setItem acima falhar silenciosamente (quota/private
+    // browsing), a próxima carga detectaria o mesmo mismatch de novo -- loop infinito de
+    // reload+wipe. Trava de segurança: no máximo 1 tentativa de reload por aba (sessionStorage,
+    // bucket de quota separado do localStorage) -- se caímos aqui de novo mesmo assim, segue
+    // sem recarregar em vez de travar o usuário num reload sem fim.
+    let jaTentouReload=false;
+    try{jaTentouReload=sessionStorage.getItem('mappo_reload_ws_tentado')==='1';}catch(e){}
+    if(!jaTentouReload){
+      try{sessionStorage.setItem('mappo_reload_ws_tentado','1');}catch(e){}
+      fbLog('Troca de workspace neste aparelho — recarregando com dado local limpo','info');
+      location.reload();
+      return;
+    }
+    fbLog('Troca de workspace detectada de novo após reload — seguindo sem recarregar pra não entrar em loop','erro');
   }
   try{localStorage.setItem('mappo_last_ws',info.workspaceId);}catch(e){}
   session={perfil:info.role,nome:info.nome||info.uid,uid:info.uid,role:info.role==='gestor'?'Gestor':'Técnico de Campo'};
@@ -2191,7 +2222,6 @@ const ICONS={
   help:'<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
 };
 function svgIco(name,cls){return `<svg class="ico ${cls||''}" viewBox="0 0 24 24">${ICONS[name]||''}</svg>`;}
-function ico(name,cls){return svgIco(name,cls);} // alias
 
 /* módulos da barra de navegação principal */
 const NAV_ITEMS=[
@@ -3118,7 +3148,6 @@ function toast(msg,type){
   setTimeout(()=>t.classList.remove('show'),3200);
 }
 function fmtDate(d){if(!d)return'';const[y,m,dd]=d.split('-');return`${dd}/${m}/${y}`;}
-function fmtDateShort(d){if(!d)return'';const[y,m,dd]=d.split('-');return`${dd}/${m}`;}
 function fmtMoeda(v){return(v==null||isNaN(v))?'—':Number(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});}
 /* Parse de valor monetário digitado à mão (Story 8, code review). '' -> null (limpeza
    intencional do campo). Só troca vírgula por ponto quando a string não tem ponto
@@ -3637,8 +3666,9 @@ function vrfFazerCheckin(){
       vrfSalvarCheckin(pos);
     },
     err=>{
-      const msgs={1:'Permissão de localização negada. Para o check-in, libere o GPS nas configurações.',2:'Sinal de GPS indisponível. Tente em área aberta.',3:'O GPS demorou a responder. Tente novamente.'};
-      toast(msgs[err.code]||'Não foi possível obter a localização','error');
+      // code review (2026-09-01): mensagem própria já tinha divergido da canônica
+      // (msgErroGPS) -- reusa a mesma pra não manter 2 fontes de verdade pro mesmo texto.
+      msgErroGPS(err);
     },
     {enableHighAccuracy:true,timeout:15000,maximumAge:0}
   );
@@ -4488,6 +4518,9 @@ function carregarJsPDF(cb){
   if(window.jspdf&&window.jspdf.jsPDF)return cb();
   const js=document.createElement('script');
   js.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+  // integrity (2026-09-01): hash calculado contra o conteúdo real da versão pinada (2.5.1);
+  // cdnjs confirmado com Access-Control-Allow-Origin:*. Atualizar junto se a versão mudar.
+  js.integrity='sha384-JcnsjUPPylna1s1fvi1u12X5qjY5OL56iySh75FdtrwhO/SWXgMjoVqcKyIIWOLk';js.crossOrigin='anonymous';
   js.onload=()=>cb();
   js.onerror=()=>{toast('Não foi possível carregar o gerador de PDF. Verifique a internet.','warn');};
   document.head.appendChild(js);
@@ -5756,6 +5789,11 @@ function criarOS(){
   // sem <option> nenhuma e .value vem vazio. Bloqueia aqui em vez de criar uma OS sem tipo.
   const tipoSel=document.getElementById('oTipo').value;
   if(!tipoSel){toast('Cadastre ao menos uma categoria em Configurações → Financeiro antes de criar uma OS','warn');return;}
+  // code review (2026-09-01): #oTecnico sem nenhum <option> (equipe vazia) deixava
+  // tecnico:'' passar direto -- a OS nascia órfã, sem aparecer na fila de ninguém.
+  // Mesmo padrão de bloqueio do #oTipo acima, aplicado aqui.
+  const tecnicoSel=document.getElementById('oTecnico').value;
+  if(!tecnicoSel){toast('Cadastre ao menos um técnico em Configurações → Equipe antes de criar uma OS','warn');return;}
   // #oSplits sempre existe no DOM desde a Story 16 (rótulo "splits"/"itens" conforme
   // ramoTemVRF(), mas o campo nunca é escondido) -- oSplitsEl? aqui é só defensivo.
   const oSplitsEl=document.getElementById('oSplits');
@@ -5849,7 +5887,7 @@ function openDetalhe(id){
       <button class="btn btn-danger" onclick="excluirOS('${os.id}')">🗑 Excluir</button>
       <button class="btn btn-ghost" onclick="gerarLinkOS('${os.id}')">${svgIco('mapa','ico-sm')} ${os.pubToken?'Ver link do cliente':'Gerar link do cliente'}</button>
       ${podeRevisar?`<button class="btn btn-gold" onclick="revisarOS('${os.id}')">↩ Enviar p/ revisão</button>`:''}
-      ${os.status==='concluida'&&os.tipo.includes('Manutenção')?`<button class="btn btn-ghost" onclick="agendarProximaManut('${os.id}')">🔄 Agendar retorno</button>`:''}
+      ${os.status==='concluida'&&ehManutencao(os.tipo)?`<button class="btn btn-ghost" onclick="agendarProximaManut('${os.id}')">🔄 Agendar retorno</button>`:''}
       <button class="btn btn-primary" onclick="closeModal()">Fechar</button>
     </div>`);
 }
@@ -6192,8 +6230,10 @@ function loadLeaflet(cb){
     return;
   }
   window._leafletLoading=true;
-  const css=document.createElement('link');css.id='leafletCSS';css.rel='stylesheet';css.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';document.head.appendChild(css);
-  const js=document.createElement('script');js.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+  // integrity (2026-09-01): hash calculado contra o conteúdo real da versão pinada (1.9.4);
+  // unpkg confirmado com Access-Control-Allow-Origin:*. Atualizar junto se a versão mudar.
+  const css=document.createElement('link');css.id='leafletCSS';css.rel='stylesheet';css.href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';css.integrity='sha384-sHL9NAb7lN7rfvG5lfHpm643Xkcjzp4jFvuavGOndn6pjVqS6ny56CAt3nsEVT4H';css.crossOrigin='anonymous';document.head.appendChild(css);
+  const js=document.createElement('script');js.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';js.integrity='sha384-cxOPjt7s7Iz04uaHJceBmS+qpjv2JkIHNVcuOrM+YHwZOmJGBXI00mdUXEq65HTH';js.crossOrigin='anonymous';
   js.onload=()=>{window._leafletLoading=false;cb&&cb();};
   js.onerror=()=>{window._leafletLoading=false;toast('Não foi possível carregar o mapa. Verifique a internet.','warn');};
   document.head.appendChild(js);
@@ -6977,8 +7017,9 @@ function execCheckin(){
     },
     err=>{
       if(btn){btn.disabled=false;btn.style.opacity='';btn.innerHTML='📍 Fazer Check-in';}
-      const msgs={1:'Permissão de localização negada. Para fazer o check-in, libere o acesso ao GPS nas configurações.',2:'Sinal de GPS indisponível. Tente em área aberta.',3:'O GPS demorou a responder. Tente novamente.'};
-      toast(msgs[err.code]||'Não foi possível obter a localização','error');
+      // code review (2026-09-01): mensagem própria já tinha divergido da canônica
+      // (msgErroGPS) -- reusa a mesma pra não manter 2 fontes de verdade pro mesmo texto.
+      msgErroGPS(err);
     },
     {enableHighAccuracy:true,timeout:15000,maximumAge:0}
   );
@@ -7325,8 +7366,17 @@ function copiarLinkPub(){
   const i=document.getElementById('pubLinkInput');if(!i)return;
   i.select();i.setSelectionRange(0,99999);
   const done=()=>toast('Link copiado','success');
-  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(i.value).then(done,()=>{document.execCommand('copy');done();});
-  else{document.execCommand('copy');done();}
+  const falhouCopia=()=>toast('Não foi possível copiar — selecione e copie manualmente','error');
+  // code review (2026-09-01): mesmo padrão de _copiarConviteCodigo/compartilharApp --
+  // execCommand('copy') é depreciado e pode falhar sem lançar em alguns navegadores;
+  // sem try/catch, o toast de sucesso aparecia mesmo quando nada foi copiado de verdade.
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(i.value).then(done,()=>{
+      try{document.execCommand('copy');done();}catch(e){falhouCopia();}
+    });
+  }else{
+    try{document.execCommand('copy');done();}catch(e){falhouCopia();}
+  }
 }
 
 /* ── republicação automática: sempre que algo muda, os links ativos se atualizam ── */

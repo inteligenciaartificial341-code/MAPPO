@@ -39,6 +39,19 @@ service cloud.firestore {
         'mappo_vrf_fases_config','mappo_modulo_config','mappo_vrf_obras'
       ];
     }
+    /* Espelha só a parte de SEGURANÇA de _ramoCustomInvalido() (index.html) -- digitar uma
+       chave herdada de Object.prototype (constructor, toString, etc.) como Ramo customizado
+       fazia RAMO_TEMPLATES[ramo] resolver pra uma FUNÇÃO em vez de undefined, quebrando o
+       fallback "||predial" -- só client-side até agora, uma escrita direta via SDK
+       reintroduzia o bug. Não replica a checagem de nome reservado (refrigeracao/predial/
+       outro colidir) aqui -- isso é regra de produto, não abre brecha de segurança nenhuma. */
+    function ramoValido(ramo) {
+      return ramo is string && ramo.size() > 0 && ramo.size() <= 60 &&
+        !(ramo.lower() in [
+          'constructor','prototype','tostring','valueof',
+          'hasownproperty','isprototypeof','propertyisenumerable','tolocalestring'
+        ]);
+    }
 
     /* ── Descoberta de workspace por uid (AD-11) ──────────────
        Só um ponteiro {workspaceId}; não concede acesso a dado
@@ -69,7 +82,8 @@ service cloud.firestore {
       // status só pode nascer 'pendente' -- cliente nunca se auto-aprova; a aprovação
       // (pendente -> ativo) só acontece fora das regras (Console/Admin SDK do dono).
       allow create: if isRealAuth() && request.resource.data.criado == true
-        && request.resource.data.status == 'pendente';
+        && request.resource.data.status == 'pendente'
+        && ramoValido(request.resource.data.ramo);
       allow update, delete: if false;
     }
 
