@@ -5421,6 +5421,12 @@ async function removerTecnico(id){
     }
     try{
       await fbDB.collection('workspaces').doc(WORKSPACE).collection('members').doc(t.uid).delete();
+      // code review (2026-09-01): sem apagar o ponteiro também, ele ficava travado pra
+      // sempre (userWorkspaces/{uid} é update:false) -- o uid nunca mais conseguia ser
+      // convidado de novo, em NENHUMA empresa, não só nesta. Falha aqui não desfaz a
+      // remoção já feita (membro já perdeu acesso de verdade); só avisa pra tentar de novo.
+      try{await fbDB.collection('userWorkspaces').doc(t.uid).delete();}
+      catch(e2){fbLog('Falha ao limpar ponteiro de workspace: '+e2.code+' — '+e2.message,'erro');toast('Acesso revogado, mas um vínculo interno não pôde ser limpo — avise se ele não conseguir ser convidado de novo depois','warn');}
     }catch(e){
       fbLog('Falha ao revogar acesso no servidor: '+e.code+' — '+e.message,'erro');
       toast('Removido localmente, mas não foi possível revogar o acesso dele no servidor — tente de novo depois','warn');

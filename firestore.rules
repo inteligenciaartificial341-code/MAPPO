@@ -43,15 +43,22 @@ service cloud.firestore {
     /* ── Descoberta de workspace por uid (AD-11) ──────────────
        Só um ponteiro {workspaceId}; não concede acesso a dado
        nenhum por si só -- quem autoriza de fato é members/{uid}.
-       Sem update/delete: reatribuição de workspace não é modelada
-       nesta espinha (assunção: uma pessoa pertence a 1 workspace). */
+       Sem update: reatribuição de workspace não é modelada nesta
+       espinha (assunção: uma pessoa pertence a 1 workspace).
+       Delete (2026-09-01): sem isso, removerTecnico() só apagava
+       members/{uid} e o ponteiro antigo ficava travado pra sempre
+       (update:false) -- um técnico removido nunca mais conseguia
+       ser convidado de novo, em NENHUMA empresa. Só o gestor do
+       workspace que o ponteiro aponta agora pode apagá-lo -- nunca
+       um uid arbitrário nem um gestor de outro workspace. */
     match /userWorkspaces/{uid} {
       allow read: if request.auth != null && request.auth.uid == uid;
       allow create: if isRealAuth() && (
         request.auth.uid == uid ||
         isGestor(request.resource.data.workspaceId)
       );
-      allow update, delete: if false;
+      allow update: if false;
+      allow delete: if isRealAuth() && isGestor(resource.data.workspaceId);
     }
 
     /* ── Metadado do workspace: só o marcador de bootstrap (AD-2) ──
