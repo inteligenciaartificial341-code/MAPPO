@@ -795,7 +795,7 @@
   /* ═══════════ TUTORIAL GUIADO (coach-marks/spotlight) — Story 17 ═══════════ */
   .tour-backdrop{position:fixed;inset:0;z-index:4000;background:transparent;}
   .tour-spot{position:fixed;z-index:4001;border-radius:10px;box-shadow:0 0 0 9999px rgba(15,26,31,.78);pointer-events:none;transition:top .22s ease,left .22s ease,width .22s ease,height .22s ease;}
-  .tour-card{position:fixed;z-index:4002;background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow-lg);padding:18px 20px;max-width:300px;width:calc(100% - 32px);transition:top .22s ease,left .22s ease;}
+  .tour-card{position:fixed;z-index:4002;background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow-lg);padding:18px 20px;max-width:340px;width:calc(100% - 32px);transition:top .22s ease,left .22s ease;}
   .tour-card h4{font-size:15px;font-weight:700;color:var(--petrol-dark);margin-bottom:6px;}
   .tour-card p{font-size:13px;line-height:1.5;color:var(--gray-600);margin-bottom:14px;}
   .tour-dots{display:flex;gap:5px;margin-bottom:14px;}
@@ -5541,25 +5541,25 @@ function closeModal(){const o=document.getElementById('curOverlay');if(o){o.clas
 const TOUR_VERSAO=1; // incrementar se o roteiro mudar de forma relevante -> reabre p/ todo mundo
 
 const TOUR_GESTOR=[
-  {sel:'.navbtn[data-nav="dashboard"]',titulo:'Painel',texto:'Visão geral da operação: ordens em andamento, alertas e indicadores.'},
-  {sel:'.navbtn[data-nav="ordens"]',titulo:'Ordens',texto:'Todas as ordens de serviço, filtráveis por status.'},
-  {sel:'.navbtn[data-nav="manutencoes"]',titulo:'Manutenções',texto:'Agenda de manutenções preventivas programadas.'},
-  {sel:'.navbtn[data-nav="clientes"]',titulo:'Clientes',texto:'Cadastro de clientes e locais atendidos.'},
-  {sel:'.navbtn[data-nav="mapa"]',titulo:'Mapa',texto:'Localização em tempo real dos prestadores em campo.'},
-  {sel:'[data-view="splits"]',titulo:()=>moduloSplitAtual().nome,texto:()=>moduloSplitAtual().desc||'Gerencie esse módulo por aqui.'},
-  {sel:'[data-view="vrf"]',titulo:'Sistema VRF',texto:'Acompanhe obras VRF por fase: checklist, fotos, mapa e relatórios.'},
-  {sel:'[data-view="tarefas"]',titulo:()=>ramoTemVRF()?'Tarefa Adicional':'Criar Tarefas',texto:'Crie e acompanhe tarefas fora do fluxo principal de ordens.'},
-  {sel:'[data-view="financeiro"]',titulo:'Financeiro',texto:'Veja valores a pagar/recebido por prestador e lance adiantamentos.'},
-  {sel:'[data-view="config"]',titulo:'Configurações',texto:'Cadastre técnicos, ajuste checklist e preços do seu Ramo.'},
-  {sel:'[data-view="compartilhar"]',titulo:'Compartilhar app',texto:'Envie o link do MAPPO pra um novo prestador ou colega.'},
-  {sel:'[data-view="avaliar"]',titulo:'Avaliar o app',texto:'Deixe seu feedback sobre o MAPPO — ajuda a melhorar o app.'},
+  {sel:'.navbtn[data-nav="dashboard"]',titulo:'Painel',texto:'Assim que você entra, é aqui que cai: o resumo do dia. Quantas ordens estão pendentes, em andamento, atrasadas ou concluídas, e os alertas de manutenção vencendo. É o primeiro lugar pra olhar toda manhã.'},
+  {sel:'.navbtn[data-nav="ordens"]',titulo:'Ordens',texto:'Todas as suas Ordens de Serviço. Toque em "+ Nova OS" pra criar uma (escolha cliente, técnico e tipo de serviço). Toque numa OS existente pra ver o andamento, conferir o checklist que o técnico preencheu e lançar o valor a receber.'},
+  {sel:'.navbtn[data-nav="manutencoes"]',titulo:'Manutenções',texto:'Agenda de manutenções que se repetem periodicamente pro mesmo cliente. Cadastre a próxima data aqui e o MAPPO avisa quando estiver perto de vencer — daí você já gera a OS na hora certa, sem precisar controlar isso numa agenda separada.'},
+  {sel:'.navbtn[data-nav="clientes"]',titulo:'Clientes',texto:'Lista de todos os clientes já atendidos, com endereço e histórico completo de visitas. Toque em "+ Novo cliente" pra cadastrar um antes mesmo de abrir a primeira OS pra ele.'},
+  {sel:'.navbtn[data-nav="mapa"]',titulo:'Mapa',texto:'Acompanhe em tempo real onde cada prestador está — ele precisa ativar o GPS ao vivo no próprio app dele pra aparecer aqui. Role a tela pra baixo e você chega no histórico: o horário e o local exato de cada check-in já feito, prestador por prestador.'},
+  {sel:'[data-view="splits"]',titulo:()=>moduloSplitAtual().nome,texto:()=>ramoTemVRF()?'Painel de instalação e manutenção de aparelhos split — acompanhe o andamento de cada serviço aqui, separado das demais Ordens.':`Aqui ficam as ordens do módulo "${moduloSplitAtual().nome}". ${moduloSplitAtual().desc||'Gerencie esse trabalho por aqui.'} Achou o nome genérico? Vá em Configurações e renomeie pra combinar com a linguagem da sua empresa.`},
+  {sel:'[data-view="vrf"]',titulo:'Sistema VRF',texto:'Painel completo de obras VRF: fases do projeto, checklist por etapa, fotos enviadas pelos técnicos, mapa da obra e relatório em PDF pra mandar ao cliente. Cadastre a obra aqui — depois vá em Configurações pra dizer quais técnicos têm acesso a ela.'},
+  {sel:'[data-view="tarefas"]',titulo:()=>ramoTemVRF()?'Tarefa Adicional':'Criar Tarefas',texto:'Use pra qualquer trabalho que não seja uma Ordem de Serviço nem uma obra — visita avulsa, tarefa pontual. Você decide quantas fotos são exigidas e se precisa de check-in de presença todo dia.'},
+  {sel:'[data-view="financeiro"]',titulo:'Financeiro',texto:'Veja quanto cada prestador tem a receber e o que já foi pago, Ordem por Ordem. Abra uma OS pra lançar o valor e marcar como pago. O bloco de notas serve pra registrar adiantamento — isso não entra no cálculo automático.'},
+  {sel:'[data-view="config"]',titulo:'Configurações',texto:'Onde você personaliza o MAPPO pro jeito da sua empresa: cadastra técnicos e gera o código de convite de cada um, edita o checklist padrão, ajusta a tabela de preços e renomeia os módulos com os termos que fizerem sentido pro seu negócio.'},
+  {sel:'[data-view="compartilhar"]',titulo:'Compartilhar app',texto:'Toque aqui pra enviar o link do MAPPO por WhatsApp — pro seu próximo prestador se cadastrar sozinho, ou pra indicar o app pra outro gestor que você conhece.'},
+  {sel:'[data-view="avaliar"]',titulo:'Avaliar o app',texto:'Conte o que está bom, o que falta, o que te incomoda. Sua avaliação chega direto pra mim e ajuda a decidir o que melhorar primeiro no MAPPO.'},
 ];
 const TOUR_TECNICO=[
-  {sel:'.navbtn[data-nav="home"]',titulo:'Início',texto:'Sua tela inicial: o que está em andamento agora.'},
-  {sel:'.navbtn[data-nav="ordens"]',titulo:'Ordens',texto:'Suas ordens de serviço de instalação e manutenção.'},
-  {sel:'.navbtn[data-nav="tarefas"]',titulo:'Tarefas',texto:'Tarefas adicionais atribuídas a você.'},
-  {sel:'.navbtn[data-nav="manutencoes"]',titulo:'Manutenções',texto:'Manutenções preventivas sob sua responsabilidade.'},
-  {sel:'.navbtn[data-nav="vrf"]',titulo:'VRF',texto:'Checklist de execução das obras VRF atribuídas a você.'},
+  {sel:'.navbtn[data-nav="home"]',titulo:'Início',texto:'Sua tela assim que você entra: mostra a OS em andamento agora, ou a próxima marcada pra você — sem precisar procurar em nenhum outro lugar.'},
+  {sel:'.navbtn[data-nav="ordens"]',titulo:'Ordens',texto:'Todas as suas Ordens de Serviço, inclusive as antigas já concluídas. Pra começar uma pendente: toque nela, faça o check-in (ele registra sua localização), preencha o checklist tirando foto de cada item pedido, e no final toque em Concluir.'},
+  {sel:'.navbtn[data-nav="tarefas"]',titulo:'Tarefas',texto:'Trabalhos avulsos que seu gestor te atribuiu, fora das Ordens normais. Pode pedir check-in de presença todo dia e um número mínimo de fotos — é só seguir o que aparecer na tela.'},
+  {sel:'.navbtn[data-nav="manutencoes"]',titulo:'Manutenções',texto:'Manutenções preventivas marcadas com você. Elas aparecem aqui sozinhas na data certa — não precisa ficar de olho em calendário nenhum.'},
+  {sel:'.navbtn[data-nav="vrf"]',titulo:'VRF',texto:'Checklist de execução das obras que seu gestor te atribuiu. Marque cada etapa concluída, tire a foto pedida e deixe uma nota se precisar — dá pra acompanhar o progresso da obra inteira por aqui.'},
 ];
 
 let _tourPassos=[];
