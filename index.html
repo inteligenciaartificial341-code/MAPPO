@@ -1388,6 +1388,20 @@ function _slugify(s){
   return(s||'').toString().normalize('NFD').replace(/[̀-ͯ]/g,'')
     .toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,40);
 }
+/* Auditoria de 2026-09-01: wsId = só _slugify(empresa) é 100% determinístico e nunca é
+   exibido em nenhuma tela (só chave interna de path/coleção, ver grep) -- um nome de
+   empresa alvo, sozinho, bastava pra "sequestrar" o slug real dela via cadastro público
+   comum, antes dela se cadastrar. Sufixo aleatório (mesmo padrão de _gerarCodigoConvite,
+   crypto.getRandomValues) torna o wsId real não-adivinhável a partir só do nome público
+   -- continua legível pro dono do projeto aprovar no Console (ex.: elite-ar-k7m2q). */
+function _gerarSufixoWs(){
+  const alfabeto='abcdefghjkmnpqrstuvwxyz23456789';
+  const bytes=new Uint8Array(5);
+  crypto.getRandomValues(bytes);
+  let out='';
+  for(let i=0;i<5;i++)out+=alfabeto[bytes[i]%alfabeto.length];
+  return out;
+}
 /* Ramo customizado ("Outro, qual?" no cadastro) -- código review (achado alto, 2
    revisores): sem esta guarda, digitar "refrigeracao" fazia o workspace herdar de
    verdade o vocabulário/módulo VRF de Refrigeração (RAMO_TEMPLATES/ramoTemVRF() batem
@@ -1443,24 +1457,27 @@ async function cadastrarEmpresa(){
   const ramo=ramoSel==='outro'?ramoOutro:ramoSel;
   if(!email||!senha){toast('Informe e-mail e senha','warn');return;}
   if(senha.length<6){toast('Senha precisa de pelo menos 6 caracteres','warn');return;}
-  const wsId=_slugify(empresa);
-  if(!wsId||wsId.length<2){toast('Nome de empresa inválido — use pelo menos 2 letras ou números','warn');return;}
+  const wsSlug=_slugify(empresa);
+  if(!wsSlug||wsSlug.length<2){toast('Nome de empresa inválido — use pelo menos 2 letras ou números','warn');return;}
   if(!fbApp||!fbDB){toast('Sem conexão com a nuvem — tente novamente em instantes','error');return;}
   const btn=document.querySelector('#cadastroBox .btn-entrar');
   if(btn){btn.disabled=true;btn.textContent='Criando…';}
   _signupInProgress=true;
   let cred=null;
   try{
-    // sem pré-checagem de leitura (exigiria abrir workspaces/{wsId} sem membership --
-    // não vale o custo de superfície nova). Colisão de slug é descoberta pelo próprio
-    // batch abaixo (grava como 'update' num doc que já existe, regra nega) e tratada
-    // no catch: mensagem clara + limpeza da conta órfã, sem deixar o usuário travado.
+    // wsId leva sufixo aleatório (_gerarSufixoWs) -- não é mais só o nome da empresa,
+    // ver comentário em _gerarSufixoWs. Colisão de verdade (mesmo slug E mesmo sufixo)
+    // é astronomicamente improvável, mas o batch abaixo ainda descobre e trata no catch
+    // se acontecer (grava como 'update' num doc que já existe, regra nega).
+    const wsId=wsSlug+'-'+_gerarSufixoWs();
     cred=await firebase.auth().createUserWithEmailAndPassword(email,senha);
     const uid=cred.user.uid;
     const batch=fbDB.batch();
     // status 'pendente': gate de aprovação manual (piloto privado) -- só o dono do projeto
     // aprova, direto no Firebase Console, fora do alcance destas regras (ver firestore.rules).
-    batch.set(fbDB.collection('workspaces').doc(wsId),{criado:true,nome:empresa,ramo,status:'pendente',criadoEm:firebase.firestore.FieldValue.serverTimestamp()});
+    // criadoPor: auditoria (nunca checado em regra hoje, workspaces/{wsId} não tem
+    // hasOnly -- é só rastreabilidade extra pro dono do projeto, sem custo de regra nova).
+    batch.set(fbDB.collection('workspaces').doc(wsId),{criado:true,nome:empresa,ramo,status:'pendente',criadoPor:uid,criadoEm:firebase.firestore.FieldValue.serverTimestamp()});
     batch.set(fbDB.collection('workspaces').doc(wsId).collection('members').doc(uid),{role:'gestor',nome,criadoEm:firebase.firestore.FieldValue.serverTimestamp()});
     batch.set(fbDB.collection('userWorkspaces').doc(uid),{workspaceId:wsId});
     await batch.commit();
@@ -1494,7 +1511,9 @@ async function cadastrarEmpresa(){
       try{await cred.user.delete();}
       catch(delErr){fbLog('Falha ao limpar conta órfã: '+delErr.code+' — '+(delErr.message||''),'erro');}
     }
-    toast(e.code==='permission-denied'?'Este nome de empresa já está em uso — escolha outro':_mensagemErroAuth(e.code),'error');
+    // wsId agora leva sufixo aleatório (_gerarSufixoWs) -- colisão de slug sozinho não é mais
+    // a causa provável de um permission-denied aqui; mensagem genérica, pedir pra tentar de novo.
+    toast(e.code==='permission-denied'?'Não foi possível criar a empresa agora — tente novamente':_mensagemErroAuth(e.code),'error');
   }
   if(btn){btn.disabled=false;btn.textContent='Criar empresa →';}
 }
