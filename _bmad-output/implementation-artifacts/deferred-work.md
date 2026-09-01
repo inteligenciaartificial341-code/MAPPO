@@ -201,3 +201,69 @@ Itens reais, encontrados durante revisão, que não são problema desta story es
 - source_spec: `_bmad-output/specs/spec-mappo/stories/17-minitutorial-guiado-coach-marks-spotlight.md`
   summary: Os listeners de `resize`/`scroll` do tour (`_tourReposicionar`) não usam debounce/`requestAnimationFrame`, e o de `scroll` usa `capture:true` (dispara em qualquer scroll de container interno da página) -- cada disparo faz `querySelector`+`getBoundingClientRect`+escritas de estilo sem lote.
   evidence: Baixo risco prático dado o volume de eventos esperado (tour ativo só por segundos, poucos elementos na tela), mas é o padrão correto a seguir se o mecanismo for reaproveitado em algo com mais reposicionamentos por segundo no futuro.
+
+## Auditoria completa 2026-09-01 (firestore.rules + index.html)
+
+Rodada de auditoria dedicada, fora do fluxo de story: `firebase-security-rules-auditor` em `firestore.rules` + `bmad-review` (lentes adversarial/edge-case-hunter/verification-gap) no `index.html` inteiro. Nenhum item abaixo foi corrigido ainda -- aguardando priorização do proprietário.
+
+- source_spec: none
+  summary: "[CRÍTICO] firestore.rules:130 só trava escrita a gestor pra mappo_tecnicos -- qualquer técnico pode escrever em praticamente todo outro dado do workspace (financeiro, preço, VRF obras/atribuição, checklist, OS) via SDK direto, mesmo com a UI restringindo a tela a gestor. Inclui poder se auto-conceder acesso a obras VRF não atribuídas (AD-14) e alterar o próprio status de pagamento numa OS."
+  evidence: "Leitura direta de firestore.rules:130 -- allow write: if isMember(wsId) && isAtivo(wsId) && (docId != 'mappo_tecnicos' || isGestor(wsId)); -- confirmado que isso é bem mais amplo que o achado antigo (só mappo_checklist_config), que já estava registrado aqui."
+
+- source_spec: none
+  summary: "[GRAVE] wsId é slug determinístico do nome da empresa (_slugify(empresa), index.html:1387-1390, sem UID/aleatoriedade), e workspaces/{wsId} create (firestore.rules:51-52) não tem dono nem checa duplicidade. Qualquer conta real pode sequestrar o slug de uma empresa-alvo digitando o mesmo nome no cadastro público, antes dela se cadastrar (workspace fica travado em update:false, sem recuperação)."
+  evidence: "Confirmado lendo _slugify() e o fluxo de cadastrarEmpresa() (index.html:1446,1463) contra firestore.rules:47-53. Estende um achado já registrado aqui (Story 1) confirmando o mecanismo exato -- é 1:1 com o nome digitado, sem ofuscação nenhuma."
+
+- source_spec: none
+  summary: "[MODERADO] userWorkspaces/{uid} permite um gestor criar o ponteiro de qualquer outro uid apontando pro próprio workspace, sem checar se aquele uid já pertence a outra empresa -- combinado com update:false, permite sequestrar permanentemente o ponteiro de alguém (exige saber o uid da vítima)."
+  evidence: "firestore.rules:37-41 -- branch isGestor(request.resource.data.workspaceId) sem checagem de posse prévia do uid alvo."
+
+- source_spec: none
+  summary: "[MODERADO] Convite de prestador (convites/{codigo}) é um credencial portador puro -- quem tiver o código consome como se fosse a pessoa certa, sem vínculo de identidade (nome não é validado contra o tecnicoId da vaga na regra). A entropia do código em si está ótima (8 chars de 32 símbolos via crypto.getRandomValues, ~2^40 combinações -- NÃO é bruteforçável, verificado e descartado como risco)."
+  evidence: "firestore.rules:94-107 (branch de consumo) só checa usado==false e revogadoEm==null, nunca o nome. index.html:5188-5194 confirma a entropia real do código."
+
+- source_spec: none
+  summary: "[XSS confirmado, 6 pontos] renderClientes() (index.html:3454) e verTarefaDetalhe() (index.html:6605) interpolam nome de cliente/técnico em onclick=\"fn('...')\" escapando só aspas simples, não aspas duplas -- quebra o atributo HTML. Funções de render de etapa VRF (index.html ~3742,3803,4386,4427) renderizam texto sem escapeHtml, inconsistente com o campo nota vizinho que É escapado. openModalOS() (index.html:5710) lista técnicos no select sem escapar (inconsistente com os mesmos dados escapados em index.html:4982,5861). vrfNotaTxt (index.html:3899) prefila textarea sem escapar. Config de e-mail/telefone do gestor (index.html:4621-4622) sem escapar."
+  evidence: "Confirmado por 3 revisores independentes (adversarial, edge-case-hunter, verification-gap) do bmad-review, convergência em 3 dos 6 pontos. Todos os campos envolvidos são texto livre editável."
+
+- source_spec: none
+  summary: "[BUG real] _aplicarSessaoResolvida() grava localStorage.setItem('mappo_last_ws',...) sem try/catch logo antes de location.reload() (fix do vazamento cross-tenant desta sessão) -- se o setItem falhar silenciosamente (quota/private browsing), o reload detecta o mesmo mismatch de novo, entrando num loop de reload+wipe de SYNC_KEYS a cada tentativa."
+  evidence: "index.html ~1329, achado pela lente edge-case-hunter. Risco concentrado no exato trecho que a correção do vazamento cross-tenant desta mesma sessão introduziu."
+
+- source_spec: none
+  summary: "[BUG real] ehManutencao() (função canônica pra detectar OS de manutenção) não é usada em openDetalhe() (index.html:5827) -- o botão Agendar retorno usa um teste ad-hoc (os.tipo.includes('Manutenção')) que quebra silenciosamente se o gestor renomear a categoria (editável desde a Story 15) pra qualquer texto sem a palavra exata Manutenção."
+  evidence: "ehManutencao definida em index.html:2477 como /manuten/i.test(tipo||''), não reusada em openDetalhe. Achado pela lente adversarial."
+
+- source_spec: none
+  summary: "[BUG real] Duas entradas de tecnicos[] podem compartilhar o mesmo Firebase uid via o fallback de colar UID manualmente (salvarTecnico(), sem checagem de duplicidade) -- o segundo salvamento sobrescreve members/{uid}.nome silenciosamente, órfã o primeiro técnico do próprio histórico/acesso de módulo."
+  evidence: "index.html ~5356-5380, achado pela lente edge-case-hunter -- gap novo, distinto do risco já conhecido de UID errado/malicioso."
+
+- source_spec: none
+  summary: "[BUG real] criarOS() permite criar OS sem nenhum técnico cadastrado (#oTecnico sem opções) -- OS nasce com tecnico:'', nunca aparece na fila de nenhum técnico, órfã silenciosamente (ao contrário do #oTipo vazio, que já é bloqueado explicitamente)."
+  evidence: "index.html ~5725-5754, achado pela lente edge-case-hunter."
+
+- source_spec: none
+  summary: "[Gap de UX] copiarLinkPub() (index.html:7299-7305) não tem o mesmo try/catch que _copiarConviteCodigo() e compartilharApp() já aprenderam (comentários no próprio código documentam a falha) -- toast Link copiado aparece mesmo quando execCommand('copy') falha sem lançar, e o gestor compartilha um link que nunca foi de fato copiado."
+  evidence: "Padrão já corrigido em 2 lugares irmãos (index.html:5296-5304, index.html:2951-2962), terceiro local nunca foi atualizado. Achado pela lente verification-gap."
+
+- source_spec: none
+  summary: "[Código morto] ico() (index.html:2175, alias de svgIco) e fmtDateShort() (index.html:3102) não têm nenhuma chamada no arquivo inteiro."
+  evidence: "Confirmado por contagem de frequência de identificador no arquivo inteiro, achado independentemente por 2 revisores (adversarial + verification-gap) pro fmtDateShort."
+
+- source_spec: none
+  summary: "[Duplicação] Mapeamento de mensagem de erro de GPS existe como função compartilhada (msgErroGPS, reusada em tarefaCheckin()) mas é reimplementado inline com texto ligeiramente diferente em vrfFazerCheckin() e execCheckin() -- 3 cópias já divergentes da mesma mensagem."
+  evidence: "index.html:6474-6481 vs ~3620-3622 vs ~6955. Achado pela lente adversarial."
+
+- source_spec: none
+  summary: "[Segurança-adjacente, baixa prioridade] Nenhum script/CSS de CDN (firebase-*-compat.js, Leaflet, jsPDF) usa Subresource Integrity (integrity/crossorigin) -- comprometimento de qualquer um dos 3 CDNs rodaria script arbitrário na sessão autenticada do app, sem mitigação nenhuma."
+  evidence: "index.html:798-800 + carregamento dinâmico do Leaflet/jsPDF. Achado pela lente adversarial -- tail risk, mas fix é barato (hashes SRI são públicos/estáveis por versão pinada)."
+
+- source_spec: none
+  summary: "[Hygiene, baixa prioridade] _ramoCustomInvalido() (a única defesa contra ramo colidir com chave reservada/perigosa) só roda client-side em cadastrarEmpresa() -- firestore.rules não valida o campo ramo de jeito nenhum, então uma escrita direta via SDK (fora da UI) pode reintroduzir o bug que essa função foi criada pra fechar."
+  evidence: "index.html:1391-1413 sem equivalente em firestore.rules (workspaces/{wsId} create não valida tipo/conteúdo de ramo). Achado pela lente adversarial."
+
+## Atualização 2026-09-01 -- achado crítico corrigido
+
+- source_spec: none
+  summary: "[RESOLVIDO, parcial] O achado CRÍTICO acima (firestore.rules:130 só travava mappo_tecnicos) foi corrigido -- firestore.rules ganhou isGestorOnlyDoc(), agora trava escrita a gestor pra 10 docIds (mappo_tecnicos, mappo_clientes, mappo_manut, mappo_settings, mappo_checklist_config, mappo_preco_config, mappo_financeiro_notas, mappo_vrf_fases_config, mappo_modulo_config, mappo_vrf_obras). Isso fecha o auto-acesso a obras VRF (AD-14) e a adulteração de checklist/preço/vocabulário/clientes/manutenções. mappo_os fica de fora DE PROPÓSITO -- técnico precisa escrevê-la pra check-in/checklist/foto, e o blob JSON único (AD-8) não permite validação campo a campo na regra. Um técnico ainda pode, via SDK direto, alterar valor/valorStatus/tecnico de QUALQUER OS do workspace (não só a própria) -- esse resíduo é estrutural, exige separar o dado financeiro da OS numa coleção própria ou migrar mappo_os pra documentos individuais, não é mais um patch de regra."
+  evidence: "50/50 testes no Firebase Emulator Suite (gestor mantém acesso total; técnico negado nos 10 docIds; técnico mantém acesso às coleções que precisa -- mappo_os e as 11 outras da execução; não-membro segue negado em tudo). Testado e descartado, script efêmero fora do repo, mesmo padrão das Stories 1/5/11/14."

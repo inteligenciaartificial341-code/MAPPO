@@ -26,6 +26,19 @@ service cloud.firestore {
     function isAtivo(wsId) {
       return get(/databases/$(database)/documents/workspaces/$(wsId)).data.status == 'ativo';
     }
+    /* Auditoria de 2026-09-01: docIds sem nenhum caminho de escrita legítimo por
+       técnico (verificado contra todo save*() e chamador em index.html) -- config,
+       cadastro de cliente/manutenção, financeiro, vocabulário. mappo_os fica de fora
+       de propósito: técnico precisa escrevê-la pra check-in/checklist/foto, e o
+       blob JSON único (AD-8) não permite validação campo-a-campo na regra -- ver
+       deferred-work.md pra essa pendência maior (fora do escopo desta correção). */
+    function isGestorOnlyDoc(docId) {
+      return docId in [
+        'mappo_tecnicos','mappo_clientes','mappo_manut','mappo_settings',
+        'mappo_checklist_config','mappo_preco_config','mappo_financeiro_notas',
+        'mappo_vrf_fases_config','mappo_modulo_config','mappo_vrf_obras'
+      ];
+    }
 
     /* ── Descoberta de workspace por uid (AD-11) ──────────────
        Só um ponteiro {workspaceId}; não concede acesso a dado
@@ -115,8 +128,9 @@ service cloud.firestore {
        pub_* também exige expiraEm no futuro (ou ausente -- link antigo, pré-story, nunca
        expira) -- revogar (Story 5) grava expiraEm=agora, mesmo mecanismo da expiração
        natural; só se aplica ao ramo público, membro sempre lê os próprios docs pub_.
-       mappo_tecnicos só é escrito por gestor -- convite/gestão de equipe
-       é operação exclusiva de gestor, aplicada aqui e não só na UI.
+       isGestorOnlyDoc() trava escrita de config/cadastro/financeiro/vocabulário a
+       gestor -- essas telas já eram gestor-only na UI, agora também na regra
+       (auditoria de 2026-09-01). mappo_os fica fora de propósito, ver a função.
        Membro de workspace pendente autentica e vê o próprio status (isMember, acima)
        mas não lê nem grava nenhum dado até o dono do projeto aprovar. */
     match /workspaces/{wsId}/data/{docId} {
@@ -127,7 +141,7 @@ service cloud.firestore {
         (docId.matches('pub_.*') && (resource==null || !('expiraEm' in resource.data) || resource.data.expiraEm > request.time.toMillis())) ||
         isMember(wsId)
       );
-      allow write: if isMember(wsId) && isAtivo(wsId) && (docId != 'mappo_tecnicos' || isGestor(wsId));
+      allow write: if isMember(wsId) && isAtivo(wsId) && (!isGestorOnlyDoc(docId) || isGestor(wsId));
     }
 
     /* ── Avaliação do app (Story 14, feedback do piloto) ──────
