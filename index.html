@@ -3113,6 +3113,7 @@ function nav(view){
   renderView(view);
   closeSidebar();
   window.scrollTo(0,0);
+  _tourEntrarView(view); // Story 18: mini-tour da view, só se o tour de topo já foi visto/pulado
 }
 
 /* controla qual conjunto de botões a barra mostra */
@@ -3201,7 +3202,10 @@ function aplicarMenuTecnico(){
   const ordEl=document.querySelector('[data-view="ordens"]');if(ordEl)ordEl.style.display=m.split?'':'none';
 }
 
-function renderView(v){
+/* Story 18 (patch de revisão): renomeada -- o corpo original vira o "conteúdo" de fato,
+   chamado pelo wrapper renderView() logo abaixo. Nenhuma linha de lógica muda aqui, só o
+   nome da função e o fechamento (agora fecha _renderViewConteudo, não renderView). */
+function _renderViewConteudo(v){
   const c=document.getElementById('contentArea');
   // destrói o mapa Leaflet ao sair da view do mapa (evita mapa "fantasma" sobreposto)
   if(v!=='mapa'&&mapaInstance){try{mapaInstance.remove();}catch(e){}mapaInstance=null;mapaMarkers={};}
@@ -3268,6 +3272,20 @@ function renderView(v){
     default:c.innerHTML='';
   }
   atualizarBadges();
+}
+
+/* Story 18 (patch de revisão): funil único pra QUALQUER re-render de #contentArea --
+   nav() é só um dos chamadores; fbOnRemoteChange (sync remota chegando) e o botão
+   "Atualizar" do mapa, entre outros, chamam renderView(currentView) direto, fora do fluxo
+   de nav(). Se um tour (topo ou mini-tour de view) estiver com um passo ativo mirando algo
+   dentro de #contentArea, o innerHTML acima acabou de substituir o elemento-alvo por um
+   novo nó -- o spot/card do tour ficam apontando pras coordenadas antigas até reposicionar
+   de novo. Sem scrollIntoView aqui (_tourReposicionar sem argumento) -- não força o scroll
+   do usuário só porque uma sincronização chegou em segundo plano; scrollIntoView só roda na
+   primeira exibição de um passo (_tourMostrarPasso), nunca num re-render como este. */
+function renderView(v){
+  _renderViewConteudo(v);
+  if(_tourIndice>=0)_tourReposicionar();
 }
 
 function atualizarBadges(){
@@ -3568,11 +3586,11 @@ function renderMapa(){
     <div id="mapaBox"></div>
     <div id="mapaPainelInfo" class="mapa-painel" style="display:none"></div>
   </div>
-  <div class="card" style="margin-top:20px">
+  <div class="card" id="mapaCardEquipe" style="margin-top:20px">
     <div class="card-head"><h3>Equipe</h3></div>
     <div class="card-pad" style="padding-top:6px">${renderEquipeMini()}</div>
   </div>
-  <div class="card" style="margin-top:20px">
+  <div class="card" id="mapaCardHistorico" style="margin-top:20px">
     <div class="card-head"><h3>Histórico de localização</h3></div>
     <div class="card-pad" style="padding-top:6px">${renderHistoricoLocalizacao()}</div>
   </div>`;
@@ -5070,7 +5088,7 @@ function renderFinanceiro(){
     <div class="card-pad" style="padding-top:6px">${renderPrecoConfig()}</div>
   </div>
 
-  <div style="margin-bottom:22px">${renderFinanceiroHierarquia()}</div>
+  <div id="finHierarquiaCard" style="margin-bottom:22px">${renderFinanceiroHierarquia()}</div>
 
   <div class="card">
     <div class="card-head"><h3>🗒️ Notas de adiantamento</h3></div>
@@ -5541,11 +5559,11 @@ function closeModal(){const o=document.getElementById('curOverlay');if(o){o.clas
 const TOUR_VERSAO=1; // incrementar se o roteiro mudar de forma relevante -> reabre p/ todo mundo
 
 const TOUR_GESTOR=[
-  {sel:'.navbtn[data-nav="dashboard"]',titulo:'Painel',texto:'Assim que você entra, é aqui que cai: o resumo do dia. Quantas ordens estão pendentes, em andamento, atrasadas ou concluídas, e os alertas de manutenção vencendo. É o primeiro lugar pra olhar toda manhã.'},
-  {sel:'.navbtn[data-nav="ordens"]',titulo:'Ordens',texto:'Todas as suas Ordens de Serviço. Toque em "+ Nova OS" pra criar uma (escolha cliente, técnico e tipo de serviço). Toque numa OS existente pra ver o andamento, conferir o checklist que o técnico preencheu e lançar o valor a receber.'},
-  {sel:'.navbtn[data-nav="manutencoes"]',titulo:'Manutenções',texto:'Agenda de manutenções que se repetem periodicamente pro mesmo cliente. Cadastre a próxima data aqui e o MAPPO avisa quando estiver perto de vencer — daí você já gera a OS na hora certa, sem precisar controlar isso numa agenda separada.'},
-  {sel:'.navbtn[data-nav="clientes"]',titulo:'Clientes',texto:'Lista de todos os clientes já atendidos, com endereço e histórico completo de visitas. Toque em "+ Novo cliente" pra cadastrar um antes mesmo de abrir a primeira OS pra ele.'},
-  {sel:'.navbtn[data-nav="mapa"]',titulo:'Mapa',texto:'Acompanhe em tempo real onde cada prestador está — ele precisa ativar o GPS ao vivo no próprio app dele pra aparecer aqui. Role a tela pra baixo e você chega no histórico: o horário e o local exato de cada check-in já feito, prestador por prestador.'},
+  {sel:'.navbtn[data-nav="dashboard"], .float-menu-opt[data-nav="dashboard"]',titulo:'Painel',texto:'Assim que você entra, é aqui que cai: o resumo do dia. Quantas ordens estão pendentes, em andamento, atrasadas ou concluídas, e os alertas de manutenção vencendo. É o primeiro lugar pra olhar toda manhã.'},
+  {sel:'.navbtn[data-nav="ordens"], .float-menu-opt[data-nav="ordens"]',titulo:'Ordens',texto:'Todas as suas Ordens de Serviço. Toque em "+ Nova OS" pra criar uma (escolha cliente, técnico e tipo de serviço). Toque numa OS existente pra ver o andamento, conferir o checklist que o técnico preencheu e lançar o valor a receber.'},
+  {sel:'.navbtn[data-nav="manutencoes"], .float-menu-opt[data-nav="manutencoes"]',titulo:'Manutenções',texto:'Agenda de manutenções que se repetem periodicamente pro mesmo cliente. Cadastre a próxima data aqui e o MAPPO avisa quando estiver perto de vencer — daí você já gera a OS na hora certa, sem precisar controlar isso numa agenda separada.'},
+  {sel:'.navbtn[data-nav="clientes"], .float-menu-opt[data-nav="clientes"]',titulo:'Clientes',texto:'Lista de todos os clientes já atendidos, com endereço e histórico completo de visitas. Toque em "+ Novo cliente" pra cadastrar um antes mesmo de abrir a primeira OS pra ele.'},
+  {sel:'.navbtn[data-nav="mapa"], .float-menu-opt[data-nav="mapa"]',titulo:'Mapa',texto:'Acompanhe em tempo real onde cada prestador está — ele precisa ativar o GPS ao vivo no próprio app dele pra aparecer aqui. Role a tela pra baixo e você chega no histórico: o horário e o local exato de cada check-in já feito, prestador por prestador.'},
   {sel:'[data-view="splits"]',titulo:()=>moduloSplitAtual().nome,texto:()=>ramoTemVRF()?'Painel de instalação e manutenção de aparelhos split — acompanhe o andamento de cada serviço aqui, separado das demais Ordens.':`Aqui ficam as ordens do módulo "${moduloSplitAtual().nome}". ${moduloSplitAtual().desc||'Gerencie esse trabalho por aqui.'} Achou o nome genérico? Vá em Configurações e renomeie pra combinar com a linguagem da sua empresa.`},
   {sel:'[data-view="vrf"]',titulo:'Sistema VRF',texto:'Painel completo de obras VRF: fases do projeto, checklist por etapa, fotos enviadas pelos técnicos, mapa da obra e relatório em PDF pra mandar ao cliente. Cadastre a obra aqui — depois vá em Configurações pra dizer quais técnicos têm acesso a ela.'},
   {sel:'[data-view="tarefas"]',titulo:()=>ramoTemVRF()?'Tarefa Adicional':'Criar Tarefas',texto:'Use pra qualquer trabalho que não seja uma Ordem de Serviço nem uma obra — visita avulsa, tarefa pontual. Você decide quantas fotos são exigidas e se precisa de check-in de presença todo dia.'},
@@ -5555,16 +5573,90 @@ const TOUR_GESTOR=[
   {sel:'[data-view="avaliar"]',titulo:'Avaliar o app',texto:'Conte o que está bom, o que falta, o que te incomoda. Sua avaliação chega direto pra mim e ajuda a decidir o que melhorar primeiro no MAPPO.'},
 ];
 const TOUR_TECNICO=[
-  {sel:'.navbtn[data-nav="home"]',titulo:'Início',texto:'Sua tela assim que você entra: mostra a OS em andamento agora, ou a próxima marcada pra você — sem precisar procurar em nenhum outro lugar.'},
-  {sel:'.navbtn[data-nav="ordens"]',titulo:'Ordens',texto:'Todas as suas Ordens de Serviço, inclusive as antigas já concluídas. Pra começar uma pendente: toque nela, faça o check-in (ele registra sua localização), preencha o checklist tirando foto de cada item pedido, e no final toque em Concluir.'},
-  {sel:'.navbtn[data-nav="tarefas"]',titulo:'Tarefas',texto:'Trabalhos avulsos que seu gestor te atribuiu, fora das Ordens normais. Pode pedir check-in de presença todo dia e um número mínimo de fotos — é só seguir o que aparecer na tela.'},
-  {sel:'.navbtn[data-nav="manutencoes"]',titulo:'Manutenções',texto:'Manutenções preventivas marcadas com você. Elas aparecem aqui sozinhas na data certa — não precisa ficar de olho em calendário nenhum.'},
-  {sel:'.navbtn[data-nav="vrf"]',titulo:'VRF',texto:'Checklist de execução das obras que seu gestor te atribuiu. Marque cada etapa concluída, tire a foto pedida e deixe uma nota se precisar — dá pra acompanhar o progresso da obra inteira por aqui.'},
+  {sel:'.navbtn[data-nav="home"], .float-menu-opt[data-nav="home"]',titulo:'Início',texto:'Sua tela assim que você entra: mostra a OS em andamento agora, ou a próxima marcada pra você — sem precisar procurar em nenhum outro lugar.'},
+  {sel:'.navbtn[data-nav="ordens"], .float-menu-opt[data-nav="ordens"]',titulo:'Ordens',texto:'Todas as suas Ordens de Serviço, inclusive as antigas já concluídas. Pra começar uma pendente: toque nela, faça o check-in (ele registra sua localização), preencha o checklist tirando foto de cada item pedido, e no final toque em Concluir.'},
+  {sel:'.navbtn[data-nav="tarefas"], .float-menu-opt[data-nav="tarefas"]',titulo:'Tarefas',texto:'Trabalhos avulsos que seu gestor te atribuiu, fora das Ordens normais. Pode pedir check-in de presença todo dia e um número mínimo de fotos — é só seguir o que aparecer na tela.'},
+  {sel:'.navbtn[data-nav="manutencoes"], .float-menu-opt[data-nav="manutencoes"]',titulo:'Manutenções',texto:'Manutenções preventivas marcadas com você. Elas aparecem aqui sozinhas na data certa — não precisa ficar de olho em calendário nenhum.'},
+  {sel:'.navbtn[data-nav="vrf"], .float-menu-opt[data-nav="vrf"]',titulo:'VRF',texto:'Checklist de execução das obras que seu gestor te atribuiu. Marque cada etapa concluída, tire a foto pedida e deixe uma nota se precisar — dá pra acompanhar o progresso da obra inteira por aqui.'},
 ];
+
+/* ═══════════════════════════════════════════════════════════════════════
+   MINI-TOURS POR VIEW — Story 18
+   Um array de passos por view (chave = mesmo nome usado por nav(view)), no MESMO formato
+   {sel,titulo,texto} do TOUR_GESTOR/TOUR_TECNICO acima -- reaproveita o motor inteiro
+   (_tourElVisivel/_tourElExiste/_tourAvancar/_tourMostrarPasso/_tourReposicionar/
+   _tourFechar), só troca QUAL array/flag está ativo (_tourContextoAtual, ver
+   _tourIniciarView/_tourEntrarView). View sem chave aqui = sem mini-tour, de propósito
+   (profundidade proporcional ao que a tela de fato tem -- ver Design Notes da story).
+   ═══════════════════════════════════════════════════════════════════════ */
+const TOUR_VIEWS_GESTOR={
+  ordens:[
+    {sel:'button[onclick="setFilter(\'todas\')"]',titulo:'Filtros',texto:'Filtre a lista por status: Pendentes, Em andamento, Em revisão, Concluídas ou Atrasadas. "Todas" volta a mostrar a lista completa.'},
+    {sel:'#contentArea button[onclick="openModalOS()"]',titulo:'Nova OS',texto:'Cria uma Ordem de Serviço nova: escolha cliente, endereço, tipo de serviço, técnico responsável, data/horário e quantidade de itens.'},
+  ],
+  // config/vrf: quais passos existem depende de ramoTemVRF()/quantas obras VRF o workspace
+  // tem -- uma função (resolvida em _tourEntrarView, na hora de entrar na view) em vez de um
+  // array fixo, senão isto avaliaria ramoTemVRF()/vrfObras uma única vez no load do script
+  // (antes até do Firebase/sessão/workspace resolverem), nunca refletindo o workspace real.
+  config:()=>[
+    {sel:'button[onclick="openModalTecnico()"]',titulo:'Equipe',texto:'Cadastre cada técnico/prestador aqui. Depois de cadastrado, gere o código de convite dele — é o que ele usa pra se vincular ao seu workspace sozinho, sem você precisar colar nada manualmente.'},
+    {sel:'#novoItem_instalacao',titulo:'Checklist',texto:'Personalize os itens que o técnico marca (com foto) ao executar uma OS — separados em Instalação e Manutenção. Adicione, edite ou remova conforme o que sua empresa realmente verifica em campo.'},
+    ramoTemVRF()
+      ?{sel:'.vrf-fase-cfg',titulo:'Checklist VRF',texto:'As 10 fases da obra VRF são fixas, mas as etapas dentro de cada uma são suas: adicione, renomeie ou remova pra combinar com o processo real da sua equipe.'}
+      :{sel:'#moduloNome',titulo:'Nome do módulo',texto:'Renomeie o módulo principal (hoje genérico) com o termo que sua empresa usa no dia a dia — ele passa a aparecer assim em todo o app, inclusive pro técnico.'},
+    {sel:'input[onchange*="toggleSet(\'notifPlataforma\'"]',titulo:'Notificações',texto:'Ligue avisos de manutenção próxima do vencimento direto na plataforma. E-mail e SMS existem na tela, mas dependem de um serviço externo configurado.'},
+    {sel:'input[onchange*="toggleSet(\'googleAgenda\'"]',titulo:'Google Agenda',texto:'Com isso ligado, concluir uma OS com manutenção futura já gera um evento (.ics/link Google) pra você não perder o retorno.'},
+    {sel:'#contentArea button[onclick="syncManual()"]',titulo:'Sincronização',texto:'Força uma sincronização manual com a nuvem agora, e mostra o registro de diagnóstico — útil se alguma tela parecer desatualizada.'},
+  ],
+  financeiro:[
+    {sel:'#novaCategoriaPreco',titulo:'Tabela de preço',texto:'Cadastre o valor padrão de cada tipo de serviço — é o que preenche automaticamente o campo de valor quando você abre uma OS desse tipo.'},
+    {sel:'#finHierarquiaCard',titulo:'Valores por prestador',texto:'Veja quanto cada prestador tem a receber, Ordem por Ordem, com o status (pago / a pagar / sem status). Abra a OS pra lançar o valor e marcar como pago.'},
+    {sel:'button[onclick="adicionarNotaFinanceira()"]',titulo:'Notas de adiantamento',texto:'Registre um adiantamento pago fora do fluxo normal de OS. É só um bloco de anotação — não entra automaticamente no cálculo de pago/a pagar acima.'},
+  ],
+  vrf:()=>[
+    {sel:'.navbtn[data-nav="vrf-andares"], .float-menu-opt[data-nav="vrf-andares"]',titulo:'Sub-menu da obra',texto:'Enquanto você está numa obra VRF, a barra troca pra estas abas: Painel, Andares, Mapa, Fotos e Relatórios — tudo relativo só a essa obra.'},
+    {sel:'button[onclick="vrfConfigObra()"]',titulo:'Configurar obra',texto:'Defina os andares/ambientes da obra e a data-meta de entrega. É o primeiro passo antes de qualquer progresso aparecer aqui.'},
+    {sel:'button[onclick="vrfConfigMissao()"]',titulo:'Missão da semana',texto:'Escolha quais etapas são prioridade nos próximos dias, por andar — o técnico vê essa priorização na aba dele em campo.'},
+    ...(vrfObras.length>1?[{sel:'button[onclick="nav(\'vrf-obras\')"]',titulo:'Trocar obra',texto:'Seu workspace tem mais de uma obra VRF — use aqui pra trocar qual obra este painel está mostrando.'}]:[]),
+  ],
+  mapa:[
+    {sel:'#mapaBox',titulo:'Mapa ao vivo',texto:'Cada prestador aparece aqui quando faz check-in ou ativa o GPS ao vivo no app dele. Com o GPS ao vivo ligado, a movimentação atualiza a cada 5 segundos.'},
+    {sel:'#mapaCardEquipe',titulo:'Equipe',texto:'Status de cada técnico: online agora, última posição conhecida, ou sem dado recente.'},
+    {sel:'#mapaCardHistorico',titulo:'Histórico de localização',texto:'Lista de todo check-in e início de GPS ao vivo já registrado, mais recente primeiro — com horário e prestador.'},
+  ],
+  splits:[
+    {sel:'#contentArea button[onclick="openModalOS()"]',titulo:()=>moduloSplitAtual().nome,texto:()=>ramoTemVRF()?'Crie uma nova instalação de split por aqui — o painel já separa essas ordens do restante do fluxo.':`Crie uma nova ordem do módulo "${moduloSplitAtual().nome}" por aqui. ${moduloSplitAtual().desc||''}`},
+  ],
+  tarefas:[
+    {sel:'button[onclick="openModalTarefa()"]',titulo:'Nova tarefa',texto:'Crie um trabalho avulso fora do fluxo normal de OS — dê um nome próprio, defina quantas fotos são exigidas e se precisa de check-in de presença todo dia.'},
+  ],
+  clientes:[
+    {sel:'button[onclick="openModalCliente()"]',titulo:'Novo cliente',texto:'Cadastre um cliente antes mesmo de abrir a primeira OS pra ele — endereço salvo aqui já preenche futuras ordens.'},
+  ],
+  manutencoes:[
+    {sel:'button[onclick="openModalManut()"]',titulo:'Agendar manutenção',texto:'Marque a próxima manutenção preventiva de um cliente — o MAPPO avisa quando estiver perto de vencer.'},
+  ],
+};
+
+const TOUR_VIEWS_TECNICO={
+  ordens:[
+    {sel:'button[onclick="abrirEscolhaAvatar()"]',titulo:'Seu avatar',texto:'Escolha como você aparece no mapa do gestor. Sem escolha, ele vê você com o ícone padrão.'},
+    {sel:'button[onclick="toggleGPS()"]',titulo:'GPS ao vivo',texto:'Ative pra deixar sua movimentação visível em tempo real pro gestor por até 10h — além do check-in fixo que cada OS já registra.'},
+  ],
+  vrf:[
+    {sel:'.vrf-checkin-card',titulo:'Check-in diário',texto:'Confirme presença na obra todo dia que trabalhar nela — precisa de GPS ativo. Sem esse check-in, o gestor não sabe que você está no local.'},
+    {sel:'#vrfTabs',titulo:'Missão e andares',texto:'A aba Missão mostra as etapas priorizadas pelo gestor pra esta semana. As demais abas são os andares/ambientes da obra — marque cada etapa concluída e envie a foto pedida.'},
+    {sel:'button[onclick="vrfEnviarRelatorio()"]',titulo:'Enviar relatório',texto:'No fim do dia, escreva uma observação (se precisar) e envie o relatório — é isso que o gestor vê na aba Relatórios do painel dele.'},
+  ],
+};
 
 let _tourPassos=[];
 let _tourIndice=-1;
 let _tourResizeHandler=null;
+/* Story 18: qual flag _tourFechar(true) grava ao concluir -- null (nada ativo),
+   'topo' (tour de topo, TOUR_GESTOR/TOUR_TECNICO) ou o nome de uma view (mini-tour,
+   TOUR_VIEWS_GESTOR/TOUR_VIEWS_TECNICO). Setado por _tourIniciar/_tourIniciarView. */
+let _tourContextoAtual=null;
 
 /* flag "já viu o tour" -- mesmo padrão de _temConsentimentoGPS/_gravarConsentimentoGPS */
 function _temTourVisto(){
@@ -5583,6 +5675,23 @@ function _gravarTourVisto(){
   }catch(e){console.error('[tour] gravação falhou',e.code,e.message);}
 }
 
+/* Story 18: mesmo padrão acima, mas uma flag por VIEW (não por perfil) -- cada mini-tour
+   dispara sozinho só na primeira vez que a view é visitada, independente da flag do tour
+   de topo. Sem TOUR_VERSAO: mini-tours não têm um roteiro único versionado como o tour de
+   topo -- reabrir todo mundo por causa de um mini-tour que mudou é decisão futura. */
+function _temTourViewVisto(view){
+  if(!session||!session.uid)return false;
+  try{
+    return !!localStorage.getItem('mappo_tutorial_'+session.uid+'_view_'+view+'_visto');
+  }catch(e){console.error('[tour] leitura de view falhou',e.code,e.message);return false;}
+}
+function _gravarTourViewVisto(view){
+  if(!session||!session.uid)return;
+  try{
+    localStorage.setItem('mappo_tutorial_'+session.uid+'_view_'+view+'_visto',JSON.stringify({ts:Date.now()}));
+  }catch(e){console.error('[tour] gravação de view falhou',e.code,e.message);}
+}
+
 /* Elemento-alvo do passo, só se existir E estiver de fato visível agora -- mesmo
    tratamento (pular o passo) tanto pra seletor que não casa nada quanto pra
    elemento presente no DOM mas sem área na tela (ex.: item do gestor escondido
@@ -5596,13 +5705,22 @@ function _gravarTourVisto(){
    "existe" aqui (largura/altura do elemento não dependem do transform que abre
    o drawer -- só a posição) -- quando esse passo for de fato exibido,
    _tourElVisivel() abre o drawer normalmente. */
+/* Story 18: sel passa a aceitar uma lista de seletores separada por vírgula (ex.: alvo que
+   mora na sidebar OU no menu flutuante, dependendo de qual dos dois está de fato no layout
+   agora) -- tenta cada candidato em ordem, primeiro que existir/estiver visível vence. */
+function _tourAlvoCandidatos(sel){
+  return sel.split(',').map(s=>s.trim()).filter(Boolean);
+}
+
 function _tourElExiste(sel){
-  let el;
-  try{el=document.querySelector(sel);}catch(e){return null;}
-  if(!el)return null;
-  const r=el.getBoundingClientRect();
-  if(r.width<=0&&r.height<=0)return null;
-  return el;
+  for(const cand of _tourAlvoCandidatos(sel)){
+    let el;
+    try{el=document.querySelector(cand);}catch(e){continue;}
+    if(!el)continue;
+    const r=el.getBoundingClientRect();
+    if(r.width>0||r.height>0)return el;
+  }
+  return null;
 }
 
 /* getBoundingClientRect() lido no mesmo tick síncrono em que openSidebar() foi
@@ -5623,6 +5741,23 @@ function _tourAdiarReposicaoAposAbrirSidebar(sb){
   const timer=setTimeout(aoTerminar,320);
 }
 
+/* Story 18: mesmo princípio da função acima, mas pro menu flutuante -- suas opções
+   (.float-menu-opt) não têm transição no container (display:none->flex troca na hora), mas
+   cada opção anima a própria entrada via @keyframes floatOptIn (opacity+transform, .28s) --
+   reposiciona de novo quando a animação termina (animationend, mesmo timeout de segurança). */
+function _tourAdiarReposicaoAposAbrirFloatMenu(el){
+  let disparado=false;
+  const aoTerminar=()=>{
+    if(disparado)return;
+    disparado=true;
+    el.removeEventListener('animationend',aoTerminar);
+    clearTimeout(timer);
+    _tourReposicionar();
+  };
+  el.addEventListener('animationend',aoTerminar);
+  const timer=setTimeout(aoTerminar,320);
+}
+
 /* Elemento-alvo do passo que está DE FATO sendo exibido agora (nunca pra
    "espiar" outro passo -- ver _tourElExiste) -- só se existir E estiver de fato
    visível, mesmo tratamento (pular o passo) tanto pra seletor que não casa nada
@@ -5631,21 +5766,34 @@ function _tourAdiarReposicaoAposAbrirSidebar(sb){
    revelar o alvo (item escondido por regra de perfil/Ramo, ex. VRF fora de
    Refrigeração, segue sem alvo mesmo assim). */
 function _tourElVisivel(sel){
-  let el;
-  try{el=document.querySelector(sel);}catch(e){return null;}
-  if(!el)return null;
-  if(el.closest('.sidebar')){
-    const sb=document.getElementById('sidebar');
-    // drawer fechado (mobile/tela estreita) esconde a sidebar via transform -- abre
-    // pra revelar o alvo; no desktop-clean o CSS já a força visível, chamada inofensiva.
-    if(sb&&!sb.classList.contains('open')){
-      openSidebar();
-      _tourAdiarReposicaoAposAbrirSidebar(sb);
+  for(const cand of _tourAlvoCandidatos(sel)){
+    let el;
+    try{el=document.querySelector(cand);}catch(e){continue;}
+    if(!el)continue;
+    if(el.closest('.sidebar')){
+      const sb=document.getElementById('sidebar');
+      // drawer fechado (mobile/tela estreita) esconde a sidebar via transform -- abre
+      // pra revelar o alvo; no desktop-clean o CSS já a força visível, chamada inofensiva.
+      if(sb&&!sb.classList.contains('open')){
+        openSidebar();
+        _tourAdiarReposicaoAposAbrirSidebar(sb);
+      }
+    }else if(el.closest('#floatMenuOptions')){
+      const opts=document.getElementById('floatMenuOptions');
+      // menu flutuante fechado (modo Desktop) esconde as opções via display:none -- abre
+      // pra revelar o alvo. toggleFloatMenu(true) repopula #floatMenuOptions do zero
+      // (montarFloatMenu) -- o elemento antigo fica órfão, refaz o querySelector.
+      if(opts&&!opts.classList.contains('show')){
+        toggleFloatMenu(true);
+        el=document.querySelector(cand);
+        if(!el)continue;
+        _tourAdiarReposicaoAposAbrirFloatMenu(el);
+      }
     }
+    const r=el.getBoundingClientRect();
+    if(r.width>0||r.height>0)return el;
   }
-  const r=el.getBoundingClientRect();
-  if(r.width<=0&&r.height<=0)return null;
-  return el;
+  return null;
 }
 
 function _tourExisteProximoVisivel(i){
@@ -5659,9 +5807,42 @@ function _tourExisteAnteriorVisivel(i){
 
 function _tourIniciar(perfil){
   _tourFechar(false); // fecha uma instância anterior (reabertura manual pelo "?") sem gravar "visto" de novo
+  _tourContextoAtual='topo';
   _tourPassos=(perfil==='tecnico')?TOUR_TECNICO:TOUR_GESTOR;
   _tourIndice=-1;
   _tourAvancar(1);
+}
+
+/* Story 18: mesmo motor acima, mas pra um mini-tour de UMA view (TOUR_VIEWS_GESTOR/
+   TOUR_VIEWS_TECNICO) -- _tourContextoAtual diferente é o que faz _tourFechar(true) gravar
+   a flag da VIEW em vez da flag do tour de topo. */
+function _tourIniciarView(view,passos){
+  _tourFechar(false); // mesma cautela: fecha qualquer instância residual sem gravar nada
+  _tourContextoAtual=view;
+  _tourPassos=passos;
+  _tourIndice=-1;
+  _tourAvancar(1);
+}
+
+/* Gancho chamado ao final de nav(view) -- decide se o mini-tour dessa view dispara sozinho.
+   Nunca antes do tour de topo já ter sido visto/pulado (evita colisão com o nav() inicial
+   que o próprio entrarApp() dispara antes do tour de topo rodar). Só inicia se pelo menos um
+   passo tiver alvo JÁ existente agora (_tourElExiste, sem efeito colateral) -- senão a view
+   pode estar num estado intermediário (ex.: técnico com 2+ obras VRF ainda sem escolher
+   qual, renderVRFobras() em vez da tela de execução) onde nenhum alvo real existe ainda; sem
+   essa checagem, o motor chegaria ao fim da lista sem mostrar nada e já gravaria "visto"
+   (mesmo comportamento herdado do tour de topo -- ver _tourAvancar), queimando a única
+   chance do mini-tour aparecer quando a view de fato tiver conteúdo. */
+function _tourEntrarView(view){
+  if(!_temTourVisto())return;
+  if(_tourIndice>=0)return; // já tem um tour ativo agora (defensivo -- não deveria acontecer)
+  const mapa=(session&&session.perfil==='tecnico')?TOUR_VIEWS_TECNICO:TOUR_VIEWS_GESTOR;
+  let passos=mapa[view];
+  if(typeof passos==='function')passos=passos(); // config/vrf: array condicional, resolvido só agora
+  if(!passos||!passos.length)return;
+  if(_temTourViewVisto(view))return;
+  if(!passos.some(p=>_tourElExiste(p.sel)))return;
+  _tourIniciarView(view,passos);
 }
 
 /* avança (dir=1) ou volta (dir=-1) até achar o próximo passo com alvo visível
@@ -5703,7 +5884,7 @@ function _tourMostrarPasso(i){
         </div>
       </div>
     </div>`;
-  _tourReposicionar();
+  _tourReposicionar(true); // primeira exibição deste passo -- rola o alvo pra viewport se precisar (ver comentário em _tourReposicionar)
   if(!_tourResizeHandler){
     _tourResizeHandler=()=>_tourReposicionar();
     window.addEventListener('resize',_tourResizeHandler);
@@ -5714,11 +5895,23 @@ function _tourMostrarPasso(i){
 /* recorte + card seguem o alvo real em resize/scroll enquanto o tour está ativo
    (nunca posição fixa em pixel) -- se o alvo sumiu entre um reposicionamento e
    outro (ex.: resize cruzou o breakpoint mobile/desktop), avança como se o
-   passo não tivesse alvo, mesma regra de sempre. */
-function _tourReposicionar(){
+   passo não tivesse alvo, mesma regra de sempre.
+   scrollPrimeiro=true SÓ na primeira exibição de um passo (chamado por
+   _tourMostrarPasso) -- rola o alvo pra dentro da viewport antes de medir o rect final,
+   pro caso dele estar abaixo da dobra (Story 18: primeiro mini-tour a mirar elemento
+   dentro de #contentArea, que rola -- toda a sidebar/navbar da Story 17 já ficava sempre
+   visível por design, nunca precisou disso). Sem behavior:'smooth' de propósito -- lê o
+   rect logo em seguida, no mesmo tick, sem esperar animação de rolagem terminar.
+   Reposições subsequentes (resize/scroll do usuário, reabertura de sidebar/menu
+   flutuante, re-render remoto -- ver fbOnRemoteChange/renderView) chamam sem argumento:
+   só realinham com a posição atual, nunca forçam scroll de novo (senão brigaria com
+   rolagem manual do usuário ou puxaria a tela por causa de uma sincronização em segundo
+   plano). */
+function _tourReposicionar(scrollPrimeiro){
   if(_tourIndice<0||_tourIndice>=_tourPassos.length)return;
   const el=_tourElVisivel(_tourPassos[_tourIndice].sel);
   if(!el){_tourAvancar(1);return;}
+  if(scrollPrimeiro)el.scrollIntoView({block:'center'});
   const r=el.getBoundingClientRect();
   const pad=6,gap=14;
   const spot=document.getElementById('tourSpot');
@@ -5751,8 +5944,16 @@ function _tourFechar(visto){
   closeSidebar(); // o tour pode ter aberto o drawer sozinho (_tourElVisivel) -- mesmo
                    // padrão de compartilharApp(): quem abre fora do fluxo de nav() fecha
                    // de novo; seguro chamar mesmo se a sidebar já estava fechada.
+  toggleFloatMenu(false); // idem, pro menu flutuante que o tour possa ter aberto sozinho -- seguro mesmo se não estava aberto
   _tourIndice=-1;
-  if(visto)_gravarTourVisto();
+  if(visto){
+    // Story 18: qual flag gravar depende do que estava ativo -- tour de topo (flag única,
+    // por uid) ou mini-tour de UMA view (flag por uid+view). _tourContextoAtual é setado por
+    // _tourIniciar/_tourIniciarView e nunca por mais de um dos dois ao mesmo tempo.
+    if(_tourContextoAtual==='topo')_gravarTourVisto();
+    else if(_tourContextoAtual)_gravarTourViewVisto(_tourContextoAtual);
+  }
+  _tourContextoAtual=null;
 }
 
 /* NOVA OS */

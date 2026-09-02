@@ -283,3 +283,29 @@
     firestore.rules. Quantidade exata de passos, texto de cada passo, e
     posição/ícone do botão de reabrir ficam a critério de quem
     implementar.
+
+- id: "18"
+  title: Minitutorial contextual por tela
+  description: >-
+    Implementa CAP-19: cada tela ganha seu proprio mini-tour, disparando
+    sozinho na primeira vez que o usuario entra nela, explicando os
+    sub-elementos daquela tela. Corrige tambem um bug real do CAP-18 no
+    mesmo pacote -- no modo Desktop (padrao do gestor), a barra de
+    navegacao de cima fica escondida (menu flutuante no lugar dela), e
+    o tour de topo nunca conseguia mirar os itens escondidos.
+  spec_checkpoint: false
+  done_checkpoint: false
+  invoke_dev_with: >-
+    Fix do menu flutuante primeiro (_tourElVisivel tenta lista de
+    seletores separada por virgula, abre o container certo -- sidebar
+    ja tratado, menu flutuante precisa do mesmo tratamento com
+    toggleFloatMenu(true)/(false)). Depois os mini-tours por view,
+    reaproveitando o MESMO motor de spotlight/card do CAP-18 (nao e
+    mecanismo novo), com array de passos e flag "ja visto" propria por
+    view (chaveada por uid+nome da view). Escopo gestor: Ordens (6
+    filtros + Nova OS), Configuracoes (7 blocos), Financeiro (3), VRF
+    (sub-navegacao + 3 acoes), Mapa (mapa + Equipe + Historico),
+    Splits/Tarefas/Clientes/Manutencoes (1 passo cada). Tecnico mais
+    raso, escopo exato a criterio de quem implementar. Nunca hardcodar
+    vocabulario de Refrigeracao -- modulo generico sempre via
+    moduloSplitAtual(). Tela de execucao de OS fica fora de escopo.
