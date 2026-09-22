@@ -48,16 +48,51 @@ desdobramentos, ambos sem pressa:
 Um resíduo, de baixo valor: **editar** uma nota de adiantamento (hoje só dá para excluir e
 registrar de novo). Só vale a pena se acontecer com frequência.
 
+## 🔑 Recuperação de senha — não existe (encontrado em 22/09/2026)
+
+O app **não tem nenhum** caminho de recuperação de senha: zero ocorrências de
+`sendPasswordResetEmail`, e nenhum link "Esqueci minha senha" na tela de login. Quem
+esquece a senha simplesmente não entra mais.
+
+**Contorno de hoje:** o dono do projeto redefine manualmente no Firebase Console
+(Authentication → Users → ⋮ → Redefinir senha), uma pessoa por vez. Funciona para uso
+interno; seria bloqueador se o MAPPO virasse produto.
+
+**Correção (barata, cabe no plano gratuito):** `firebase.auth().sendPasswordResetEmail(email)`
+mais um link na tela de login. O Firebase envia o e-mail sozinho — não precisa de servidor.
+Cuidados: manter a resposta genérica ("se este e-mail tiver conta, enviamos o link"), senão
+vira um jeito de descobrir quais e-mails existem; e proteger contra repetição em massa.
+
+**Não é bug:** a mensagem de login errado dizer "E-mail ou senha incorretos" em vez de
+"senha incorreta" é **intencional** — apontar qual dos dois está errado revelaria quais
+e-mails têm conta.
+
 ## Bloco 2 — segurança residual
 
 Menos grave num time interno e conhecido, mas real:
 
 - Técnico pode escrever o avatar e a localização de outro técnico
-- Técnico removido continua lendo dados até recarregar a aba
-- O último gestor pode se rebaixar e deixar a empresa sem administrador
-- Convite é credencial ao portador — quem tiver o código consome
-- Autorização "técnico só vê as obras atribuídas" é só de tela, não de servidor
-- Ordens de serviço podem ser alteradas por qualquer membro no servidor, não só pelo gestor
+**Resolvidos:** técnico removido continua lendo (publicado em `797f404`) · convite ao
+portador (prazo de 7 dias — escrito e testado no Emulator, **aguardando publicação**).
+
+**Descartado:** "o último gestor pode se rebaixar" — verificado em 22/09/2026, `role:'gestor'`
+só é gravado na criação da empresa e **não existe tela para trocar papel**. Só aconteceria
+manipulando o SDK direto, e as regras já impedem um gestor de apagar o próprio membership.
+
+**Os três que sobram são arquitetura, não patch.** Todos esbarram na mesma coisa: os dados do
+workspace são um blob JSON (`{json:"..."}`) e a regra do Firestore **não lê dentro de uma
+string JSON** — ela só sabe dizer "é membro?", nunca "esse técnico pode mexer nisso?".
+
+| Item | O que seria preciso |
+|---|---|
+| Técnico escreve avatar/localização de outro | Um documento por pessoa (`live/{uid}`) + regra `uid == request.auth.uid` |
+| Técnico vê obras não atribuídas | Dividir `mappo_vrf_obras` por obra + regra por atribuição |
+| OS alterável por qualquer membro | Dividir `mappo_os` por OS + campo de dono fora do blob |
+
+A Etapa B (fotos por andar) provou que essa divisão funciona neste app — o caminho existe e
+é trabalho conhecido, não pesquisa. **Prioridade entre eles: o GPS/localização**, porque é o
+único onde falsificar tem consequência real (é a prova de onde o técnico esteve).
+**Próximo combinado com o proprietário.**
 
 ## Bloco 3 — coisas que enganam o usuário
 
