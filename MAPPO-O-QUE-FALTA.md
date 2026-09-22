@@ -48,24 +48,6 @@ desdobramentos, ambos sem pressa:
 Um resíduo, de baixo valor: **editar** uma nota de adiantamento (hoje só dá para excluir e
 registrar de novo). Só vale a pena se acontecer com frequência.
 
-## 🔑 Recuperação de senha — não existe (encontrado em 22/09/2026)
-
-O app **não tem nenhum** caminho de recuperação de senha: zero ocorrências de
-`sendPasswordResetEmail`, e nenhum link "Esqueci minha senha" na tela de login. Quem
-esquece a senha simplesmente não entra mais.
-
-**Contorno de hoje:** o dono do projeto redefine manualmente no Firebase Console
-(Authentication → Users → ⋮ → Redefinir senha), uma pessoa por vez. Funciona para uso
-interno; seria bloqueador se o MAPPO virasse produto.
-
-**Correção (barata, cabe no plano gratuito):** `firebase.auth().sendPasswordResetEmail(email)`
-mais um link na tela de login. O Firebase envia o e-mail sozinho — não precisa de servidor.
-Cuidados: manter a resposta genérica ("se este e-mail tiver conta, enviamos o link"), senão
-vira um jeito de descobrir quais e-mails existem; e proteger contra repetição em massa.
-
-**Não é bug:** a mensagem de login errado dizer "E-mail ou senha incorretos" em vez de
-"senha incorreta" é **intencional** — apontar qual dos dois está errado revelaria quais
-e-mails têm conta.
 
 ## Bloco 2 — segurança residual
 

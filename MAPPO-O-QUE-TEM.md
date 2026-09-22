@@ -8,7 +8,7 @@
 > antes do commit + publicação. Ao final de cada publicação: mover o item de
 > `MAPPO-O-QUE-FALTA.md` para cá e registrar no histórico no fim do arquivo.
 
-**Estado:** publicado até o commit `c56d38b` · atualizado em 22/09/2026
+**Estado:** publicado até o commit `470751e` · atualizado em 22/09/2026
 **Endereço:** https://inteligenciaartificial341-code.github.io/MAPPO/
 
 ---
@@ -42,6 +42,9 @@ O perfil vem do cadastro na empresa, não é escolhido no login. Cada empresa é
 - **Convite do técnico** — o gestor cadastra e gera um código de uso único, **válido por 7
   dias**; o técnico cria a conta e se vincula sozinho. Revogável a qualquer momento.
 - **Login** — e-mail e senha, com mensagens de erro em português.
+- **Esqueci minha senha** — link na tela de login envia um e-mail de redefinição (pelo próprio
+  Firebase, sem servidor). A resposta é sempre a mesma exista a conta ou não, para não revelar
+  quais e-mails estão cadastrados.
 
 ## 4. Funções do gestor
 
@@ -167,6 +170,7 @@ Devolvida para revisão, o técnico vê o motivo e refaz.
 
 | Data | Commit | O que entrou |
 |---|---|---|
+| 22/09/2026 | `470751e` | **Recuperação de senha por e-mail.** Antes não existia caminho nenhum: quem esquecia a senha não entrava mais, e só o dono resolvia à mão no Console do Firebase |
 | 22/09/2026 | `c56d38b` | **Bloco 2.** Técnico removido perde o acesso na hora (antes seguia lendo até fechar a aba) e o **convite de acesso passa a valer 7 dias** — antes o código valia para sempre até ser usado ou revogado. Regras do Firestore publicadas com 19/19 casos verificados no Emulator |
 | 22/09/2026 | `da03885` | **Bloco 1 inteiro.** Valor monetário brasileiro lido certo ("1.234,56" virava R$ 1,23); foto acima de 25 MB recusada antes de travar o aparelho; toque duplo na foto não duplica mais; renomear técnico passa a arrastar as **tarefas** dele (ele deixava de vê-las); nota de adiantamento pode ser excluída, com registro de quem excluiu; **filtro de período** no Financeiro |
 | 22/09/2026 | `121cbab` | **Bloco 0, item 1 — Etapa B.** Fotos de obra passam a ter **um documento por andar** na nuvem, removendo o teto de 1 MiB que estava a 90%; cada foto nova trafega só o andar que mudou, em vez do acervo inteiro. Corrigido junto um vazamento pré-existente: os documentos de link público do cliente eram baixados e **gravados no aparelho de todos os usuários** em todo boot, para sempre |
