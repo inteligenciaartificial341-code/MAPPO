@@ -8,7 +8,7 @@
 > antes do commit + publicação. Ao final de cada publicação: mover o item de
 > `MAPPO-O-QUE-FALTA.md` para cá e registrar no histórico no fim do arquivo.
 
-**Estado:** publicado até o commit `c67125f` · atualizado em 22/09/2026
+**Estado:** publicado até o commit `9d49fba` · atualizado em 22/09/2026
 **Endereço:** https://inteligenciaartificial341-code.github.io/MAPPO/
 
 ---
@@ -140,6 +140,18 @@ Devolvida para revisão, o técnico vê o motivo e refaz.
 - Links públicos expiram em 30 dias e são revogáveis
 - Escape de conteúdo digitado (XSS) e verificação de integridade das bibliotecas externas (SRI)
 
+## 8. Proteções contra falha silenciosa
+
+- **Memória do aparelho cheia** — se o `localStorage` estoura, o app avisa com modal
+  bloqueante dizendo que **não foi salvo** e o que fazer, em vez de perder o trabalho do
+  técnico em silêncio
+- **Falha de sincronização visível** — faixa de alerta na tela quando algum dado não está
+  chegando ao servidor, com a hora em que o problema começou; some sozinha ao normalizar
+- **Aviso preventivo de espaço** — alerta a 76% do teto de 1 MiB por documento, antes de
+  estourar
+- **Tabela de espaço por documento** em Configurações → Sincronização, com barra e
+  porcentagem do limite
+
 ---
 
 ## Histórico de publicações
@@ -148,6 +160,7 @@ Devolvida para revisão, o técnico vê o motivo e refaz.
 
 | Data | Commit | O que entrou |
 |---|---|---|
+| 22/09/2026 | `9d49fba` | **Bloco 0, itens 3 e 2 + item 1 Etapa A.** Memória cheia deixa de perder o trabalho do técnico (avisa e não engole o erro); falha de sincronização vira faixa visível na tela, com aviso preventivo a 76% do teto e tabela de espaço em Configurações; fotos passam de 1024px/0,6 para 800px/0,5 (−51%) e assinatura de PNG para JPEG (−82%); imagem com transparência deixa de virar preta. Criados `MAPPO-O-QUE-TEM.md` e `MAPPO-O-QUE-FALTA.md` como fonte de verdade do estado do produto |
 | 14/09/2026 | `c67125f` | Ícones do PWA refeitos com medição de dimensão e espessura: ocupação 72%, engrossamento com teto 8, maskable 62%, ícone de app sem tagline, favicon só com o glifo, 5 telas de abertura de iPhone |
 | 02/09/2026 | `91af720` | Minitutorial contextual por tela (mini-tour na 1ª visita a cada tela) + correção do menu flutuante no modo Desktop |
 | 01/09/2026 | `85d9204` | Conteúdo do minitutorial aprofundado (explica função e uso, não só o nome) |

@@ -18,15 +18,18 @@
 
 | # | Item | Situação |
 |---|---|---|
-| 3 | **Memória do aparelho cheia perdia o trabalho do técnico** — `localStorage` estourava e o erro subia mudo; a função morria no meio, nada era gravado e o técnico só descobria ao recarregar | ✅ **escrito e verificado, não publicado** |
-| 2 | **Falha de sincronização era invisível** — só aparecia no log de diagnóstico. Agora tem faixa de alerta na tela + aviso preventivo a 76% do limite + tabela de espaço em Configurações | ✅ **escrito e verificado, não publicado** |
-| 1 | **Fotos estouram o teto de 1 MiB do Firestore** — todas as fotos de obra vivem num documento só, hoje em **925 KB (90%)**. Quando encher, as fotos do campo param de chegar | 🟡 **Etapa A feita, não publicada · Etapa B é a cura** |
+| 1 | **Fotos estouram o teto de 1 MiB do Firestore** — todas as fotos de obra vivem num documento só, medido em **925 KB (90%)** antes da Etapa A. Quando encher, as fotos do campo param de chegar | 🔴 **próximo — Etapa B (a cura)** |
 | 4 | **`mappo_localizacao_historico` cresce para sempre** no mesmo documento — mesmo problema do item 1, chegando mais devagar | ⏳ na fila |
 
 **Plano do item 1 (sem custo — Blaze descartado):**
-- ✅ **Etapa A (feita, não publicada)** — foto de 1024px/0,6 → **800px/0,5** e assinatura de PNG → JPEG 600px. Medido: foto **−51%**, assinatura **87 KB → 15 KB (−82%)**. O número saiu de teste de legibilidade da etiqueta de equipamento (MODEL/SERIAL continuam legíveis com folga), não de chute. Alivia, não cura.
-- **Etapa B** — **a cura:** um documento por andar (`mappo_vrf_fotos__{andar}`) em vez de um só. Remove o teto e corta o desperdício de banda (hoje cada foto nova faz todo aparelho rebaixar os 925 KB inteiros). Mexe na sincronização: exige teste pesado e migração dos dados existentes.
-- **Etapa C** — recompactar as fotos já guardadas (925 KB → ~460 KB **hoje**). ⚠️ Perda de qualidade **irreversível**, e foto de serviço é prova. Só com autorização explícita, e não recomendado com obras em garantia.
+- ~~Etapa A — fotos menores~~ ✅ **publicado em `9d49fba`**
+- **Etapa B — a cura:** um documento por andar (`mappo_vrf_fotos__{andar}`) em vez de um só.
+  Remove o teto de vez e corta o desperdício de banda (hoje cada foto nova faz **todo
+  aparelho rebaixar o documento inteiro**). Mexe na camada de sincronização — a parte mais
+  delicada do app: exige teste pesado e migração dos dados que já existem.
+- **Etapa C — opcional:** recompactar as fotos já guardadas. A Etapa A só afeta fotos novas;
+  as antigas continuam no tamanho velho. ⚠️ Perda de qualidade **irreversível**, e foto de
+  serviço é prova. Só com autorização explícita, e não recomendado com obras em garantia.
 
 ---
 
@@ -35,7 +38,6 @@
 | Item | Detalhe |
 |---|---|
 | Foto grande trava aparelho fraco | Sem checagem de tamanho antes de ler o arquivo inteiro na memória |
-| ~~Transparência vira preto~~ | ✅ corrigido junto com a Etapa A (não publicado): a compressão agora pinta fundo branco antes de exportar |
 | Toque duplo na foto | Botão não desabilita durante a compressão — duplica ou perde |
 | Valor monetário com milhar | `1.234,56` é interpretado errado |
 | Financeiro agrupa por **nome** do técnico | Renomear alguém fragmenta o histórico dele |
