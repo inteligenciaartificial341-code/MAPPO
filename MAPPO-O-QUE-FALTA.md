@@ -8,13 +8,13 @@
 > `MAPPO-O-QUE-TEM.md` (seção do recurso + linha no histórico). Um item só existe em um
 > dos dois arquivos, nunca nos dois.
 
-**Atualizado em:** 22/09/2026 · publicado até `274c7e2`
+**Atualizado em:** 22/09/2026 · publicado até `8c6bc55`
+
+**Próximo combinado:** GPS/localização por pessoa (ver Bloco 2, os três estruturais).
 
 ---
 
-## ⚠️ Em andamento agora
-
-### Bloco 0 — falhas silenciosas (o que pode quebrar a operação sem ninguém ver)
+## Bloco 0 — falhas silenciosas ✅ fechado
 
 **Bloco 0 fechado.** O item 4 (`mappo_localizacao_historico` cresce para sempre) foi
 **reclassificado como baixa prioridade** em 22/09/2026, com motivo:
@@ -51,9 +51,6 @@ registrar de novo). Só vale a pena se acontecer com frequência.
 
 ## Bloco 2 — segurança residual
 
-Menos grave num time interno e conhecido, mas real:
-
-- Técnico pode escrever o avatar e a localização de outro técnico
 **Resolvidos:** técnico removido continua lendo (`797f404`) · convite ao portador, agora com
 prazo de 7 dias (`c56d38b`, regras publicadas em produção).
 
