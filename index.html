@@ -1859,6 +1859,7 @@ async function _consumirConviteTecnico(nomeParam,codigoParam){
       if(!snap.exists)throw{code:'convite-invalido',message:'convite não encontrado: '+codigo};
       const d=snap.data();
       if(d.usado||d.revogadoEm)throw{code:'convite-invalido',message:'convite já usado ou revogado: '+codigo};
+      if(_conviteExpirado(d))throw{code:'convite-expirado',message:'convite expirado: '+codigo};
       const memberRef=fbDB.collection('workspaces').doc(d.workspaceId).collection('members').doc(user.uid);
       const uwRef=fbDB.collection('userWorkspaces').doc(user.uid);
       tx.set(memberRef,{role:'tecnico',nome,tecnicoId:d.tecnicoId||null,convite:codigo,criadoEm:firebase.firestore.FieldValue.serverTimestamp()});
@@ -1872,7 +1873,9 @@ async function _consumirConviteTecnico(nomeParam,codigoParam){
     }
   }catch(e){
     fbLog('Falha ao consumir convite: '+(e.code||'')+' — '+(e.message||''),'erro');
-    if(usaDom)toast('Código inválido ou já utilizado','error');
+    if(usaDom)toast(e&&e.code==='convite-expirado'
+      ? 'Este código expirou — peça um novo ao gestor'
+      : 'Código inválido ou já utilizado','error');
   }finally{
     _consumindoConvite=false;
     if(btn){btn.disabled=false;btn.textContent='Entrar com o código →';}
@@ -5894,6 +5897,18 @@ function _gerarCodigoConvite(){
    (firestore.rules); guardado local em t.conviteCodigo só pra exibir/copiar/revogar
    depois -- fica dentro do envelope JSON de mappo_tecnicos, não é um campo novo em
    members/{uid} (esse só ganha 'convite' na hora do consumo, ver _consumirConviteTecnico). */
+/* Validade do convite. Até 22/09/2026 o código valia PARA SEMPRE até ser usado ou revogado:
+   um print no WhatsApp, um bilhete esquecido ou um celular perdido continuava sendo uma
+   chave viva do workspace meses depois. 7 dias cobre com folga o caso real (o gestor gera e
+   manda na hora) e fecha a janela. O relógio é o do aparelho de quem gera -- mesma ressalva
+   já documentada para os links públicos.
+   Convite antigo, sem o campo, continua válido: são poucos, o gestor vê na tela e pode
+   revogar. Mesmo tratamento dado aos links públicos anteriores à expiração. */
+const CONVITE_VALIDADE_MS=7*24*60*60*1000;
+function _conviteExpirado(d){
+  return !!(d&&typeof d.expiraEm==='number'&&d.expiraEm<=Date.now());
+}
+
 async function gerarConviteTecnico(tecnicoId){
   const t=tecnicos.find(x=>x.id===tecnicoId);if(!t)return;
   if(t.uid){toast('Este técnico já tem acesso vinculado','warn');return;}
@@ -5906,7 +5921,8 @@ async function gerarConviteTecnico(tecnicoId){
     await fbDB.collection('convites').doc(codigo).set({
       workspaceId:WORKSPACE,tecnicoId:t.id,criadoPor:(session&&session.nome)||'',
       criadoEm:firebase.firestore.FieldValue.serverTimestamp(),
-      usado:false,usadoPor:null,usadoEm:null,revogadoEm:null
+      usado:false,usadoPor:null,usadoEm:null,revogadoEm:null,
+      expiraEm:Date.now()+CONVITE_VALIDADE_MS
     });
     t.conviteCodigo=codigo;
     saveTecnicos();
@@ -5977,6 +5993,11 @@ function _mostrarModalConvite(tecnicoId){
         sem você precisar colar nada.
       </p>
       <div class="pub-link-box"><input id="conviteCodigoInput" readonly value="${escapeHtml(t.conviteCodigo)}" onclick="this.select()"></div>
+      <p style="font-size:12.5px;color:var(--gray-400);margin-top:12px;line-height:1.5">
+        ⏳ Este código vale por <b>7 dias</b>. Depois disso ele deixa de funcionar sozinho e
+        você gera outro — assim um código esquecido num print ou numa conversa não fica
+        valendo pra sempre.
+      </p>
     </div>
     <div class="modal-foot">
       <button class="btn btn-danger" onclick="closeModal();revogarConviteTecnico('${t.id}')">Revogar convite</button>

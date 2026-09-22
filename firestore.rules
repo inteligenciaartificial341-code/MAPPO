@@ -45,6 +45,16 @@ service cloud.firestore {
        fallback "||predial" -- só client-side até agora, uma escrita direta via SDK
        reintroduzia o bug. Não replica a checagem de nome reservado (refrigeracao/predial/
        outro colidir) aqui -- isso é regra de produto, não abre brecha de segurança nenhuma. */
+    /* Convite dentro do prazo (2026-09-22). Até aqui o código valia PARA SEMPRE até ser
+       usado ou revogado -- um print no WhatsApp ou um celular perdido continuava sendo uma
+       chave viva do workspace meses depois. O cliente grava expiraEm = agora + 7 dias.
+       Convite ANTIGO (sem o campo) continua valendo: são poucos, ficam visíveis na tela do
+       gestor e podem ser revogados -- mesmo tratamento dado aos links públicos anteriores à
+       expiração, e a alternativa (invalidar todos de uma vez) quebraria vínculos em
+       andamento sem aviso. */
+    function conviteNoPrazo(d) {
+      return !('expiraEm' in d) || (d.expiraEm is number && d.expiraEm > request.time.toMillis());
+    }
     function ramoValido(ramo) {
       return ramo is string && ramo.size() > 0 && ramo.size() <= 60 &&
         !(ramo.lower() in [
@@ -105,7 +115,8 @@ service cloud.firestore {
           request.resource.data.role == 'tecnico' &&
           get(/databases/$(database)/documents/convites/$(request.resource.data.convite)).data.workspaceId == wsId &&
           get(/databases/$(database)/documents/convites/$(request.resource.data.convite)).data.usado == false &&
-          get(/databases/$(database)/documents/convites/$(request.resource.data.convite)).data.revogadoEm == null
+          get(/databases/$(database)/documents/convites/$(request.resource.data.convite)).data.revogadoEm == null &&
+          conviteNoPrazo(get(/databases/$(database)/documents/convites/$(request.resource.data.convite)).data)
         )
       );
       allow update: if isRealAuth() && isGestor(wsId);
@@ -122,9 +133,15 @@ service cloud.firestore {
        código específico consegue ler aquele documento. */
     match /convites/{codigo} {
       allow get: if isRealAuth();
+      /* expiraEm obrigatório e no futuro: sem isso um convite poderia nascer sem prazo
+         (eterno de novo) ou já vencido. Sem teto máximo de propósito -- quem cria é o
+         gestor, que já tem acesso total ao workspace; um teto só criaria falha de escrita
+         legítima se o relógio do aparelho dele estivesse adiantado. */
       allow create: if isRealAuth() && isGestor(request.resource.data.workspaceId)
         && request.resource.data.usado == false
-        && request.resource.data.revogadoEm == null;
+        && request.resource.data.revogadoEm == null
+        && request.resource.data.expiraEm is number
+        && request.resource.data.expiraEm > request.time.toMillis();
       allow update: if isRealAuth() && (
         ( // gestor revoga um convite ainda pendente (não desfaz vínculo já consumido)
           isGestor(resource.data.workspaceId) &&
@@ -134,6 +151,7 @@ service cloud.firestore {
         ) ||
         ( // o próprio prestador consome, na mesma transação que cria o members/{uid} dele
           resource.data.usado == false && resource.data.revogadoEm == null &&
+          conviteNoPrazo(resource.data) &&
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['usado','usadoPor','usadoEm']) &&
           request.resource.data.usado == true &&
           request.resource.data.usadoPor == request.auth.uid
