@@ -8,7 +8,7 @@
 > `MAPPO-O-QUE-TEM.md` (seção do recurso + linha no histórico). Um item só existe em um
 > dos dois arquivos, nunca nos dois.
 
-**Atualizado em:** 22/09/2026 · publicado até `c67125f`
+**Atualizado em:** 22/09/2026 · publicado até `274c7e2`
 
 ---
 
@@ -20,13 +20,14 @@
 |---|---|---|
 | 4 | **`mappo_localizacao_historico` cresce para sempre** no mesmo documento — mesmo problema que o item 1 tinha, chegando mais devagar | 🔴 **próximo do bloco** |
 
-**Item 1 (fotos estourando o teto) — resolvido:** Etapa A publicada em `9d49fba`, Etapa B em
-`121cbab`. Restam dois desdobramentos:
+**Item 1 (fotos estourando o teto) — resolvido:** Etapa A em `9d49fba`, Etapa B em `121cbab`,
+documento antigo apagado manualmente da nuvem pelo proprietário em 22/09/2026. Restam dois
+desdobramentos, ambos sem pressa:
 
-- 🧹 **Apagar o documento antigo `mappo_vrf_fotos` da nuvem.** Ele continua lá, ocupando
-  espaço, e é lido de forma só-aditiva durante a transição. Só apagar **depois que todos os
-  aparelhos (gestor e técnicos) tiverem aberto a versão nova pelo menos uma vez** — um
-  aparelho desatualizado ainda depende dele. Passo manual e explícito, não automático.
+- 🧹 **Remover do código a leitura do documento antigo** (`_aplicarLegadoFotos` e a entrada
+  `mappo_vrf_fotos` em `SYNC_KEYS`). **Ainda não:** enquanto algum aparelho de técnico
+  estiver na versão antiga, ele ainda escreve nesse documento — e essa leitura é a rede que
+  impede a foto dele de se perder. Remover só quando **todos** tiverem aberto a versão nova.
 - **Etapa C — opcional:** recompactar as fotos já guardadas. A Etapa A só afeta fotos novas;
   as antigas continuam no tamanho velho. ⚠️ Perda de qualidade **irreversível**, e foto de
   serviço é prova. Só com autorização explícita, e não recomendado com obras em garantia.
