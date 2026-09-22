@@ -702,6 +702,24 @@
   .diag-hora{color:var(--gray-400);font-variant-numeric:tabular-nums;flex-shrink:0;font-size:11.5px;}
   .diag-msg{color:var(--gray-700);}
   .diag-empty{font-size:13px;color:var(--gray-400);text-align:center;padding:14px 0;}
+  /* tabela de tamanho por documento (Configurações → Sincronização) */
+  .diag-tam{display:flex;align-items:center;gap:9px;padding:7px 2px;border-bottom:1px solid var(--gray-100);font-size:12.5px;}
+  .diag-tam:last-child{border-bottom:none;}
+  .diag-tam-nome{color:var(--gray-700);flex:1;}
+  .diag-tam-kb{color:var(--gray-500);font-variant-numeric:tabular-nums;flex-shrink:0;}
+  .diag-barra{width:74px;height:6px;border-radius:3px;background:var(--gray-200);overflow:hidden;flex-shrink:0;}
+  .diag-barra i{display:block;height:100%;background:#16a34a;}
+  .diag-barra.aviso i{background:#d97706;}
+  .diag-barra.cheio i{background:#dc2626;}
+  /* faixa de alerta de sincronização — fica entre a barra de cima e o conteúdo,
+     visível pros dois perfis em qualquer tela. Silenciosa quando está tudo bem. */
+  .sync-alerta{display:flex;align-items:flex-start;gap:10px;margin:0 0 2px;padding:12px 18px;font-size:13.5px;line-height:1.5;cursor:pointer;border-bottom:1px solid transparent;}
+  .sync-alerta.aviso{background:#fffbeb;color:#92400e;border-bottom-color:#fde68a;}
+  .sync-alerta.erro{background:#fef2f2;color:#991b1b;border-bottom-color:#fecaca;}
+  .sync-alerta b{font-weight:700;}
+  .sync-alerta-ico{flex-shrink:0;font-size:15px;line-height:1.35;}
+  .sync-alerta-txt{flex:1;}
+  .sync-alerta-acao{flex-shrink:0;font-weight:600;text-decoration:underline;white-space:nowrap;}
 
   /* ── tarefas adicionais ── */
   .tf-item{background:var(--white);border:1px solid var(--gray-200);border-radius:14px;padding:16px 18px;margin-bottom:12px;box-shadow:var(--shadow-sm);}
@@ -1024,6 +1042,12 @@
 
     <!-- Diagnóstico de sincronização agora fica em Configurações -->
 
+    <!-- Faixa de alerta de sincronização (Bloco 0, item 2). Fica escondida quando está
+         tudo certo; aparece quando um envio falha ou quando um documento se aproxima do
+         teto de 1 MiB do Firestore. Antes disto, os dois casos só existiam no log de
+         diagnóstico, que ninguém abre -- a sincronização podia estar parada há dias. -->
+    <div class="sync-alerta" id="syncAlerta" hidden onclick="nav('config')"></div>
+
     <div class="content" id="contentArea">
       <!-- VIEWS injetadas via JS -->
     </div>
@@ -1090,6 +1114,67 @@ let _bootDone=false;        // gravações ANTES do boot completo (defaults) nã
 let _lastPushKey=null;      // diagnóstico: última chave que chegou ao fbPush
 const _snapshot={};         // último valor confirmado (enviado ou recebido) por chave
 
+/* ── TETO DE TAMANHO POR DOCUMENTO (Bloco 0, item 2) ──
+   O Firestore recusa um documento inteiro acima de 1 MiB. Como o app guarda cada
+   chave num ÚNICO documento (todas as ordens em mappo_os, todas as fotos de obra em
+   mappo_vrf_fotos), esse teto chega rápido: medido neste app, uma foto comprimida
+   pesa de 16 KB (parede lisa) a 140 KB (área externa). Quando estoura, o envio falha
+   e ANTES DISTO só aparecia no log de diagnóstico, que ninguém abre — a sincronização
+   podia estar parada há dias sem ninguém saber. Mesma ideia do PUB_LIMITE_BYTES que
+   os links públicos já usam, agora aplicada à sincronização. */
+const DOC_LIMITE_BYTES=1048576;   // o teto real do servidor
+const DOC_ALERTA_BYTES=800000;    // ~76% — avisa ANTES de bater, não depois
+function _bytesDe(str){
+  try{return new Blob([str]).size;}    // conta bytes UTF-8 de verdade, não caracteres
+  catch(e){return (str||'').length;}   // navegador sem Blob: aproximação
+}
+let _falhasEnvio={};        // {chave:{erro,hora}} — enquanto tiver algo aqui, a faixa fica na tela
+let _chavesQuaseCheias={};  // {chave:bytes} — passou do limiar, ainda não estourou
+
+/* Nome que o dono do app entende, não o nome da chave interna. */
+const NOMES_DOC={
+  mappo_os:'Ordens de serviço', mappo_vrf_fotos:'Fotos das obras', mappo_clientes:'Clientes',
+  mappo_manut:'Manutenções', mappo_tecnicos:'Equipe', mappo_tarefas:'Tarefas',
+  mappo_vrf_obras:'Obras VRF', mappo_vrf_progresso:'Progresso das obras',
+  mappo_vrf_notas:'Notas das obras', mappo_vrf_relatorios:'Relatórios das obras',
+  mappo_vrf_checkins:'Check-ins das obras', mappo_locations:'Localizações',
+  mappo_localizacao_historico:'Histórico de localização', mappo_live:'GPS ao vivo',
+  mappo_preco_config:'Tabela de preço', mappo_financeiro_notas:'Notas de adiantamento',
+  mappo_checklist_config:'Checklist', mappo_settings:'Configurações',
+  mappo_avatares:'Avatares', mappo_vrf_fases_config:'Fases do VRF',
+  mappo_modulo_config:'Nome do módulo', mappo_vrf_fotos_meta:'Dados das fotos'
+};
+function _nomeAmigavel(k){return NOMES_DOC[k]||String(k).replace('mappo_','');}
+
+/* Desenha (ou esconde) a faixa de alerta. Silenciosa quando está tudo certo — faixa
+   que vive na tela vira paisagem e ninguém lê justamente quando importa. */
+function _atualizarAlertaSync(){
+  const el=document.getElementById('syncAlerta');
+  if(!el)return;
+  const falhas=Object.keys(_falhasEnvio), cheias=Object.keys(_chavesQuaseCheias);
+  if(!falhas.length&&!cheias.length){el.hidden=true;el.className='sync-alerta';el.innerHTML='';return;}
+  el.hidden=false;
+  if(falhas.length){ // falha real vence o aviso preventivo
+    const k=falhas[0], f=_falhasEnvio[k];
+    el.className='sync-alerta erro';
+    el.innerHTML=`<span class="sync-alerta-ico">⚠️</span>
+      <span class="sync-alerta-txt"><b>Algo não está sendo salvo na nuvem.</b>
+      ${falhas.length>1
+        ? escapeHtml(String(falhas.length))+' tipos de dado não estão'
+        : '"'+escapeHtml(_nomeAmigavel(k))+'" não está'} chegando ao servidor desde ${escapeHtml(f.hora)}.
+      O trabalho continua neste aparelho, mas as outras pessoas não estão vendo.</span>
+      <span class="sync-alerta-acao">Ver detalhes</span>`;
+  }else{
+    const k=cheias[0], pct=Math.round(_chavesQuaseCheias[k]/DOC_LIMITE_BYTES*100);
+    el.className='sync-alerta aviso';
+    el.innerHTML=`<span class="sync-alerta-ico">📦</span>
+      <span class="sync-alerta-txt"><b>Espaço quase no limite.</b>
+      "${escapeHtml(_nomeAmigavel(k))}" está em ${pct}% do limite do servidor.
+      Quando encher, esse dado para de sincronizar.</span>
+      <span class="sync-alerta-acao">Ver detalhes</span>`;
+  }
+}
+
 /* Coleções que são LISTAS DE REGISTROS: cada item tem identidade própria.
    O merge é feito item a item — o gestor criar uma tarefa nunca apaga a
    foto que o técnico acabou de lançar em OUTRA tarefa. */
@@ -1110,6 +1195,11 @@ try{
 function _saveTouch(){
   _quietWrite=true;
   try{localStorage.setItem('mappo_touch',JSON.stringify({ts:_localTouch,it:_pend}));}
+  catch(e){
+    // memória cheia aqui não pode derrubar quem chamou (é controle interno de
+    // pendências, não dado do usuário) -- o interceptor já avisou na tela.
+    fbLog('Não consegui gravar o controle de pendências: '+e.name+' — '+e.message,'erro');
+  }
   finally{_quietWrite=false;}
 }
 function _pendDe(key){return _pend[key]||(_pend[key]={});}
@@ -1122,9 +1212,20 @@ function _porId(lista,idf){const m={};(lista||[]).forEach(it=>{if(it&&it[idf]!==
 /* grava sem disparar push (usado quando o dado veio da nuvem) */
 function _setLocalQuiet(key,val){
   _quietWrite=true;
+  let gravou=true;
   try{localStorage.setItem(key,val);}
+  catch(e){
+    // dado que veio da nuvem e não coube. Não pode subir e derrubar o laço de
+    // sincronização inteiro (fbApply/fbOnRemoteChange), então trata aqui.
+    gravou=false;
+    fbLog('Não consegui gravar '+key+' vindo da nuvem: '+e.name+' — '+e.message,'erro');
+    if(_ehErroDeCota(e))_avisarMemoriaCheia();
+  }
   finally{_quietWrite=false;}
-  _snapshot[key]=val;
+  // só marca como espelhado o que REALMENTE está no disco: se falhou e mesmo assim
+  // atualizasse _snapshot, a vigilância contínua (camada 3) passaria a achar que esta
+  // chave já foi tratada e nunca mais tentaria de novo.
+  if(gravou)_snapshot[key]=val;
 }
 
 /* Compara o valor anterior com o novo e anota EXATAMENTE o que mudou aqui */
@@ -1181,6 +1282,53 @@ function _marcarAlteracaoLocal(key,antes,depois){
 /* alterações nestas chaves atualizam os links de acompanhamento do cliente */
 const PUB_KEYS=['mappo_os','mappo_vrf_obras','mappo_vrf_progresso','mappo_vrf_fotos','mappo_vrf_notas','mappo_vrf_checkins'];
 
+/* ── MEMÓRIA CHEIA (cota do localStorage estourada) ──
+   Cada navegador batiza esse erro de um jeito; checar só um nome deixa passar
+   justamente o aparelho do técnico em campo, que é onde isto acontece. */
+function _ehErroDeCota(e){
+  if(!e)return false;
+  return e.name==='QuotaExceededError'
+      || e.name==='NS_ERROR_DOM_QUOTA_REACHED'   // Firefox
+      || e.code===22                              // padrão
+      || e.code===1014;                           // Firefox antigo
+}
+
+/* Aviso de memória cheia. Modal bloqueante DE PROPÓSITO: um toast some em 3,2s e o
+   técnico, que está de luva no telhado, não veria — e o preço de não ver é perder o
+   serviço inteiro que ele acabou de executar. A trava evita reabrir a cada tecla
+   enquanto a memória continuar cheia (cada tentativa de gravar dispara de novo). */
+let _avisoMemoriaAberto=false;
+function _fecharAvisoMemoria(){_avisoMemoriaAberto=false;closeModal();}
+function _avisarMemoriaCheia(){
+  if(_avisoMemoriaAberto)return;
+  _avisoMemoriaAberto=true;
+  // antes do app montar a tela não existe #modalRoot: cai no alerta nativo, que é feio
+  // mas aparece — melhor que falhar calado, que é exatamente o que se está corrigindo.
+  if(!document.getElementById('modalRoot')){
+    try{alert('A memória deste aparelho está cheia. A última alteração NÃO foi salva. Libere espaço e recarregue o MAPPO.');}catch(e){}
+    return;
+  }
+  showModal(`
+    <div class="modal-head"><h2>⚠️ Memória do aparelho cheia</h2></div>
+    <div class="modal-body">
+      <p style="font-size:14px;line-height:1.6;margin-bottom:14px">
+        A última alteração <b>não foi salva</b> — inclusive a última foto, se você acabou de tirar uma.
+      </p>
+      <p style="font-size:14px;line-height:1.6;margin-bottom:8px"><b>O que fazer agora:</b></p>
+      <ul style="font-size:14px;line-height:1.75;padding-left:18px;margin-bottom:14px">
+        <li>Conecte-se à internet e espere a sincronização terminar — é o que libera espaço.</li>
+        <li>Conclua e envie as ordens que já estão prontas.</li>
+        <li>Se continuar assim, feche outros aplicativos e recarregue o MAPPO.</li>
+      </ul>
+      <p style="font-size:13px;color:var(--gray-400);line-height:1.5">
+        Não feche o app antes de sincronizar: o que está na tela ainda não foi gravado.
+      </p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-primary" onclick="_fecharAvisoMemoria()">Entendi</button>
+    </div>`);
+}
+
 /* ── INTERCEPTOR (camada 1): captura todo localStorage.setItem ──
    Patch no Storage.prototype — no iPhone/Safari, substituir
    localStorage.setItem diretamente é IGNORADO pelo navegador
@@ -1195,7 +1343,24 @@ const PUB_KEYS=['mappo_os','mappo_vrf_obras','mappo_vrf_progresso','mappo_vrf_fo
         sync=(this===window.localStorage&&!_quietWrite&&_bootDone&&SYNC_KEYS.includes(k));
         if(sync)antes=localStorage.getItem(k);
       }catch(e){sync=false;}
-      orig.apply(this,arguments);
+      /* A gravação de verdade. Até 2026-09-16 rodava sem proteção nenhuma: com a memória
+         do aparelho cheia, o erro subia MUDO até quem chamou (saveExecOS/execConcluir/
+         tarefaSalvarNota/...), e nenhum deles tem try/catch — a função morria no meio,
+         o objeto em memória já alterado e NADA no disco. O técnico só descobria ao
+         recarregar o app, com o serviço inteiro perdido. Agora avisa e registra.
+         Continua relançando de propósito: engolir aqui faria quem chamou seguir em
+         frente achando que gravou, que é pior que abortar. */
+      try{
+        orig.apply(this,arguments);
+      }catch(e){
+        if(_ehErroDeCota(e)){
+          fbLog('Memória do aparelho cheia ao gravar '+k+': '+e.name+' — '+e.message,'erro');
+          _avisarMemoriaCheia();
+        }else{
+          fbLog('Falha ao gravar '+k+': '+e.name+' — '+e.message,'erro');
+        }
+        throw e;
+      }
       try{
         if(sync){_snapshot[k]=v;_marcarAlteracaoLocal(k,antes,v);}
       }catch(e){}
@@ -1714,6 +1879,19 @@ async function _doPush(key){
   try{
     const raw=localStorage.getItem(key);
     if(raw===null)return;
+    /* Aviso PREVENTIVO: mede antes de mandar. Passando do limiar, acende a faixa
+       amarela enquanto ainda dá tempo de agir — depois que estoura, o servidor
+       recusa o documento inteiro e o dado simplesmente para de subir. */
+    const bytes=_bytesDe(raw);
+    if(bytes>=DOC_ALERTA_BYTES){
+      if(_chavesQuaseCheias[key]===undefined)
+        fbLog('Atenção: '+nice+' em '+Math.round(bytes/DOC_LIMITE_BYTES*100)+'% do limite de 1 MiB do servidor','erro');
+      _chavesQuaseCheias[key]=bytes;
+      _atualizarAlertaSync();
+    }else if(_chavesQuaseCheias[key]!==undefined){
+      delete _chavesQuaseCheias[key];   // voltou pra faixa segura
+      _atualizarAlertaSync();
+    }
     const ref=fbDB.collection('workspaces').doc(WORKSPACE).collection('data').doc(key);
 
     /* Como este dado se junta com o que já está na nuvem.
@@ -1745,9 +1923,16 @@ async function _doPush(key){
     _confirmarEnvio(key,mergedStr);
     fbLog('Enviado: '+nice,'push');
     _snapshot[key]=localStorage.getItem(key);
+    if(_falhasEnvio[key]){delete _falhasEnvio[key];_atualizarAlertaSync();} // voltou a subir
   }catch(e){
     delete _snapshot[key]; // a vigilância contínua vai tentar de novo
     fbLog('Falha ao enviar '+nice+': '+e.message,'erro');
+    /* Além do log, agora ACENDE na tela. Guarda a hora da PRIMEIRA falha desta chave
+       (não a da última tentativa): a vigilância contínua repete a cada 3s, e mostrar
+       a hora da última esconderia há quanto tempo o problema existe. */
+    if(!_falhasEnvio[key])_falhasEnvio[key]={erro:e.message,hora:new Date().toLocaleTimeString('pt-BR')};
+    else _falhasEnvio[key].erro=e.message;
+    _atualizarAlertaSync();
   }
 }
 
@@ -2098,9 +2283,32 @@ function fbLog(msg,tipo){
   console.log('[MAPPO] '+msg);
   if(document.getElementById('diagLogBody'))renderDebugLogs();
 }
+/* Tamanho de cada documento contra o teto de 1 MiB do servidor. Antes isto só dava
+   pra saber abrindo o console do navegador -- agora fica em Configurações →
+   Sincronização, que é onde o gestor consegue olhar. Mostra só o que tem algum peso
+   (>1 KB); listar 20 chaves de 200 bytes só atrapalharia a leitura. */
+function renderDiagTamanhos(){
+  const alvo=document.getElementById('diagTamanhos');
+  if(!alvo)return;
+  const linhas=SYNC_KEYS.map(k=>{
+    const raw=localStorage.getItem(k);
+    return raw===null?null:{k,bytes:_bytesDe(raw)};
+  }).filter(x=>x&&x.bytes>1024).sort((a,b)=>b.bytes-a.bytes);
+  if(!linhas.length){alvo.innerHTML='<p class="diag-empty">Nada guardado ainda.</p>';return;}
+  alvo.innerHTML=linhas.map(({k,bytes})=>{
+    const pct=Math.min(100,Math.round(bytes/DOC_LIMITE_BYTES*100));
+    const estado=bytes>=DOC_LIMITE_BYTES?'cheio':bytes>=DOC_ALERTA_BYTES?'aviso':'';
+    return `<div class="diag-tam">
+      <span class="diag-tam-nome">${escapeHtml(_nomeAmigavel(k))}</span>
+      <span class="diag-barra ${estado}"><i style="width:${pct}%"></i></span>
+      <span class="diag-tam-kb">${Math.round(bytes/1024)} KB · ${pct}%</span>
+    </div>`;
+  }).join('');
+}
 function renderDebugLogs(){
   const st=document.getElementById('diagStatus');
   if(st)st.innerHTML=`<span class="diag-dot ${fbReady?'ok':'erro'}"></span> ${fbReady?'Conectado à nuvem — sincronização em tempo real ativa':'Sem conexão com a nuvem — dados salvos apenas neste aparelho'}`;
+  renderDiagTamanhos();
   const body=document.getElementById('diagLogBody');
   if(!body)return;
   body.innerHTML=_fbLogs.slice().reverse().map(l=>
@@ -3927,6 +4135,29 @@ function vrfAbrirCamera(andarId,key,ev){
   const inp=document.getElementById('vrfCameraInput');
   inp.value='';inp.click();
 }
+/* A assinatura era guardada como PNG do canvas inteiro — e o canvas é criado em
+   largura × devicePixelRatio, então num celular 3x ele passa de 1500px. Reduz pra 600px e
+   exporta JPEG: o traço continua o mesmo e o peso vira fração. Pinta branco antes porque o
+   canvas da assinatura é TRANSPARENTE (o branco que se vê é CSS) — exportar direto pra JPEG
+   sem isso devolveria uma assinatura preta em fundo preto. */
+function _assinaturaComprimida(cv){
+  if(!cv)return '';
+  try{
+    const maxW=600,escala=Math.min(1,maxW/cv.width);
+    const tmp=document.createElement('canvas');
+    tmp.width=Math.max(1,Math.round(cv.width*escala));
+    tmp.height=Math.max(1,Math.round(cv.height*escala));
+    const cx=tmp.getContext('2d');
+    cx.fillStyle='#fff';cx.fillRect(0,0,tmp.width,tmp.height);
+    cx.drawImage(cv,0,0,tmp.width,tmp.height);
+    return tmp.toDataURL('image/jpeg',0.7);
+  }catch(e){
+    // nunca perder a assinatura por causa de uma otimização: cai no PNG original
+    fbLog('Não consegui comprimir a assinatura, guardando original: '+e.name+' — '+e.message,'erro');
+    return cv.toDataURL();
+  }
+}
+
 function vrfComprimirImagem(file,cb){
   const reader=new FileReader();
   reader.onerror=()=>{toast('Não foi possível ler a foto — tente novamente','error');};
@@ -3936,10 +4167,20 @@ function vrfComprimirImagem(file,cb){
     img.onload=()=>{
       if(!img.width||!img.height){toast('Não foi possível processar a foto — tente novamente','error');return;}
       const canvas=document.createElement('canvas');
-      const maxW=1024,scale=Math.min(1,maxW/img.width);
+      /* 800px / qualidade 0,5 desde 22/09/2026 (era 1024 / 0,6). O número saiu de teste, não
+         de chute: fotografar a ETIQUETA do equipamento é o uso mais exigente daqui, então a
+         medida foi se MODEL/SERIAL continuam legíveis. Continuam, com folga — e o peso cai
+         ~51%. Motivo: o teto de 1 MiB por documento do Firestore (ver MAPPO-O-QUE-FALTA.md,
+         Bloco 0 item 1). Isto alivia; a cura é um documento por andar (Etapa B). */
+      const maxW=800,scale=Math.min(1,maxW/img.width);
       canvas.width=img.width*scale;canvas.height=img.height*scale;
-      canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
-      cb(canvas.toDataURL('image/jpeg',0.6));
+      const ctx=canvas.getContext('2d');
+      /* Fundo branco ANTES de desenhar: JPEG não tem transparência, e sem isto qualquer
+         imagem com canal alfa (PNG, captura de tela que o técnico anexe) saía com o fundo
+         PRETO, escondendo o que a foto deveria provar. */
+      ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);
+      ctx.drawImage(img,0,0,canvas.width,canvas.height);
+      cb(canvas.toDataURL('image/jpeg',0.5));
     };
     img.src=e.target.result;
   };
@@ -4733,7 +4974,11 @@ function renderConfig(){
     </div>
     <div class="card-pad">
       <div class="diag-status" id="diagStatus"></div>
-      <div class="diag-log" id="diagLogBody"></div>
+      <div style="margin-top:16px">
+        <div style="font-size:12.5px;font-weight:600;color:var(--gray-500);margin-bottom:6px">Espaço usado no servidor (limite de 1 MiB por tipo de dado)</div>
+        <div id="diagTamanhos"></div>
+      </div>
+      <div class="diag-log" id="diagLogBody" style="margin-top:16px"></div>
     </div>
   </div>`;
 }
@@ -7272,7 +7517,7 @@ function verificarConcluir(){
 }
 
 function execConcluir(){
-  execOS.assinatura=document.getElementById('sigCanvas').toDataURL();
+  execOS.assinatura=_assinaturaComprimida(document.getElementById('sigCanvas'));
   execOS.status='concluida';execOS.motivoRevisao=null;
   execOS.checkoutTime=new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
   execOS.concluidaEm=new Date().toISOString();
