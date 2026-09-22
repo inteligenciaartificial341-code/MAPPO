@@ -3611,9 +3611,25 @@ function fmtMoeda(v){return(v==null||isNaN(v))?'—':Number(v).toLocaleString('p
    locale-aware completo fica fora de escopo deste patch (registrado como deferred).
    Não numérico ou negativo -> NaN, nunca um número inválido escapa daqui. */
 function _parseMoeda(raw){
-  const s=(raw||'').toString().trim();
+  let s=(raw||'').toString().trim();
   if(s==='')return null;
-  const norm=(s.includes(',')&&!s.includes('.'))?s.replace(',','.'):s;
+  s=s.replace(/^R\$\s*/i,'').replace(/\s/g,'');   // "R$ 1.234,56" -> "1.234,56"
+  if(!/^[0-9.,]+$/.test(s))return NaN;            // qualquer outra coisa é inválida
+  let norm;
+  if(s.includes(',')){
+    /* Tem vírgula: no padrão brasileiro ela É o decimal, e todo ponto é separador de
+       milhar. Antes de 22/09/2026 "1.234,56" caía num ramo que devolvia a string intacta
+       pro parseFloat, que para na vírgula e lê 1.234 — R$ 1.234,56 virava R$ 1,23. */
+    norm=s.replace(/\./g,'').replace(',','.');
+  }else if((s.match(/\./g)||[]).length>1){
+    norm=s.replace(/\./g,'');                     // "1.234.567" -> só pode ser milhar
+  }else if(/\.\d{3}$/.test(s)){
+    /* Um ponto só, com exatamente 3 dígitos depois ("1.234", "12.500"): em app brasileiro
+       isso é milhar, não decimal — ninguém digita preço com 3 casas. */
+    norm=s.replace('.','');
+  }else{
+    norm=s;                                       // "1.50" / "1234.56": ponto decimal
+  }
   const v=parseFloat(norm);
   return(isNaN(v)||v<0)?NaN:v;
 }
@@ -4394,14 +4410,31 @@ function _assinaturaComprimida(cv){
   }
 }
 
+/* Uma compressão por vez. Sem isto, tocar duas vezes no botão de foto (o que acontece o
+   tempo todo com luva, no sol) dispara duas leituras simultâneas do arquivo inteiro na
+   memória — e as duas terminam gravando por cima uma da outra. */
+let _fotoEmProcessamento=false;
+/* Foto de celular moderno tem 3 a 12 MB. Acima disto quase sempre é vídeo ou arquivo
+   estranho: ler na memória (e ainda dobrar de tamanho virando base64) trava aparelho fraco,
+   que é exatamente o que o técnico usa em campo. */
+const FOTO_MAX_BYTES=25*1024*1024;
+
 function vrfComprimirImagem(file,cb){
+  if(_fotoEmProcessamento){toast('Aguarde a foto anterior terminar','warn');return;}
+  if(!file){toast('Nenhuma foto selecionada','warn');return;}
+  if(file.size>FOTO_MAX_BYTES){
+    toast('Arquivo muito grande ('+Math.round(file.size/1024/1024)+' MB). Tire a foto pelo próprio app.','warn');
+    return;
+  }
+  _fotoEmProcessamento=true;
+  const liberar=()=>{_fotoEmProcessamento=false;};
   const reader=new FileReader();
-  reader.onerror=()=>{toast('Não foi possível ler a foto — tente novamente','error');};
+  reader.onerror=()=>{liberar();toast('Não foi possível ler a foto — tente novamente','error');};
   reader.onload=e=>{
     const img=new Image();
-    img.onerror=()=>{toast('Não foi possível processar a foto — tente novamente','error');};
+    img.onerror=()=>{liberar();toast('Não foi possível processar a foto — tente novamente','error');};
     img.onload=()=>{
-      if(!img.width||!img.height){toast('Não foi possível processar a foto — tente novamente','error');return;}
+      if(!img.width||!img.height){liberar();toast('Não foi possível processar a foto — tente novamente','error');return;}
       const canvas=document.createElement('canvas');
       /* 800px / qualidade 0,5 desde 22/09/2026 (era 1024 / 0,6). O número saiu de teste, não
          de chute: fotografar a ETIQUETA do equipamento é o uso mais exigente daqui, então a
@@ -4416,7 +4449,11 @@ function vrfComprimirImagem(file,cb){
          PRETO, escondendo o que a foto deveria provar. */
       ctx.fillStyle='#fff';ctx.fillRect(0,0,canvas.width,canvas.height);
       ctx.drawImage(img,0,0,canvas.width,canvas.height);
-      cb(canvas.toDataURL('image/jpeg',0.5));
+      let saida=null;
+      try{saida=canvas.toDataURL('image/jpeg',0.5);}
+      catch(err){liberar();toast('Não foi possível processar a foto — tente novamente','error');return;}
+      liberar();                 // libera ANTES do cb: o cb pode abrir outra foto
+      cb(saida);
     };
     img.src=e.target.result;
   };
@@ -5491,10 +5528,31 @@ function adicionarPrecoCategoria(){
    pré-preenchido por valorDoTipo() nasce com valorStatus:null e não pode entrar em
    nenhum dos dois até o gestor confirmar o status (senão toda OS nova apareceria
    contada como "a pagar" antes de qualquer trabalho ou confirmação). */
+/* Recorte de período do Financeiro. Sem isto a tela mostrava TUDO desde sempre, e fechar o
+   mês virava conferência manual. Fica só em memória (não sincroniza): é preferência de quem
+   está olhando agora, não dado da empresa. */
+let financeiroPeriodo='todos';   // 'todos' | 'mes' | '30' | '90' | 'ano'
+function setFinanceiroPeriodo(v){financeiroPeriodo=v||'todos';renderView('financeiro');}
+function _dentroDoPeriodo(dataStr){
+  if(financeiroPeriodo==='todos')return true;
+  if(!dataStr)return false;                        // sem data não dá pra afirmar que está no recorte
+  const hoje=new Date(), d=new Date(dataStr+'T00:00:00');
+  if(isNaN(d.getTime()))return false;
+  if(financeiroPeriodo==='mes')
+    return d.getFullYear()===hoje.getFullYear()&&d.getMonth()===hoje.getMonth();
+  if(financeiroPeriodo==='ano')return d.getFullYear()===hoje.getFullYear();
+  const dias=Number(financeiroPeriodo)||0;
+  return (hoje-d)/86400000<=dias;
+}
+function _rotuloPeriodo(){
+  return {todos:'Desde sempre',mes:'Este mês','30':'Últimos 30 dias','90':'Últimos 90 dias',ano:'Este ano'}[financeiroPeriodo]||'Desde sempre';
+}
+
 function financeiroResumo(){
   const porServico={};
   osList.forEach(o=>{
     if(o.valor==null)return;
+    if(!_dentroDoPeriodo(o.data))return;
     const serv=o.tipo||'Outro';
     const prest=o.tecnico||'—';
     porServico[serv]=porServico[serv]||{};
@@ -5510,7 +5568,10 @@ function financeiroResumo(){
 function renderFinanceiroHierarquia(){
   const resumo=financeiroResumo();
   const servicos=Object.keys(resumo).sort();
-  if(!servicos.length)return emptyState('financeiro','Nenhum valor lançado ainda','Abra uma OS e lance o valor pra ver o resumo por serviço e prestador aqui.');
+  // com recorte ativo, "nenhum valor lançado" seria mentira: pode ter muita coisa fora do período
+  if(!servicos.length)return financeiroPeriodo==='todos'
+    ? emptyState('financeiro','Nenhum valor lançado ainda','Abra uma OS e lance o valor pra ver o resumo por serviço e prestador aqui.')
+    : emptyState('financeiro','Nada em "'+_rotuloPeriodo()+'"','Não há valor lançado neste período. Troque o período acima para ver o restante.');
   return servicos.map(serv=>{
     const prestadores=Object.keys(resumo[serv]).sort();
     return `<div class="card" style="margin-bottom:14px">
@@ -5539,7 +5600,8 @@ function renderFinanceiroHierarquia(){
    registro manual, nunca soma no pago/a pagar por OS acima (financeiroResumo não lê
    financeiroNotas). */
 function renderFinanceiroNotas(){
-  const notas=[...financeiroNotas].sort((a,b)=>((b.data||'')+(b.hora||'')).localeCompare((a.data||'')+(a.hora||'')));
+  const notas=financeiroNotas.filter(n=>!n.removida&&_dentroDoPeriodo(n.data))
+    .sort((a,b)=>((b.data||'')+(b.hora||'')).localeCompare((a.data||'')+(a.hora||'')));
   return `
   <div class="fg" style="margin-bottom:14px">
     <div class="frow">
@@ -5549,9 +5611,26 @@ function renderFinanceiroNotas(){
     <div class="fg"><label>Observação</label><input type="text" id="notaObs" placeholder="Ex: adiantamento em dinheiro"></div>
     <button class="btn btn-primary btn-sm" onclick="adicionarNotaFinanceira()">${svgIco('plus','ico-sm')} Registrar nota</button>
   </div>
-  ${notas.length?notas.map(n=>`<div class="set-row"><div class="set-info"><div class="st">${escapeHtml(n.prestador)} — ${fmtMoeda(n.valor)}</div><div class="sd">${fmtDate(n.data)} ${n.hora||''}${n.obs?' · '+escapeHtml(n.obs):''}${n.responsavel?' · registrado por '+escapeHtml(n.responsavel):''}</div></div></div>`).join(''):'<p style="font-size:14px;color:var(--gray-400);padding:8px 0">Nenhuma nota registrada.</p>'}
+  ${notas.length?notas.map(n=>`<div class="set-row"><div class="set-info"><div class="st">${escapeHtml(n.prestador)} — ${fmtMoeda(n.valor)}</div><div class="sd">${fmtDate(n.data)} ${n.hora||''}${n.obs?' · '+escapeHtml(n.obs):''}${n.responsavel?' · registrado por '+escapeHtml(n.responsavel):''}</div></div><button class="btn btn-ghost btn-sm" title="Excluir nota" onclick="removerNotaFinanceira('${escapeHtml(n.data)}','${escapeHtml(n.hora||'')}','${escapeHtml(n.prestador)}',${Number(n.valor)||0})">${svgIco('trash','ico-sm')}</button></div>`).join(''):'<p style="font-size:14px;color:var(--gray-400);padding:8px 0">Nenhuma nota registrada.</p>'}
   <p style="font-size:12px;color:var(--gray-400);margin-top:10px">📌 Notas de adiantamento são só registro manual — nunca entram na soma de pago/a pagar por OS acima.</p>`;
 }
+/* Excluir uma nota de adiantamento. NÃO remove do array: mappo_financeiro_notas é
+   append-only (APPEND_LISTS) e o merge une por conteúdo — a nota apagada aqui voltaria da
+   nuvem na sincronização seguinte. Marcar com `removida` é o que sobrevive ao merge, e
+   ainda preserva o rastro de que existiu, que é o certo para dinheiro.
+   Identificada pelos mesmos campos que o merge usa como identidade (prestador+data+hora+
+   valor), porque a nota não tem id próprio. */
+function removerNotaFinanceira(data,hora,prestador,valor){
+  const n=financeiroNotas.find(x=>!x.removida&&x.data===data&&(x.hora||'')===hora&&x.prestador===prestador&&Number(x.valor)===Number(valor));
+  if(!n){toast('Nota não encontrada','warn');return;}
+  if(!confirm('Excluir a nota de '+prestador+' no valor de '+fmtMoeda(n.valor)+'?'))return;
+  n.removida=true;
+  n.removidaEm=new Date().toISOString();
+  n.removidaPor=(session&&session.nome)||'';
+  saveFinanceiroNotas();renderView('financeiro');
+  toast('Nota excluída','success');
+}
+
 function adicionarNotaFinanceira(){
   const prestador=(document.getElementById('notaPrestador').value||'').trim();
   const valorRaw=(document.getElementById('notaValor').value||'').trim();
@@ -5573,7 +5652,16 @@ function adicionarNotaFinanceira(){
 
 function renderFinanceiro(){
   return `
-  <div class="page-head"><div><div class="page-title">Financeiro</div><div class="page-desc">Tabela de preço, valores por prestador e notas de adiantamento</div></div></div>
+  <div class="page-head">
+    <div><div class="page-title">Financeiro</div><div class="page-desc">Tabela de preço, valores por prestador e notas de adiantamento</div></div>
+    <div class="fg" style="margin:0;min-width:190px">
+      <label style="font-size:12px">Período</label>
+      <select id="finPeriodo" onchange="setFinanceiroPeriodo(this.value)">
+        ${[['todos','Desde sempre'],['mes','Este mês'],['30','Últimos 30 dias'],['90','Últimos 90 dias'],['ano','Este ano']]
+          .map(([v,t])=>`<option value="${v}" ${financeiroPeriodo===v?'selected':''}>${t}</option>`).join('')}
+      </select>
+    </div>
+  </div>
 
   <div class="card" style="margin-bottom:22px">
     <div class="card-head"><h3>💰 Tabela de preço por tipo de serviço</h3></div>
@@ -5881,11 +5969,29 @@ function _atualizarNomeMembro(uid,nome){
    automático via convite, Story 11) -- mesma cascata nos dois casos: sem isto, uma OS
    atribuída ao nome antigo do técnico perde o vínculo assim que o nome muda por
    qualquer via (ITEM_LISTS['mappo_tecnicos'] segue identificado por nome -- AD-6). */
+/* Renomear um técnico tem que arrastar o nome por todo lugar que o guarda como texto — é
+   assim que este app identifica pessoa (mappo_tecnicos é chaveado por nome, não por id).
+   As TAREFAS faltavam aqui até 22/09/2026: a tela do técnico filtra por
+   tarefa.tecnico===session.nome, então renomear alguém fazia as tarefas dele sumirem da
+   vista — ele simplesmente parava de ver trabalho que era dele.
+
+   O que NÃO é renomeado, de propósito: o histórico append-only (notas de adiantamento,
+   check-ins e relatórios de obra). Essas listas são unidas por conteúdo no merge
+   (_mergeLista): renomear aqui não apagaria as entradas antigas da nuvem, e as duas versões
+   voltariam juntas — no caso das notas de adiantamento isso DUPLICARIA dinheiro. O registro
+   histórico fica com o nome que tinha na época, que também é o mais correto para auditoria. */
 function _renomearTecnicoEmDados(nomeAntigo,nome){
   osList.forEach(o=>{if(o.tecnico===nomeAntigo)o.tecnico=nome;});saveOS();
   manutencoes.forEach(mn=>{if(mn.tecnico===nomeAntigo)mn.tecnico=nome;});saveManut();
+  tarefas.forEach(t=>{if(t.tecnico===nomeAntigo)t.tecnico=nome;});saveTarefas();
   const locs=JSON.parse(localStorage.getItem('mappo_locations')||'{}');
   if(locs[nomeAntigo]){locs[nome]=locs[nomeAntigo];delete locs[nomeAntigo];localStorage.setItem('mappo_locations',JSON.stringify(locs));}
+  // avatar segue a mesma ideia da localização: mapa por nome de pessoa
+  if(avataresTecnicos&&avataresTecnicos[nomeAntigo]!==undefined){
+    avataresTecnicos[nome]=avataresTecnicos[nomeAntigo];
+    delete avataresTecnicos[nomeAntigo];
+    localStorage.setItem('mappo_avatares',JSON.stringify(avataresTecnicos));
+  }
 }
 
 async function salvarTecnico(id){
