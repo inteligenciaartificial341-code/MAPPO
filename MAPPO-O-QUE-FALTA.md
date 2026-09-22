@@ -16,9 +16,18 @@
 
 ### Bloco 0 — falhas silenciosas (o que pode quebrar a operação sem ninguém ver)
 
-| # | Item | Situação |
-|---|---|---|
-| 4 | **`mappo_localizacao_historico` cresce para sempre** no mesmo documento — mesmo problema que o item 1 tinha, chegando mais devagar | 🔴 **próximo do bloco** |
+**Bloco 0 fechado.** O item 4 (`mappo_localizacao_historico` cresce para sempre) foi
+**reclassificado como baixa prioridade** em 22/09/2026, com motivo:
+
+- Está **abaixo de 1 KB** hoje. Cada registro pesa ~90 bytes, então chegar aos 800 KB do
+  alerta exige ~9.000 check-ins — mais de um ano no ritmo atual.
+- **Deixou de ser falha silenciosa** quando o item 2 entrou: a faixa acende a 76% do teto,
+  dando meses de aviso antes de qualquer problema.
+- Pruning simples não resolveria: é lista append-only (`APPEND_LISTS`), então o que fosse
+  apagado aqui voltaria no merge seguinte. A correção certa seria dividir por mês, como foi
+  feito com as fotos — trabalho que não se justifica com esse horizonte.
+
+Revisitar quando a faixa de alerta avisar, ou se o ritmo de check-ins crescer muito.
 
 **Item 1 (fotos estourando o teto) — resolvido:** Etapa A em `9d49fba`, Etapa B em `121cbab`,
 documento antigo apagado manualmente da nuvem pelo proprietário em 22/09/2026. Restam dois
@@ -34,16 +43,10 @@ desdobramentos, ambos sem pressa:
 
 ---
 
-## Bloco 1 — dados errados e retrabalho
+## ~~Bloco 1 — dados errados e retrabalho~~ ✅ publicado em `da03885`
 
-| Item | Detalhe |
-|---|---|
-| Foto grande trava aparelho fraco | Sem checagem de tamanho antes de ler o arquivo inteiro na memória |
-| Toque duplo na foto | Botão não desabilita durante a compressão — duplica ou perde |
-| Valor monetário com milhar | `1.234,56` é interpretado errado |
-| Financeiro agrupa por **nome** do técnico | Renomear alguém fragmenta o histórico dele |
-| Nota de adiantamento | Não pode ser editada nem excluída — erro de digitação fica para sempre |
-| Financeiro sem filtro de período | Mostra tudo desde sempre |
+Um resíduo, de baixo valor: **editar** uma nota de adiantamento (hoje só dá para excluir e
+registrar de novo). Só vale a pena se acontecer com frequência.
 
 ## Bloco 2 — segurança residual
 
