@@ -72,8 +72,8 @@ e-mails têm conta.
 Menos grave num time interno e conhecido, mas real:
 
 - Técnico pode escrever o avatar e a localização de outro técnico
-**Resolvidos:** técnico removido continua lendo (publicado em `797f404`) · convite ao
-portador (prazo de 7 dias — escrito e testado no Emulator, **aguardando publicação**).
+**Resolvidos:** técnico removido continua lendo (`797f404`) · convite ao portador, agora com
+prazo de 7 dias (`c56d38b`, regras publicadas em produção).
 
 **Descartado:** "o último gestor pode se rebaixar" — verificado em 22/09/2026, `role:'gestor'`
 só é gravado na criação da empresa e **não existe tela para trocar papel**. Só aconteceria

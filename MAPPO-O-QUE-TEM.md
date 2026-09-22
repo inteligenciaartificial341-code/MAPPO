@@ -8,7 +8,7 @@
 > antes do commit + publicação. Ao final de cada publicação: mover o item de
 > `MAPPO-O-QUE-FALTA.md` para cá e registrar no histórico no fim do arquivo.
 
-**Estado:** publicado até o commit `da03885` · atualizado em 22/09/2026
+**Estado:** publicado até o commit `c56d38b` · atualizado em 22/09/2026
 **Endereço:** https://inteligenciaartificial341-code.github.io/MAPPO/
 
 ---
@@ -39,8 +39,8 @@ O perfil vem do cadastro na empresa, não é escolhido no login. Cada empresa é
 - **Cadastro da empresa** — e-mail/senha, nome e ramo (Refrigeração/Climatização, Manutenção
   Predial ou ramo próprio digitado). O ramo já traz checklist e tabela de serviços prontos.
 - **Aprovação manual** — a empresa nasce "pendente" e é liberada à mão no console do Firebase.
-- **Convite do técnico** — o gestor cadastra e gera um código de uso único; o técnico cria a
-  conta e se vincula sozinho. Revogável.
+- **Convite do técnico** — o gestor cadastra e gera um código de uso único, **válido por 7
+  dias**; o técnico cria a conta e se vincula sozinho. Revogável a qualquer momento.
 - **Login** — e-mail e senha, com mensagens de erro em português.
 
 ## 4. Funções do gestor
@@ -139,7 +139,8 @@ Devolvida para revisão, o técnico vê o motivo e refaz.
 - Login real por e-mail e senha; isolamento total entre empresas
 - Dados sensíveis (equipe, preços, financeiro, checklists, obras) só o gestor altera
 - Localização só com consentimento; GPS ao vivo expira sozinho
-- Links públicos expiram em 30 dias e são revogáveis
+- Links públicos expiram em 30 dias e são revogáveis; convites de acesso expiram em 7 dias
+- **Técnico removido perde o acesso na hora**, sem precisar recarregar a página
 - Escape de conteúdo digitado (XSS) e verificação de integridade das bibliotecas externas (SRI)
 
 ## 8. Proteções contra falha silenciosa
@@ -166,6 +167,7 @@ Devolvida para revisão, o técnico vê o motivo e refaz.
 
 | Data | Commit | O que entrou |
 |---|---|---|
+| 22/09/2026 | `c56d38b` | **Bloco 2.** Técnico removido perde o acesso na hora (antes seguia lendo até fechar a aba) e o **convite de acesso passa a valer 7 dias** — antes o código valia para sempre até ser usado ou revogado. Regras do Firestore publicadas com 19/19 casos verificados no Emulator |
 | 22/09/2026 | `da03885` | **Bloco 1 inteiro.** Valor monetário brasileiro lido certo ("1.234,56" virava R$ 1,23); foto acima de 25 MB recusada antes de travar o aparelho; toque duplo na foto não duplica mais; renomear técnico passa a arrastar as **tarefas** dele (ele deixava de vê-las); nota de adiantamento pode ser excluída, com registro de quem excluiu; **filtro de período** no Financeiro |
 | 22/09/2026 | `121cbab` | **Bloco 0, item 1 — Etapa B.** Fotos de obra passam a ter **um documento por andar** na nuvem, removendo o teto de 1 MiB que estava a 90%; cada foto nova trafega só o andar que mudou, em vez do acervo inteiro. Corrigido junto um vazamento pré-existente: os documentos de link público do cliente eram baixados e **gravados no aparelho de todos os usuários** em todo boot, para sempre |
 | 22/09/2026 | `9d49fba` | **Bloco 0, itens 3 e 2 + item 1 Etapa A.** Memória cheia deixa de perder o trabalho do técnico (avisa e não engole o erro); falha de sincronização vira faixa visível na tela, com aviso preventivo a 76% do teto e tabela de espaço em Configurações; fotos passam de 1024px/0,6 para 800px/0,5 (−51%) e assinatura de PNG para JPEG (−82%); imagem com transparência deixa de virar preta. Criados `MAPPO-O-QUE-TEM.md` e `MAPPO-O-QUE-FALTA.md` como fonte de verdade do estado do produto |
