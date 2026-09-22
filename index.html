@@ -2425,8 +2425,29 @@ function fbStartListeners(){
       },err=>fbLog('Listener das fotos por andar: '+err.message,'erro'));
     fbUnsubs.push(unsubFotos);
   }catch(e){fbLog('Não consegui escutar as fotos por andar: '+e.message,'erro');}
+  _vigiarMembership();
   fbLog('Escutando '+SYNC_KEYS.length+' coleções + fotos por andar em tempo real','ok');
 }
+/* Um técnico removido da equipe continuava lendo dados até fechar a aba: a regra do
+   Firestore só é avaliada quando o listener ABRE, então os que já estavam abertos seguiam
+   recebendo tudo. Agora o próprio documento de membership é observado — ele some, a sessão
+   cai na hora.
+   Duas cautelas: erro de rede NUNCA desloga (só o callback de sucesso decide), e estado
+   vindo do cache local também não — senão um técnico legítimo offline seria expulso. */
+function _vigiarMembership(){
+  if(!fbReady||!WORKSPACE||!session||!session.uid)return;
+  try{
+    const ref=fbDB.collection('workspaces').doc(WORKSPACE).collection('members').doc(session.uid);
+    const unsub=ref.onSnapshot(snap=>{
+      if(!snap||snap.exists)return;
+      if(snap.metadata&&snap.metadata.fromCache)return;   // não decide com dado de cache
+      fbLog('Acesso removido pelo gestor — encerrando a sessão','erro');
+      _encerrarPorAcessoRemovido();
+    },err=>fbLog('Vigilância de acesso indisponível: '+err.message,'erro'));
+    fbUnsubs.push(unsub);
+  }catch(e){fbLog('Não consegui vigiar o acesso: '+e.message,'erro');}
+}
+
 /* extrai o horário (ms) do updatedAt do documento da nuvem */
 function _remoteMs(d){
   if(!d||!d.updatedAt)return 0;
@@ -3400,6 +3421,28 @@ function toggleFloatMenu(force){
   bd.classList.toggle('show',abrir);
   btn.classList.toggle('open',abrir);
   if(abrir)montarFloatMenu(getNavItems()); // garante que reflita o contexto atual
+}
+
+/* Encerra a sessão porque o gestor removeu o acesso desta pessoa — não é o usuário saindo,
+   então não pergunta nada e explica o que houve. */
+let _encerrandoPorRemocao=false;
+function _encerrarPorAcessoRemovido(){
+  if(_encerrandoPorRemocao)return;
+  _encerrandoPorRemocao=true;
+  try{
+    if(session&&session.perfil==='tecnico'&&typeof liveAtivo==='function'&&liveAtivo())pararLive(null);
+  }catch(e){}
+  fbStopListeners();
+  fbReady=false;
+  session=null;
+  try{localStorage.removeItem('mappo_session');}catch(e){}
+  document.body.classList.remove('has-rail');
+  const app=document.getElementById('app');if(app)app.classList.remove('active');
+  const lg=document.getElementById('loginScreen');if(lg)lg.classList.remove('hidden');
+  mostrarLogin();
+  if(window.firebase&&firebase.auth)firebase.auth().signOut().catch(()=>{});
+  alert('Seu acesso a esta empresa foi removido pelo gestor. Fale com ele se achar que foi engano.');
+  _encerrandoPorRemocao=false;
 }
 
 function logout(){
