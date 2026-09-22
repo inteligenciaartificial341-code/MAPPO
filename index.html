@@ -1144,7 +1144,20 @@ const NOMES_DOC={
   mappo_avatares:'Avatares', mappo_vrf_fases_config:'Fases do VRF',
   mappo_modulo_config:'Nome do módulo', mappo_vrf_fotos_meta:'Dados das fotos'
 };
-function _nomeAmigavel(k){return NOMES_DOC[k]||String(k).replace('mappo_','');}
+function _nomeAmigavel(k){
+  if(_ehDocDeFotos(k))return 'Fotos de um andar';
+  return NOMES_DOC[k]||String(k).replace('mappo_','');
+}
+/* Nome que o gestor deu ao andar; cai no id se a obra não estiver carregada aqui. */
+function _nomeDoAndar(andarId){
+  try{
+    for(const o of (vrfObras||[])){
+      const a=(o.andares||[]).find(x=>x&&x.id===andarId);
+      if(a&&a.nome)return a.nome;
+    }
+  }catch(e){}
+  return andarId;
+}
 
 /* Desenha (ou esconde) a faixa de alerta. Silenciosa quando está tudo certo — faixa
    que vive na tela vira paisagem e ninguém lê justamente quando importa. */
@@ -1181,6 +1194,42 @@ function _atualizarAlertaSync(){
 const ITEM_LISTS={'mappo_os':'id','mappo_manut':'id','mappo_tarefas':'id','mappo_clientes':'nome','mappo_tecnicos':'nome','mappo_vrf_obras':'id'};
 /* Coleções em dois níveis {grupo:{chave:valor}} — merge folha a folha */
 const LEAF_MAPS=['mappo_vrf_progresso','mappo_vrf_fotos','mappo_vrf_notas','mappo_vrf_fotos_meta'];
+
+/* ── FOTOS DE OBRA: UM DOCUMENTO POR ANDAR (Etapa B, 22/09/2026) ──
+   Todas as fotos de obra viviam num documento só, medido em 925 KB = 90% do teto de 1 MiB
+   do Firestore. Uma foto de área externa (140 KB) estourava, e daí as fotos do campo
+   parariam de chegar. Agora a NUVEM é dividida: um documento por andar. O localStorage
+   continua com UMA chave (o app lê vrfFotos[andar][etapa] em ~20 lugares e nenhum deles
+   precisou mudar) — quem recorta e remonta é esta camada.
+   De quebra resolve um desperdício grande: antes, cada foto nova fazia TODO aparelho
+   rebaixar o documento inteiro. Agora trafega só o andar que mudou. */
+const CHAVE_FOTOS='mappo_vrf_fotos';
+/* Prefixo próprio em vez de 'mappo_vrf_fotos__': 'mappo_vrf_fotos_meta' é uma chave real e
+   ficaria perigosamente perto. Este não colide com nada. */
+const FOTOS_PREFIXO='mappo_fotos_andar__';
+function _docDoAndar(andarId){return FOTOS_PREFIXO+String(andarId).replace(/[^A-Za-z0-9_-]/g,'_');}
+function _ehDocDeFotos(id){return typeof id==='string'&&id.startsWith(FOTOS_PREFIXO);}
+
+/* Monta o resultado do merge para UM andar: parte de `base`, troca a subárvore desse andar
+   pela de `fonteAndar`, e reaplica por cima o que foi lançado NESTE aparelho e ainda não
+   subiu. É a mesma regra do _mergeLeafs, restrita a um andar — o _mergeLeafs não serve aqui
+   porque ele reconstrói a partir do remoto, e um shard só tem um andar: usá-lo direto
+   apagaria todos os outros. */
+function _mesclarAndar(andarId,base,fonteAndar,local){
+  const pend=_pend[CHAVE_FOTOS]||{};
+  let out;try{out=JSON.parse(JSON.stringify(base||{}));}catch(e){out={};}
+  try{out[andarId]=JSON.parse(JSON.stringify(fonteAndar||{}));}catch(e){out[andarId]={};}
+  Object.keys(pend).forEach(path=>{
+    const i=path.indexOf(SEP);if(i<0)return;
+    const g=path.slice(0,i),k=path.slice(i+1);
+    if(g!==andarId)return;                       // só este andar
+    const lv=(local&&local[g])?local[g][k]:undefined;
+    if(lv===undefined){if(out[g])delete out[g][k];}
+    else out[g][k]=lv;
+  });
+  if(out[andarId]&&!Object.keys(out[andarId]).length)delete out[andarId];
+  return out;
+}
 const SEP='\u0001';
 
 /* Alterações LOCAIS ainda não confirmadas na nuvem.
@@ -1872,8 +1921,82 @@ async function _gravarMesclado(ref,mesclar){
   return out;
 }
 
+/* Envia as fotos de obra: um documento por andar, e só os andares que mudaram aqui.
+   O _pend já sabe quais mudaram (as chaves são 'andar<SEP>etapa'). Sem pendência nenhuma
+   (primeiro envio deste aparelho, ou migração do documento antigo) sobe todos. */
+async function _pushFotosPorAndar(){
+  if(!fbReady)return;
+  _detectarMudancasNaoVistas(CHAVE_FOTOS);
+  const raw=localStorage.getItem(CHAVE_FOTOS);
+  if(raw===null)return;
+  const local=_obj(raw);
+  const pend=_pend[CHAVE_FOTOS]||{};
+  let andares=[...new Set(Object.keys(pend)
+    .map(p=>{const i=p.indexOf(SEP);return i<0?'':p.slice(0,i);})
+    .filter(Boolean))];
+  if(!andares.length)andares=Object.keys(local);   // nada pendente: migra tudo
+  for(const g of andares){
+    const nomeDoc=_docDoAndar(g);
+    try{
+      const corpo=JSON.stringify(local[g]!==undefined?{[g]:local[g]}:{});
+      const bytes=_bytesDe(corpo);
+      if(bytes>=DOC_ALERTA_BYTES){
+        if(_chavesQuaseCheias[nomeDoc]===undefined)
+          fbLog('Atenção: fotos de um andar em '+Math.round(bytes/DOC_LIMITE_BYTES*100)+'% do limite de 1 MiB','erro');
+        _chavesQuaseCheias[nomeDoc]=bytes;_atualizarAlertaSync();
+      }else if(_chavesQuaseCheias[nomeDoc]!==undefined){
+        delete _chavesQuaseCheias[nomeDoc];_atualizarAlertaSync();
+      }
+      const ref=fbDB.collection('workspaces').doc(WORKSPACE).collection('data').doc(nomeDoc);
+      const mesclar=rj=>{
+        if(rj===null)return corpo;                       // primeira gravação deste andar
+        const remoto=_obj(rj);
+        if(!Object.keys(remoto).length)return corpo;     // nuvem vazia não apaga o que existe aqui
+        /* Sem nenhuma pendência deste andar (caso da MIGRAÇÃO, e de um reenvio de
+           segurança), não há como saber o que foi apagado de propósito — então a única
+           direção segura é UNIÃO: mantém o da nuvem e sobrepõe o daqui, sem remover nada.
+           Usar o merge normal aqui apagaria da nuvem tudo que este aparelho ainda não tem. */
+        const temPendencia=Object.keys(_pend[CHAVE_FOTOS]||{})
+          .some(p=>{const i=p.indexOf(SEP);return i>0&&p.slice(0,i)===g;});
+        if(!temPendencia){
+          const out=JSON.parse(JSON.stringify(remoto));
+          out[g]=Object.assign({},remoto[g]||{},local[g]||{});
+          return JSON.stringify(out);
+        }
+        return JSON.stringify(_mesclarAndar(g,remoto,remoto[g],local));
+      };
+      const mergedStr=await _gravarMesclado(ref,mesclar);
+      // a nuvem pode ter trazido coisa de outro aparelho junto: aplica aqui também
+      _aplicarShardFotos(mergedStr);
+      _confirmarEnvioAndar(g,mergedStr);
+      if(_falhasEnvio[nomeDoc]){delete _falhasEnvio[nomeDoc];_atualizarAlertaSync();}
+    }catch(e){
+      fbLog('Falha ao enviar fotos de um andar: '+e.message,'erro');
+      if(!_falhasEnvio[nomeDoc])_falhasEnvio[nomeDoc]={erro:e.message,hora:new Date().toLocaleTimeString('pt-BR')};
+      else _falhasEnvio[nomeDoc].erro=e.message;
+      _atualizarAlertaSync();
+    }
+  }
+  _snapshot[CHAVE_FOTOS]=localStorage.getItem(CHAVE_FOTOS);
+}
+
+/* Solta as pendências DESTE andar que já foram confirmadas. Restrito ao andar de propósito:
+   confirmar um shard não pode limpar pendência de andar que ainda nem foi enviado. */
+function _confirmarEnvioAndar(andarId,enviadoStr){
+  const env=_obj(enviadoStr), ag=_obj(localStorage.getItem(CHAVE_FOTOS)), pend=_pendDe(CHAVE_FOTOS);
+  Object.keys(pend).forEach(path=>{
+    const i=path.indexOf(SEP);if(i<0){delete pend[path];return;}
+    const g=path.slice(0,i),k=path.slice(i+1);
+    if(g!==andarId)return;
+    if(JSON.stringify((env[g]||{})[k])===JSON.stringify((ag[g]||{})[k]))delete pend[path];
+  });
+  if(_pend[CHAVE_FOTOS]&&!Object.keys(_pend[CHAVE_FOTOS]).length)delete _pend[CHAVE_FOTOS];
+  _saveTouch();
+}
+
 async function _doPush(key){
   if(!fbReady)return;
+  if(key===CHAVE_FOTOS)return _pushFotosPorAndar();  // nunca mais escreve o documento antigo
   const nice=key.replace('mappo_','');
   _detectarMudancasNaoVistas(key); // garante que nada local fique de fora do merge
   try{
@@ -2076,8 +2199,83 @@ function _aplicarNaMemoria(key,val){
 
 /* Aplica um dado vindo da nuvem no localStorage + variáveis em memória.
    remoteMs = quando a nuvem foi atualizada; protege alterações locais mais novas. */
+/* Este documento da coleção 'data' é nosso pra sincronizar?
+   A coleção guarda também os pub_{token} — os links de acompanhamento do cliente, com até
+   700 KB de miniaturas cada. Até 22/09/2026 o fbPullAll aplicava TUDO que vinha da coleção:
+   como pub_* não casa com nenhuma regra de merge, caía no ramo "objeto único" e era gravado
+   no localStorage. Resultado: cada link gerado pra um cliente era baixado e guardado no
+   aparelho de TODOS os usuários, em todo boot, pra sempre — desperdiçando justamente o
+   recurso que mais falta aqui, e crescendo sem parar. Nada no app lê essas chaves do
+   aparelho: a página pública busca direto do Firestore. */
+function _ehChaveDeSync(id){
+  return SYNC_KEYS.includes(id)||_ehDocDeFotos(id);
+}
+
+/* Chegou o documento de UM andar. Troca só a subárvore daquele andar — os demais andares
+   que já estão aqui não são tocados. */
+function _aplicarShardFotos(jsonStr){
+  const shard=_obj(jsonStr);
+  const andares=Object.keys(shard);
+  if(!andares.length)return;            // shard vazio nunca apaga nada aqui
+  _detectarMudancasNaoVistas(CHAVE_FOTOS);
+  const atual=localStorage.getItem(CHAVE_FOTOS);
+  const local=_obj(atual);
+  let out=local;
+  andares.forEach(g=>{out=_mesclarAndar(g,out,shard[g],local);});
+  const novo=JSON.stringify(out);
+  if(novo===atual){_snapshot[CHAVE_FOTOS]=novo;return;}
+  _setLocalQuiet(CHAVE_FOTOS,novo);
+  _aplicarNaMemoria(CHAVE_FOTOS,out);
+  fbLog('Recebido: fotos de obra','pull');
+  fbOnRemoteChange(CHAVE_FOTOS);
+}
+
+/* Documento ANTIGO (mappo_vrf_fotos, de antes da divisão por andar). Durante a transição
+   ele ainda é lido, mas de forma SÓ-ADITIVA: o que já está aqui sempre vence e nada é
+   apagado. Usar o merge normal seria perigoso — ele reconstrói a partir do remoto, e o
+   documento antigo não conhece nenhum andar que já tenha vindo por shard: os apagaria. */
+function _aplicarLegadoFotos(jsonStr){
+  const legado=_obj(jsonStr);
+  if(!Object.keys(legado).length)return;
+  const atual=localStorage.getItem(CHAVE_FOTOS);
+  const local=_obj(atual);
+  let mudou=false;
+  Object.keys(legado).forEach(g=>{
+    const etapas=legado[g]||{};
+    Object.keys(etapas).forEach(k=>{
+      if(local[g]&&local[g][k]!==undefined)return;   // o que está aqui vence
+      local[g]=local[g]||{};
+      local[g][k]=etapas[k];
+      mudou=true;
+    });
+  });
+  if(!mudou)return;
+  const novo=JSON.stringify(local);
+  _setLocalQuiet(CHAVE_FOTOS,novo);
+  _aplicarNaMemoria(CHAVE_FOTOS,local);
+  fbLog('Recebido: fotos de obra (documento antigo)','pull');
+  fbOnRemoteChange(CHAVE_FOTOS);
+}
+
+/* Remove o que aquele vazamento já deixou gravado nos aparelhos. Roda uma vez por sessão,
+   antes do primeiro pull. */
+function _limparPubVazados(){
+  let n=0,bytes=0;
+  try{
+    for(const k of Object.keys(localStorage)){
+      if(!k.startsWith('pub_'))continue;
+      bytes+=_bytesDe(localStorage.getItem(k)||'');
+      localStorage.removeItem(k);n++;
+    }
+  }catch(e){fbLog('Falha ao limpar links públicos guardados: '+e.name+' — '+e.message,'erro');}
+  if(n)fbLog('Liberados '+Math.round(bytes/1024)+' KB de links públicos que não precisavam estar neste aparelho ('+n+')','ok');
+}
+
 function fbApply(key,jsonStr,remoteMs){
   if(jsonStr===null||jsonStr===undefined)return;
+  if(!_ehChaveDeSync(key))return; // defesa: nunca aplicar pub_* nem documento desconhecido
+  if(_ehDocDeFotos(key))return _aplicarShardFotos(jsonStr);   // um andar
+  if(key===CHAVE_FOTOS)return _aplicarLegadoFotos(jsonStr);   // documento antigo, só-aditivo
   const nice=key.replace('mappo_','');
   _detectarMudancasNaoVistas(key); // protege o que foi lançado aqui e ainda não subiu
   const atual=localStorage.getItem(key);
@@ -2211,7 +2409,23 @@ function fbStartListeners(){
     },err=>fbLog('Listener '+key+': '+err.message,'erro'));
     fbUnsubs.push(unsub);
   });
-  fbLog('Escutando '+SYNC_KEYS.length+' coleções em tempo real','ok');
+  /* Os documentos de foto são um por andar e os andares são criados a qualquer momento —
+     não dá pra ter um listener por nome fixo. Uma consulta por faixa de nome pega todos os
+     shards, inclusive os que ainda nem existem. */
+  try{
+    const unsubFotos=fbDB.collection('workspaces').doc(WORKSPACE).collection('data')
+      .where(firebase.firestore.FieldPath.documentId(),'>=',FOTOS_PREFIXO)
+      .where(firebase.firestore.FieldPath.documentId(),'<',FOTOS_PREFIXO+'')
+      .onSnapshot(snap=>{
+        snap.docChanges().forEach(ch=>{
+          if(ch.type==='removed')return;   // apagar shard não apaga foto daqui
+          const d=ch.doc.data();
+          if(d&&typeof d.json==='string')_aplicarShardFotos(d.json);
+        });
+      },err=>fbLog('Listener das fotos por andar: '+err.message,'erro'));
+    fbUnsubs.push(unsubFotos);
+  }catch(e){fbLog('Não consegui escutar as fotos por andar: '+e.message,'erro');}
+  fbLog('Escutando '+SYNC_KEYS.length+' coleções + fotos por andar em tempo real','ok');
 }
 /* extrai o horário (ms) do updatedAt do documento da nuvem */
 function _remoteMs(d){
@@ -2227,11 +2441,13 @@ async function fbPullAll(){
   if(!fbReady)return;
   try{
     const col=await fbDB.collection('workspaces').doc(WORKSPACE).collection('data').get();
+    let aplicados=0;
     col.forEach(doc=>{
+      if(!_ehChaveDeSync(doc.id))return;  // pula pub_* e qualquer documento que não é nosso
       const d=doc.data();
-      if(d&&typeof d.json==='string')fbApply(doc.id,d.json,_remoteMs(d));
+      if(d&&typeof d.json==='string'){fbApply(doc.id,d.json,_remoteMs(d));aplicados++;}
     });
-    fbLog('Dados da nuvem carregados ('+col.size+' coleções)','ok');
+    fbLog('Dados da nuvem carregados ('+aplicados+' de '+col.size+' documentos)','ok');
   }catch(e){fbLog('Pull inicial falhou: '+e.message,'erro');}
 }
 
@@ -2239,6 +2455,8 @@ async function fbPullAll(){
 async function fbSeedFromLocal(){
   if(!fbReady)return;
   for(const key of SYNC_KEYS){
+    // as fotos não têm mais documento único: quem sobe é o _pushFotosPorAndar, logo abaixo
+    if(key===CHAVE_FOTOS)continue;
     const raw=localStorage.getItem(key);
     if(raw!==null){
       try{
@@ -2248,6 +2466,10 @@ async function fbSeedFromLocal(){
       }catch(e){}
     }
   }
+  /* Migração: o que veio do documento antigo (ou já existia aqui) sobe dividido por andar.
+     É idempotente — o merge de cada shard parte do que já está na nuvem. */
+  try{if(localStorage.getItem(CHAVE_FOTOS)!==null)await _pushFotosPorAndar();}
+  catch(e){fbLog('Falha ao dividir as fotos por andar: '+e.message,'erro');}
 }
 
 /* Sincronização inicial com a nuvem: só roda depois que fbInit confirma o login anônimo
@@ -2256,6 +2478,7 @@ async function initSync(){
   // referência inicial ANTES de baixar — inclusive das coleções ainda vazias,
   // senão uma primeira gravação feita aqui não seria reconhecida como nossa
   SYNC_KEYS.forEach(k=>{_snapshot[k]=localStorage.getItem(k);});
+  _limparPubVazados();    // 0. devolve o espaço que o vazamento de pub_* já ocupou aqui
   await fbPullAll();      // 1. baixa o que já existe na nuvem
   await fbSeedFromLocal();// 2. sobe o que só existe local
   _bootDone=true;         // a partir daqui, gravações são ações reais do usuário
@@ -2290,16 +2513,29 @@ function fbLog(msg,tipo){
 function renderDiagTamanhos(){
   const alvo=document.getElementById('diagTamanhos');
   if(!alvo)return;
-  const linhas=SYNC_KEYS.map(k=>{
+  const linhas=[];
+  SYNC_KEYS.forEach(k=>{
     const raw=localStorage.getItem(k);
-    return raw===null?null:{k,bytes:_bytesDe(raw)};
-  }).filter(x=>x&&x.bytes>1024).sort((a,b)=>b.bytes-a.bytes);
-  if(!linhas.length){alvo.innerHTML='<p class="diag-empty">Nada guardado ainda.</p>';return;}
-  alvo.innerHTML=linhas.map(({k,bytes})=>{
+    if(raw===null)return;
+    /* As fotos vão pra nuvem divididas por andar (um documento cada), então mostrar o total
+       daria um número que não corresponde a limite nenhum. Uma linha por andar é o que de
+       fato é medido contra o teto de 1 MiB. */
+    if(k===CHAVE_FOTOS){
+      const fotos=_obj(raw);
+      Object.keys(fotos).forEach(g=>{
+        linhas.push({nome:'Fotos — '+_nomeDoAndar(g),bytes:_bytesDe(JSON.stringify({[g]:fotos[g]}))});
+      });
+      return;
+    }
+    linhas.push({nome:_nomeAmigavel(k),bytes:_bytesDe(raw)});
+  });
+  const visiveis=linhas.filter(x=>x.bytes>1024).sort((a,b)=>b.bytes-a.bytes);
+  if(!visiveis.length){alvo.innerHTML='<p class="diag-empty">Nada guardado ainda.</p>';return;}
+  alvo.innerHTML=visiveis.map(({nome,bytes})=>{
     const pct=Math.min(100,Math.round(bytes/DOC_LIMITE_BYTES*100));
     const estado=bytes>=DOC_LIMITE_BYTES?'cheio':bytes>=DOC_ALERTA_BYTES?'aviso':'';
     return `<div class="diag-tam">
-      <span class="diag-tam-nome">${escapeHtml(_nomeAmigavel(k))}</span>
+      <span class="diag-tam-nome">${escapeHtml(nome)}</span>
       <span class="diag-barra ${estado}"><i style="width:${pct}%"></i></span>
       <span class="diag-tam-kb">${Math.round(bytes/1024)} KB · ${pct}%</span>
     </div>`;
