@@ -18,15 +18,15 @@
 
 | # | Item | Situação |
 |---|---|---|
-| 1 | **Fotos estouram o teto de 1 MiB do Firestore** — todas as fotos de obra vivem num documento só, medido em **925 KB (90%)** antes da Etapa A. Quando encher, as fotos do campo param de chegar | 🔴 **próximo — Etapa B (a cura)** |
-| 4 | **`mappo_localizacao_historico` cresce para sempre** no mesmo documento — mesmo problema do item 1, chegando mais devagar | ⏳ na fila |
+| 4 | **`mappo_localizacao_historico` cresce para sempre** no mesmo documento — mesmo problema que o item 1 tinha, chegando mais devagar | 🔴 **próximo do bloco** |
 
-**Plano do item 1 (sem custo — Blaze descartado):**
-- ~~Etapa A — fotos menores~~ ✅ **publicado em `9d49fba`**
-- **Etapa B — a cura:** um documento por andar (`mappo_vrf_fotos__{andar}`) em vez de um só.
-  Remove o teto de vez e corta o desperdício de banda (hoje cada foto nova faz **todo
-  aparelho rebaixar o documento inteiro**). Mexe na camada de sincronização — a parte mais
-  delicada do app: exige teste pesado e migração dos dados que já existem.
+**Item 1 (fotos estourando o teto) — resolvido:** Etapa A publicada em `9d49fba`, Etapa B em
+`121cbab`. Restam dois desdobramentos:
+
+- 🧹 **Apagar o documento antigo `mappo_vrf_fotos` da nuvem.** Ele continua lá, ocupando
+  espaço, e é lido de forma só-aditiva durante a transição. Só apagar **depois que todos os
+  aparelhos (gestor e técnicos) tiverem aberto a versão nova pelo menos uma vez** — um
+  aparelho desatualizado ainda depende dele. Passo manual e explícito, não automático.
 - **Etapa C — opcional:** recompactar as fotos já guardadas. A Etapa A só afeta fotos novas;
   as antigas continuam no tamanho velho. ⚠️ Perda de qualidade **irreversível**, e foto de
   serviço é prova. Só com autorização explícita, e não recomendado com obras em garantia.
