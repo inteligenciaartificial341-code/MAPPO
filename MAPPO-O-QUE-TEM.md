@@ -8,7 +8,7 @@
 > antes do commit + publicação. Ao final de cada publicação: mover o item de
 > `MAPPO-O-QUE-FALTA.md` para cá e registrar no histórico no fim do arquivo.
 
-**Estado:** publicado até o commit `470751e` · atualizado em 22/09/2026
+**Estado:** publicado até o commit `ed1ec31` · atualizado em 22/09/2026
 **Endereço:** https://inteligenciaartificial341-code.github.io/MAPPO/
 
 ---
@@ -56,9 +56,9 @@ recentes, status da equipe e próximas manutenções. Card do VRF quando o ramo 
 - Criar: cliente, endereço, tipo, técnico, data/hora, quantidade de itens, observações
 - Filtros: Todas, Pendentes, Em andamento, Em revisão, Concluídas, Atrasadas
   (pendente com data vencida vira "atrasada" sozinha)
-- No detalhe: ver fotos em tela cheia, escrever nota pro técnico, lançar valor e marcar
-  pago/a pagar, **devolver para revisão com motivo**, gerar link pro cliente, agendar a
-  próxima manutenção, excluir
+- No detalhe: **trocar o técnico responsável**, ver fotos em tela cheia, escrever nota pro
+  técnico, lançar valor e marcar pago/a pagar, **devolver para revisão com motivo**, gerar
+  link pro cliente, agendar a próxima manutenção, excluir
 
 ### Clientes
 Cadastro (nome, endereço, contato), histórico de visitas por cliente, sugestão automática
@@ -67,6 +67,9 @@ ao criar OS.
 ### Manutenções
 Agendamento com tipo (Preventiva/Corretiva/Limpeza) e recorrência (única, 3, 6 ou 12 meses).
 Ao concluir uma recorrente, **a próxima é criada sozinha**. Gera OS a partir da manutenção.
+**Editável depois de criada** — inclusive trocar o técnico, essencial quando alguém sai da
+empresa e a manutenção se repete mês a mês. Se já tinha sido enviada ao Google Agenda, o app
+avisa e reabre a Agenda com os dados novos (o evento antigo precisa ser apagado à mão).
 Aviso automático 7 dias antes (na plataforma e por notificação do navegador). Botão para
 Google Agenda.
 
@@ -170,6 +173,7 @@ Devolvida para revisão, o técnico vê o motivo e refaz.
 
 | Data | Commit | O que entrou |
 |---|---|---|
+| 23/09/2026 | `ed1ec31` | **Troca de técnico em OS e manutenção.** Antes, atribuído era definitivo: o técnico da OS era texto fixo e na manutenção nada era editável — um problema sério quando alguém sai da empresa e a manutenção recorrente segue no nome dele. Junto: aviso de nova versão do app disponível, e mensagem clara quando a aba está desatualizada |
 | 22/09/2026 | `470751e` | **Recuperação de senha por e-mail.** Antes não existia caminho nenhum: quem esquecia a senha não entrava mais, e só o dono resolvia à mão no Console do Firebase |
 | 22/09/2026 | `c56d38b` | **Bloco 2.** Técnico removido perde o acesso na hora (antes seguia lendo até fechar a aba) e o **convite de acesso passa a valer 7 dias** — antes o código valia para sempre até ser usado ou revogado. Regras do Firestore publicadas com 19/19 casos verificados no Emulator |
 | 22/09/2026 | `da03885` | **Bloco 1 inteiro.** Valor monetário brasileiro lido certo ("1.234,56" virava R$ 1,23); foto acima de 25 MB recusada antes de travar o aparelho; toque duplo na foto não duplica mais; renomear técnico passa a arrastar as **tarefas** dele (ele deixava de vê-las); nota de adiantamento pode ser excluída, com registro de quem excluiu; **filtro de período** no Financeiro |
