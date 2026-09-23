@@ -6237,7 +6237,16 @@ async function salvarTecnico(id){
 async function removerTecnico(id){
   const t=tecnicos.find(x=>x.id===id);if(!t)return;
   const abertas=osList.filter(o=>o.tecnico===t.nome&&o.status!=='concluida').length;
-  const msg=abertas?`${t.nome} tem ${abertas} OS em aberto. Remover mesmo assim? (Reatribua as OS depois)`:`Remover ${t.nome} da equipe? Ele perde o acesso na hora.`;
+  /* Conta TUDO que fica no nome dele, não só as OS: manutenção recorrente segue se repetindo
+     sozinha mês a mês no nome de quem já saiu, e era o caso que mais doía. Agora dá pra
+     reatribuir de verdade (openDetalhe e openModalManutEdit), então o aviso vale. */
+  const manutAbertas=manutencoes.filter(mn=>!mn.concluida&&mn.tecnico===t.nome).length;
+  const tarefasAbertas=tarefas.filter(tf=>tf.status!=='concluida'&&tf.tecnico===t.nome).length;
+  const pend=[abertas?abertas+' OS':'',manutAbertas?manutAbertas+' manutenção'+(manutAbertas>1?'ões':''):'',
+              tarefasAbertas?tarefasAbertas+' tarefa'+(tarefasAbertas>1?'s':''):''].filter(Boolean).join(', ');
+  const msg=pend
+    ? `${t.nome} ainda tem ${pend} em aberto.\n\nRemover mesmo assim? Reatribua depois abrindo cada uma e trocando o técnico.`
+    : `Remover ${t.nome} da equipe? Ele perde o acesso na hora.`;
   if(!confirm(msg))return;
   // se a vaga tinha um convite pendente (ainda não consumido), revoga ANTES de remover a
   // vaga localmente -- sem isto o código continua válido e redimível mesmo depois da vaga
@@ -6319,8 +6328,23 @@ function getTecnicoLoc(t){const locs=JSON.parse(localStorage.getItem('mappo_loca
 /* ════════════════════════════════════════
    MODAIS
    ════════════════════════════════════════ */
-function showModal(html,size){document.getElementById('modalRoot').innerHTML=`<div class="overlay open" id="curOverlay" onclick="if(event.target===this)closeModal()"><div class="modal ${size==='wide'?'modal-wide':''}">${html}</div></div>`;}
-function closeModal(){const o=document.getElementById('curOverlay');if(o){o.classList.remove('open');setTimeout(()=>document.getElementById('modalRoot').innerHTML='',200);}}
+function showModal(html,size){clearTimeout(_timerFecharModal);_timerFecharModal=null;document.getElementById('modalRoot').innerHTML=`<div class="overlay open" id="curOverlay" onclick="if(event.target===this)closeModal()"><div class="modal ${size==='wide'?'modal-wide':''}">${html}</div></div>`;}
+/* O timer de limpeza do closeModal fica guardado porque ele roda 200ms DEPOIS (animação de
+   saída). Abrir outro modal dentro dessa janela — fechar um e abrir o próximo em seguida,
+   como faz a edição de manutenção que reoferece o Google Agenda — fazia o timer antigo
+   apagar o modal NOVO, que aparecia e sumia sozinho. showModal cancela o timer pendente. */
+let _timerFecharModal=null;
+function closeModal(){
+  const o=document.getElementById('curOverlay');
+  if(!o)return;
+  o.classList.remove('open');
+  clearTimeout(_timerFecharModal);
+  _timerFecharModal=setTimeout(()=>{
+    _timerFecharModal=null;
+    const raiz=document.getElementById('modalRoot');
+    if(raiz)raiz.innerHTML='';
+  },200);
+}
 
 /* ════════════════════════════════════════
    TUTORIAL GUIADO (coach-marks/spotlight) — Story 17
@@ -6799,6 +6823,39 @@ function criarOS(){
 }
 
 /* DETALHE OS */
+/* Seletor de técnico para REATRIBUIR algo que já está atribuído.
+   Até 23/09/2026 nem a OS nem a manutenção permitiam trocar o técnico depois de criadas:
+   quem saía da empresa levava junto tudo que estava no nome dele, e o proprio aviso de
+   removerTecnico ("Reatribua as OS depois") mandava fazer algo que não existia. Pior nas
+   manutenções recorrentes, que se repetem sozinhas mês a mês no nome de quem já foi embora.
+   Inclui o nome atual mesmo que a pessoa não esteja mais na equipe — senão o <select>
+   nasceria mostrando outro técnico e um clique distraído reatribuiria sem querer. */
+function _selectTecnicoReatribuir(idEl,atual,onchangeJs,permitirVazio){
+  const nomes=nomesTecnicos();
+  const fora=!!(atual&&!nomes.includes(atual));   // atribuído a quem saiu da equipe
+  const lista=fora?[atual].concat(nomes):nomes;
+  /* "A definir" só onde o campo de fato aceita ficar sem ninguém (manutenção). Sem esta
+     opção, uma manutenção sem técnico abriria o <select> já marcando o primeiro da lista —
+     e salvar atribuiria a ele sem ninguém ter escolhido. */
+  const vazio=permitirVazio?`<option value="" ${!atual?'selected':''}>A definir</option>`:'';
+  return `<select id="${idEl}" ${onchangeJs?`onchange="${onchangeJs}"`:''} style="font-size:15px">
+    ${vazio}
+    ${lista.map(n=>`<option ${n===atual?'selected':''}>${escapeHtml(n)}</option>`).join('')}
+    ${(!lista.length&&!permitirVazio)?'<option value="">Nenhum técnico cadastrado</option>':''}
+  </select>${fora?'<div style="font-size:11.5px;color:var(--red);margin-top:4px">Este técnico não está mais na equipe</div>':''}`;
+}
+
+function reatribuirOS(id){
+  const os=osList.find(o=>o.id===id);if(!os)return;
+  const novo=(document.getElementById('osTecnicoNovo')||{}).value||'';
+  if(!novo||novo===os.tecnico)return;
+  const antigo=os.tecnico;
+  os.tecnico=novo;
+  saveOS();
+  renderView(currentView);atualizarBadges();
+  toast('OS reatribuída: '+(antigo||'sem técnico')+' → '+novo,'success');
+}
+
 function openDetalhe(id){
   const os=osList.find(o=>o.id===id);if(!os)return;currentDetailId=id;
   const s=statusReal(os);
@@ -6836,7 +6893,9 @@ function openDetalhe(id){
     <div class="modal-body">
       <div class="frow" style="margin-bottom:6px">
         <div class="fg" style="margin-bottom:10px"><label>Status</label><div style="font-size:15px">${lbl[s]}</div></div>
-        <div class="fg" style="margin-bottom:10px"><label>Técnico</label><div style="font-size:15px">👷 ${escapeHtml(os.tecnico)}</div></div>
+        <div class="fg" style="margin-bottom:10px"><label>Técnico</label>
+          ${_selectTecnicoReatribuir('osTecnicoNovo',os.tecnico,`reatribuirOS('${os.id}')`)}
+        </div>
         <div class="fg" style="margin-bottom:10px"><label>Data / Hora</label><div style="font-size:15px">📅 ${fmtDate(os.data)} ${os.hora||''}</div></div>
         <div class="fg" style="margin-bottom:10px"><label>${vrf?'Splits':'Itens'}</label><div style="font-size:15px">${vrf?`❄️ ${splits}`:`📷 ${splits} ${splits>1?'itens':'item'}`}</div></div>
       </div>
@@ -6938,6 +6997,59 @@ function criarManut(){
   if(settings.googleAgenda!==false)setTimeout(()=>{if(confirm('Adicionar ao Google Agenda?'))abrirGoogleAgenda(m);},400);
 }
 
+/* Salva a edição de uma manutenção já agendada — inclusive TROCAR O TÉCNICO, que era
+   impossível até 23/09/2026. Se a manutenção já tinha sido mandada pro Google Agenda, avisa
+   e reabre a Agenda com os dados novos (ver _reofereceAgenda). */
+function salvarManutEdicao(id){
+  const m=manutencoes.find(x=>x.id===id);if(!m)return;
+  const data=(document.getElementById('meData').value||'').trim();
+  if(!data){toast('Informe a data da manutenção','warn');return;}
+  const antes={tecnico:m.tecnico,dataAgendada:m.dataAgendada,tipo:m.tipo,endereco:m.endereco,obs:m.obs,recorrencia:m.recorrencia};
+  m.dataAgendada=data;
+  m.tecnico=(document.getElementById('meTecnico')||{}).value||'';
+  m.tipo=document.getElementById('meTipo').value;
+  m.recorrencia=document.getElementById('meRecorrencia').value;
+  m.endereco=(document.getElementById('meEndereco').value||'').trim();
+  m.obs=(document.getElementById('meObs').value||'').trim();
+  // mudou a data: o aviso de "faltam 7 dias" precisa poder disparar de novo
+  if(antes.dataAgendada!==m.dataAgendada)m.avisado=false;
+  const mudou=Object.keys(antes).some(k=>antes[k]!==m[k]);
+  const vaiReoferecerAgenda=!!(mudou&&m.agendaEnviadaEm);
+  saveManut();
+  /* Só fecha o modal se NÃO for abrir outro em seguida: closeModal() limpa o #modalRoot
+     200ms depois (animação de saída), e esse timeout apagaria o modal da Agenda que acabou
+     de ser aberto — ele apareceria e sumiria sozinho. showModal já substitui o conteúdo. */
+  if(!vaiReoferecerAgenda)closeModal();
+  renderView(currentView);atualizarBadges();
+  if(!mudou){toast('Nada mudou','info');return;}
+  toast(antes.tecnico!==m.tecnico
+    ? 'Manutenção reatribuída: '+(antes.tecnico||'a definir')+' → '+(m.tecnico||'a definir')
+    : 'Manutenção atualizada','success');
+  if(vaiReoferecerAgenda)_reofereceAgenda(m);
+}
+
+/* O link do Google Agenda é um "criar evento" pré-preenchido — o app nunca soube o id do
+   evento criado, então NÃO existe como atualizá-lo de fora. O honesto é dizer isso e abrir o
+   evento novo, avisando pra apagar o antigo. */
+function _reofereceAgenda(m){
+  showModal(`
+    <div class="modal-head"><h2>📅 Atualizar no Google Agenda</h2></div>
+    <div class="modal-body">
+      <p style="font-size:14px;line-height:1.6;margin-bottom:12px">
+        Você já tinha enviado esta manutenção para o Google Agenda. O evento que está lá
+        continua com os <b>dados antigos</b> — o MAPPO não consegue alterá-lo à distância.
+      </p>
+      <p style="font-size:14px;line-height:1.6">
+        Abra a Agenda com os dados novos e <b>apague o evento anterior</b> para não ficar em
+        duplicidade.
+      </p>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal()">Depois</button>
+      <button class="btn btn-primary" onclick="closeModal();abrirGoogleAgenda(manutencoes.find(x=>x.id==='${m.id}'))">Abrir Agenda com os dados novos</button>
+    </div>`);
+}
+
 function openModalManutEdit(id){
   const m=manutencoes.find(x=>x.id===id);if(!m)return;
   const dias=diasAte(m.dataAgendada);
@@ -6945,16 +7057,31 @@ function openModalManutEdit(id){
     <div class="modal-head"><h2>🔄 ${escapeHtml(m.cliente)}</h2></div>
     <div class="modal-body">
       <div class="frow">
-        <div class="fg"><label>Data</label><div style="font-size:15px">📅 ${fmtDate(m.dataAgendada)} ${dias>=0?'(em '+dias+' dias)':'(vencida)'}</div></div>
-        <div class="fg"><label>Tipo</label><div style="font-size:15px">${escapeHtml(m.tipo)}</div></div>
-        <div class="fg"><label>Recorrência</label><div style="font-size:15px">${escapeHtml(m.recorrencia)}</div></div>
-        <div class="fg"><label>Técnico</label><div style="font-size:15px">${escapeHtml(m.tecnico||'A definir')}</div></div>
+        <div class="fg"><label>Data</label><input type="date" id="meData" value="${escapeHtml(m.dataAgendada||'')}">
+          <div style="font-size:11.5px;color:var(--gray-400);margin-top:4px">${dias>=0?'em '+dias+' dias':'vencida'}</div></div>
+        <div class="fg"><label>Técnico</label>
+          ${_selectTecnicoReatribuir('meTecnico',m.tecnico||'','',true)}
+        </div>
       </div>
-      ${m.endereco?`<div class="fg"><label>Endereço</label><div style="font-size:14px">📍 ${escapeHtml(m.endereco)}</div></div>`:''}
-      ${m.obs?`<div class="fg"><label>Observações</label><div style="font-size:14px">${escapeHtml(m.obs)}</div></div>`:''}
+      <div class="frow">
+        <div class="fg"><label>Tipo</label><select id="meTipo">
+          ${['Preventiva','Corretiva','Limpeza'].map(t=>`<option ${m.tipo===t?'selected':''}>${t}</option>`).join('')}
+        </select></div>
+        <div class="fg"><label>Recorrência</label><select id="meRecorrencia">
+          ${[['Única','Única'],['Trimestral','A cada 3 meses'],['Semestral','A cada 6 meses'],['Anual','Anual']]
+            .map(([v,t])=>`<option value="${v}" ${m.recorrencia===v?'selected':''}>${t}</option>`).join('')}
+        </select></div>
+      </div>
+      <div class="fg"><label>Endereço</label><input type="text" id="meEndereco" value="${escapeHtml(m.endereco||'')}" placeholder="Endereço"></div>
+      <div class="fg"><label>Observações</label><input type="text" id="meObs" value="${escapeHtml(m.obs||'')}" placeholder="Detalhes da manutenção"></div>
+      ${m.agendaEnviadaEm?`<div style="font-size:12px;color:#92400e;background:#fffbeb;border-radius:8px;padding:9px 11px;line-height:1.5">
+        📅 Esta manutenção já foi enviada ao Google Agenda. Se você mudar algo aqui, o evento
+        lá continua com os dados antigos — ao salvar, o MAPPO abre a Agenda com os dados novos
+        pra você substituir.</div>`:''}
     </div>
     <div class="modal-foot">
       <button class="btn btn-danger" onclick="excluirManut('${m.id}')">🗑 Excluir</button>
+      <button class="btn btn-primary" onclick="salvarManutEdicao('${m.id}')">✓ Salvar alterações</button>
       <button class="btn btn-ghost" onclick="abrirGoogleAgenda(manutencoes.find(x=>x.id==='${m.id}'))">📅 Google Agenda</button>
       ${!m.concluida?`<button class="btn btn-gold" onclick="criarOSdeManut('${m.id}')">📋 Gerar OS</button><button class="btn btn-primary" onclick="concluirManut('${m.id}')">✓ Concluir</button>`:'<button class="btn btn-primary" onclick="closeModal()">Fechar</button>'}
     </div>`);
@@ -7010,6 +7137,9 @@ function openHistoricoCliente(nome){
 /* ── GOOGLE AGENDA ── */
 function abrirGoogleAgenda(m){
   if(!m)return;
+  /* Marca que esta manutenção foi parar na Agenda. É o que permite, numa edição futura,
+     avisar que o evento de lá ficou com os dados antigos (ver salvarManutEdicao). */
+  if(!m.agendaEnviadaEm){m.agendaEnviadaEm=new Date().toISOString();saveManut();}
   const dt=m.dataAgendada.replace(/-/g,'');
   const titulo=encodeURIComponent(`Manutenção ${m.tipo} — ${m.cliente}`);
   const det=encodeURIComponent(`Manutenção ${m.recorrencia}. ${m.obs||''}\nTécnico: ${m.tecnico||'A definir'}\n— via MAPPO`);
