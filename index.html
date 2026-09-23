@@ -1074,7 +1074,9 @@
          tudo certo; aparece quando um envio falha ou quando um documento se aproxima do
          teto de 1 MiB do Firestore. Antes disto, os dois casos só existiam no log de
          diagnóstico, que ninguém abre -- a sincronização podia estar parada há dias. -->
-    <div class="sync-alerta" id="syncAlerta" hidden onclick="nav('config')"></div>
+    <!-- o clique é definido em _atualizarAlertaSync: leva ao diagnóstico nos avisos de
+         sincronização, e recarrega a página no aviso de versão nova -->
+    <div class="sync-alerta" id="syncAlerta" hidden></div>
 
     <div class="content" id="contentArea">
       <!-- VIEWS injetadas via JS -->
@@ -1158,6 +1160,10 @@ function _bytesDe(str){
 }
 let _falhasEnvio={};        // {chave:{erro,hora}} — enquanto tiver algo aqui, a faixa fica na tela
 let _chavesQuaseCheias={};  // {chave:bytes} — passou do limiar, ainda não estourou
+/* Versão nova publicada com esta aba aberta. O Service Worker assume o controle na hora, mas
+   o JavaScript DESTA página continua o antigo até recarregar — e aí ações que dependem de
+   regra nova falham sem explicação (aconteceu de verdade com o convite em 23/09/2026). */
+let _versaoNovaDisponivel=false;
 
 /* Nome que o dono do app entende, não o nome da chave interna. */
 const NOMES_DOC={
@@ -1193,8 +1199,20 @@ function _atualizarAlertaSync(){
   const el=document.getElementById('syncAlerta');
   if(!el)return;
   const falhas=Object.keys(_falhasEnvio), cheias=Object.keys(_chavesQuaseCheias);
-  if(!falhas.length&&!cheias.length){el.hidden=true;el.className='sync-alerta';el.innerHTML='';return;}
+  if(!_versaoNovaDisponivel&&!falhas.length&&!cheias.length){el.hidden=true;el.className='sync-alerta';el.innerHTML='';el.onclick=()=>nav('config');return;}
   el.hidden=false;
+  /* Versão desatualizada vence tudo: enquanto esta aba roda código velho, qualquer outro
+     aviso é secundário -- e várias ações podem falhar sem motivo aparente. */
+  if(_versaoNovaDisponivel){
+    el.className='sync-alerta aviso';
+    el.onclick=()=>location.reload();
+    el.innerHTML=`<span class="sync-alerta-ico">🔄</span>
+      <span class="sync-alerta-txt"><b>Nova versão do MAPPO disponível.</b>
+      Recarregue para atualizar — até lá, algumas ações podem falhar.</span>
+      <span class="sync-alerta-acao">Recarregar agora</span>`;
+    return;
+  }
+  el.onclick=()=>nav('config');
   if(falhas.length){ // falha real vence o aviso preventivo
     const k=falhas[0], f=_falhasEnvio[k];
     el.className='sync-alerta erro';
@@ -6020,6 +6038,15 @@ async function gerarConviteTecnico(tecnicoId){
     _mostrarModalConvite(tecnicoId);
   }catch(e){
     fbLog('Falha ao gerar convite: '+e.code+' — '+e.message,'erro');
+    /* permission-denied aqui quase sempre significa UMA coisa: esta aba está rodando uma
+       versão antiga do app, que não manda o campo de validade que a regra passou a exigir
+       (22/09/2026). O Service Worker busca o index novo, mas uma aba já aberta continua com
+       o JavaScript velho na memória até recarregar. Dizer "tente de novo" nesse caso é
+       cruel: tentar de novo nunca resolve. Mensagem própria, com a ação que resolve. */
+    if(e&&e.code==='permission-denied'){
+      toast('Seu app está desatualizado — recarregue a página (Ctrl+Shift+R) e gere o convite de novo','error');
+      return;
+    }
     toast('Não foi possível gerar o convite — tente de novo','error');
   }
 }
@@ -8535,6 +8562,21 @@ if('serviceWorker'in navigator){
   navigator.serviceWorker.addEventListener('message',(event)=>{
     if(event.data&&event.data.type==='sw-cache-warning')fbLog('Service Worker — item não cacheado: '+event.data.detail,'erro');
   });
+  /* Versão nova publicada enquanto esta aba está aberta (23/09/2026).
+     O Service Worker usa skipWaiting/clients.claim, então ele assume o controle na hora —
+     mas o JavaScript DESTA página continua sendo o antigo até recarregar. Isso já causou um
+     problema real: depois que a regra do convite passou a exigir o campo de validade, gerar
+     convite numa aba velha falhava com "não foi possível gerar", sem pista nenhuma do
+     motivo.
+     Aqui o app avisa, em vez de recarregar sozinho: recarregar no meio de uma execução de OS
+     perderia o que o técnico está preenchendo na tela. Quem decide a hora é o usuário. */
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{
+    if(_versaoNovaDisponivel)return;      // o evento pode repetir
+    _versaoNovaDisponivel=true;
+    fbLog('Versão nova do app disponível — recarregue para usar','info');
+    _atualizarAlertaSync();
+  });
+
   window.addEventListener('load',()=>{
     navigator.serviceWorker.register('sw.js').catch(e=>{
       fbLog('Service Worker não registrado: '+(e&&e.code)+' — '+(e&&e.message||e),'erro');
