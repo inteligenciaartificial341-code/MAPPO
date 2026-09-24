@@ -2672,9 +2672,66 @@ async function initSync(){
 /* Boot da nuvem: registra o listener de auth. Sem sessão real ainda (usuário não logado),
    só destrava o monitor local -- fazerLogin()/cadastrarEmpresa() disparam o resto quando
    a pessoa autenticar de verdade. */
+/* O Firebase respondeu que NÃO existe usuário autenticado neste navegador.
+   Até 24/09/2026 isto não fazia nada além de liberar o boot -- e, como o app mostra a tela
+   a partir do mappo_session guardado no aparelho (ver o BOOT no fim do arquivo), a pessoa
+   ficava "logada" numa casca vazia: fbReady=false, WORKSPACE=null, nada subindo pra nuvem,
+   sem nenhum aviso. Foi exatamente o que aconteceu com o gestor em 24/09/2026 -- e o
+   sintoma que apareceu foi outro (link de cliente sempre expirado), porque publicar
+   simplesmente não acontecia.
+   A credencial do Firebase vive no IndexedDB e a sessão da tela no localStorage: limpar um
+   sem o outro (ou o navegador despejar o IndexedDB) basta para cair aqui. Offline NÃO cai
+   neste caminho -- a credencial persistida é restaurada mesmo sem rede. */
+function _semAutenticacao(){
+  _bootDone=true;_testInterceptor();
+  if(!session)return;                       // tela de login normal: nada a explicar
+  if(_avisouSessaoExpirada)return;
+  _avisouSessaoExpirada=true;
+  fbLog('Sessão do Firebase ausente com sessão local presente — pedindo login de novo','erro');
+  _atualizarAlertaSync();
+  const mostrar=()=>{
+    if(!document.getElementById('modalRoot'))return setTimeout(mostrar,300);
+    showModal(`
+      <div class="modal-head"><h2>Entre de novo para sincronizar</h2></div>
+      <div class="modal-body">
+        <p style="font-size:14px;line-height:1.6;margin-bottom:12px">
+          Sua sessão com a nuvem expirou neste aparelho. O app continua abrindo, mas
+          <b>nada está sendo enviado nem recebido</b> — o que você fizer fica só aqui.
+        </p>
+        <p style="font-size:14px;line-height:1.6;margin-bottom:12px">
+          Entre de novo com seu e-mail e senha para voltar a sincronizar.
+        </p>
+        <p style="font-size:13px;color:var(--gray-500);line-height:1.55">
+          Nada do que já está neste aparelho se perde: assim que você entrar, tudo é enviado.
+        </p>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-primary" onclick="_voltarAoLogin()">Entrar de novo</button>
+      </div>`);
+  };
+  mostrar();
+}
+let _avisouSessaoExpirada=false;
+
+/* Volta pra tela de login SEM apagar dado nenhum do aparelho -- só a sessão de tela. O que
+   estiver pendente sobe assim que a pessoa entrar de novo. */
+function _voltarAoLogin(){
+  closeModal();
+  try{localStorage.removeItem('mappo_session');}catch(e){}
+  session=null;
+  document.body.classList.remove('has-rail');
+  const app=document.getElementById('app');if(app)app.classList.remove('active');
+  const lg=document.getElementById('loginScreen');if(lg)lg.classList.remove('hidden');
+  mostrarLogin();
+}
+
 async function fbBoot(){
-  if(!fbInit({onReady:_aplicarSessaoResolvida,onNoUser:()=>{_bootDone=true;_testInterceptor();},onNoAccess:_mostrarSemAcesso})){
+  if(!fbInit({onReady:_aplicarSessaoResolvida,onNoUser:_semAutenticacao,onNoAccess:_mostrarSemAcesso})){
+    /* SDK não carregou (CDN bloqueado, rede caída no load). Aqui NÃO se pede login de novo:
+       a credencial pode estar íntegra e a pessoa só está sem rede -- derrubar a sessão
+       tiraria o app das mãos de um técnico em campo. A faixa "sem conexão" cobre este caso. */
     _bootDone=true;_testInterceptor();
+    _atualizarAlertaSync();
   }
 }
 
