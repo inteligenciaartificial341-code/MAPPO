@@ -121,7 +121,11 @@
   .btn-sair:hover{color:var(--red);}
 
   /* MAIN */
-  .main{flex:1;margin-left:var(--sidebar-w);min-height:100vh;display:flex;flex-direction:column;transition:margin-left .28s ease;}
+  /* min-width:0 é obrigatório: item flex nasce com min-width:auto e NÃO encolhe abaixo do
+     próprio conteúdo. Sem isso, um card largo dentro de #contentArea esticava .main além da
+     tela (medido: 524px num aparelho de 390px), e como o body tem overflow-x:hidden o
+     excesso era cortado PELA ESQUERDA — foi o que "engoliu" botões no celular. */
+  .main{flex:1;min-width:0;margin-left:var(--sidebar-w);min-height:100vh;display:flex;flex-direction:column;transition:margin-left .28s ease;}
 
   .topbar{height:calc(64px + env(safe-area-inset-top,0px));padding-top:env(safe-area-inset-top,0px);background:var(--white);border-bottom:1px solid var(--gray-200);display:flex;align-items:flex-end;padding-bottom:10px;justify-content:space-between;padding-left:28px;padding-right:28px;position:sticky;top:0;z-index:50;}
   .topbar-left{display:flex;align-items:center;gap:14px;}
@@ -181,7 +185,9 @@
 
   .card{background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow-sm);overflow:hidden;}
   .card-pad{padding:22px;}
-  .card-head{display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid var(--gray-100);}
+  /* wrap + gap pelo mesmo motivo do .modal-foot: no celular, um cabeçalho com título e dois
+     botões (Sincronização) estourava a largura da tela em vez de quebrar linha. */
+  .card-head{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid var(--gray-100);}
   .card-head h3{font-family:'Inter',sans-serif;letter-spacing:-.02em;font-size:19px;font-weight:600;color:var(--gray-800);}
 
   /* FILTERS */
@@ -253,7 +259,11 @@
   .modal-head{padding:24px 26px 0;}
   .modal-head h2{font-family:'Inter',sans-serif;letter-spacing:-.02em;font-size:24px;font-weight:600;color:var(--gray-800);display:flex;align-items:center;gap:10px;}
   .modal-body{padding:20px 26px;}
-  .modal-foot{display:flex;gap:10px;justify-content:flex-end;padding:18px 26px;border-top:1px solid var(--gray-100);position:sticky;bottom:0;background:var(--white);}
+  /* flex-wrap é obrigatório aqui: sem ele, um modal com 3+ botões (link de acompanhamento,
+     editar manutenção) empurrava os botões PRA FORA DA TELA pela esquerda no celular --
+     justify-content:flex-end faz o excesso vazar por lá. "Revogar link" e "Excluir" ficavam
+     inalcançáveis num aparelho de 390px. */
+  .modal-foot{display:flex;flex-wrap:wrap;gap:10px;justify-content:flex-end;padding:18px 26px;border-top:1px solid var(--gray-100);position:sticky;bottom:0;background:var(--white);}
 
   /* TOAST */
   .toast{position:fixed;bottom:26px;right:26px;background:var(--petrol-dark);color:#fff;padding:14px 22px;border-radius:var(--radius-sm);font-size:14px;font-weight:500;box-shadow:var(--shadow-lg);z-index:999;transform:translateY(90px);opacity:0;transition:all .3s;display:flex;align-items:center;gap:10px;max-width:360px;}
@@ -4568,6 +4578,7 @@ function _assinaturaComprimida(cv){
    tempo todo com luva, no sol) dispara duas leituras simultâneas do arquivo inteiro na
    memória — e as duas terminam gravando por cima uma da outra. */
 let _fotoEmProcessamento=false;
+let _travaFotoTimer=null;
 /* Foto de celular moderno tem 3 a 12 MB. Acima disto quase sempre é vídeo ou arquivo
    estranho: ler na memória (e ainda dobrar de tamanho virando base64) trava aparelho fraco,
    que é exatamente o que o técnico usa em campo. */
@@ -4581,7 +4592,18 @@ function vrfComprimirImagem(file,cb){
     return;
   }
   _fotoEmProcessamento=true;
-  const liberar=()=>{_fotoEmProcessamento=false;};
+  /* Rede de segurança: se alguma etapa da compressão nunca terminar (arquivo corrompido,
+     formato que o navegador não decodifica, aba suspensa pelo sistema no meio), a trava
+     ficaria presa e o técnico não conseguiria enviar MAIS NENHUMA foto — travando a
+     conclusão da OS inteira. Libera sozinha e avisa, em vez de deixar o app mudo. */
+  clearTimeout(_travaFotoTimer);
+  _travaFotoTimer=setTimeout(()=>{
+    if(!_fotoEmProcessamento)return;
+    _fotoEmProcessamento=false;
+    fbLog('Compressão de foto não terminou em 20s — trava liberada','erro');
+    toast('A foto demorou demais e não foi processada. Tente tirar de novo.','warn');
+  },20000);
+  const liberar=()=>{clearTimeout(_travaFotoTimer);_travaFotoTimer=null;_fotoEmProcessamento=false;};
   const reader=new FileReader();
   reader.onerror=()=>{liberar();toast('Não foi possível ler a foto — tente novamente','error');};
   reader.onload=e=>{
@@ -5394,7 +5416,7 @@ function renderConfig(){
 
   <div class="card" style="margin-top:22px">
     <div class="card-head"><h3>Sincronização</h3>
-      <div style="display:flex;gap:8px">
+      <div style="display:flex;flex-wrap:wrap;gap:8px">
         <button class="btn btn-ghost btn-sm" onclick="syncManual()">${svgIco('refresh','ico-sm')} Sincronizar agora</button>
         <button class="btn btn-ghost btn-sm" onclick="_fbLogs=[];renderDebugLogs()">${svgIco('trash','ico-sm')} Limpar registros</button>
       </div>
@@ -8408,6 +8430,21 @@ async function publicarAcompanhamento(token,payload,pubExpira){
 }
 
 /* ── gera (ou reaproveita) o link de uma OS ── */
+/* Precisa emitir um token NOVO? Sim quando não existe nenhum, e também quando o atual já
+   morreu — vencido pelos 30 dias ou revogado (revogar grava pubExpira=agora).
+   Este era o bug relatado em 23/09/2026: "o link está expirado, mesmo que atualize continua
+   expirado". Antes, "gerar link" só criava token se não houvesse nenhum, então depois de
+   revogar/vencer ele devolvia O MESMO endereço com a validade no passado — nascia morto, e
+   não havia jeito nenhum de emitir um link funcional pro cliente.
+   Token NOVO (em vez de só esticar o prazo do antigo) de propósito: se o link foi revogado
+   porque vazou, ressuscitá-lo seria justamente o que a revogação existe para impedir. O
+   endereço antigo continua morto para sempre; o cliente recebe um novo. */
+function _precisaNovoToken(alvo){
+  if(!alvo||!alvo.pubToken)return true;
+  if(!alvo.pubExpira)return false;         // link antigo, pré-expiração: nunca vence
+  return alvo.pubExpira<=Date.now();
+}
+
 async function gerarLinkOS(id){
   // WORKSPACE pode ainda estar null logo após entrarApp() otimista (sessão em cache, rede
   // ainda resolvendo) -- sem essa trava, pubURL() geraria um link quebrado (#/ac/null/{token})
@@ -8415,7 +8452,7 @@ async function gerarLinkOS(id){
   const os=osList.find(o=>o.id===id);if(!os)return;
   // pubExpira só é gravado na criação do token -- republicações (inclusive as automáticas
   // de agendarRepublicacao) reaproveitam o valor já existente, nunca estendem o prazo.
-  if(!os.pubToken){os.pubToken=_pubToken();os.pubExpira=Date.now()+PUB_VALIDADE_MS;saveOS();}
+  if(_precisaNovoToken(os)){os.pubToken=_pubToken();os.pubExpira=Date.now()+PUB_VALIDADE_MS;saveOS();}
   toast('Preparando o link...');
   const ok=await publicarAcompanhamento(os.pubToken,await pubPayloadOS(os),os.pubExpira);
   abrirModalLink(os.pubToken,os.cliente,ok,'os',id);
@@ -8424,7 +8461,7 @@ async function gerarLinkOS(id){
 async function gerarLinkObra(andarId){
   if(!WORKSPACE||!fbReady){toast('Aguarde a sincronização terminar antes de gerar o link','warn');return;}
   const andar=(vrfObraAtual().andares||[]).find(a=>a.id===andarId);if(!andar)return;
-  if(!andar.pubToken){andar.pubToken=_pubToken();andar.pubExpira=Date.now()+PUB_VALIDADE_MS;saveVrfObra();}
+  if(_precisaNovoToken(andar)){andar.pubToken=_pubToken();andar.pubExpira=Date.now()+PUB_VALIDADE_MS;saveVrfObra();}
   toast('Preparando o link...');
   const ok=await publicarAcompanhamento(andar.pubToken,await pubPayloadObra(andarId),andar.pubExpira);
   abrirModalLink(andar.pubToken,(vrfObraAtual().nome||'Obra')+' — '+andar.nome,ok,'obra',andarId);
@@ -8432,6 +8469,18 @@ async function gerarLinkObra(andarId){
 
 function abrirModalLink(token,nome,publicado,tipo,id){
   const url=pubURL(token);
+  /* Mostrar até quando vale. Sem isto o gestor não tinha como saber se o link que está
+     mandando ainda funciona — e descobria pelo cliente dizendo que deu "expirado". */
+  const alvo=tipo==='os'
+    ? osList.find(o=>o.id===id)
+    : ((vrfObraAtual()||{}).andares||[]).find(a=>a.id===id);
+  const exp=alvo&&alvo.pubExpira;
+  const diasRest=exp?Math.ceil((exp-Date.now())/86400000):null;
+  const avisoValidade=exp
+    ? (diasRest>0
+        ? `<p style="font-size:12.5px;color:var(--gray-500);margin-top:10px">⏳ Válido até <b>${fmtDate(new Date(exp).toISOString().split('T')[0])}</b> — ${diasRest} dia${diasRest>1?'s':''} restante${diasRest>1?'s':''}.</p>`
+        : `<p style="font-size:12.5px;color:#b45309;margin-top:10px">⚠️ Este link está <b>vencido ou revogado</b>. Feche e toque em gerar o link de novo — o MAPPO emite um endereço novo.</p>`)
+    : '<p style="font-size:12.5px;color:var(--gray-500);margin-top:10px">Link antigo, sem prazo de validade.</p>';
   const msg=encodeURIComponent('Acompanhe o serviço da '+(WORKSPACE_NOME||'empresa')+' em tempo real: '+url);
   showModal(`
     <div class="modal-head"><h2>Link de acompanhamento</h2></div>
@@ -8441,6 +8490,7 @@ function abrirModalLink(token,nome,publicado,tipo,id){
         e acompanha as fotos e etapas conforme o técnico vai lançando.
       </p>
       <div class="pub-link-box"><input id="pubLinkInput" readonly value="${url}"></div>
+      ${avisoValidade}
       ${publicado?'':`<p style="font-size:12.5px;color:#b45309;margin-top:10px">Sem conexão com a nuvem agora — o link foi criado e será publicado assim que o app sincronizar.</p>`}
       <p style="font-size:12px;color:var(--gray-400);margin-top:12px;line-height:1.5">
         O link mostra apenas este serviço. Ele se atualiza sozinho a cada novo lançamento do técnico.
