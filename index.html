@@ -5346,6 +5346,121 @@ function carregarJsPDF(cb){
   document.head.appendChild(js);
 }
 
+/* ── PDF DA ORDEM DE SERVIÇO (24/09/2026) ──
+   Mesmo desenho do relatório de obra VRF, aplicado à OS: o gestor manda ao cliente um
+   documento do que foi executado, sem depender do link de acompanhamento (que expira e
+   exige internet do outro lado). É a prova do serviço, em arquivo. */
+function exportarPDFos(id){
+  const os=osList.find(o=>o.id===id);
+  if(!os){toast('Ordem não encontrada','warn');return;}
+  toast('Gerando PDF...');
+  carregarJsPDF(()=>{
+    try{gerarPDFos(id);}
+    catch(e){fbLog('Erro ao gerar PDF da OS: '+(e&&e.message),'erro');toast('Erro ao gerar PDF: '+e.message,'warn');}
+  });
+}
+
+function gerarPDFos(id){
+  const os=osList.find(o=>o.id===id);if(!os)return;
+  const jsPDFLib=window.jspdf.jsPDF;
+  const doc=new jsPDFLib({unit:'mm',format:'a4'});
+  const W=210,M=15;let y=0;
+  const semAcento=s=>String(s==null?'':s).normalize('NFD').replace(/[̀-ͯ]/g,'');
+  const vrf=ramoTemVRF();
+  const quebra=(alt)=>{if(y>285-alt){doc.addPage();y=20;}};
+
+  // cabeçalho, no mesmo padrão do relatório de obra
+  doc.setFillColor(24,81,102);doc.rect(0,0,W,32,'F');
+  doc.setTextColor(255,255,255);
+  doc.setFont('helvetica','bold');doc.setFontSize(20);
+  doc.text(semAcento(WORKSPACE_NOME||'MAPPO').toUpperCase(),M,15);
+  doc.setFont('helvetica','normal');doc.setFontSize(8);
+  doc.text('RELATORIO DE SERVICO EXECUTADO',M,21);
+  doc.setFontSize(11);doc.setFont('helvetica','bold');
+  doc.text(semAcento(os.cliente||''),M,28);
+  y=42;
+
+  // dados da ordem
+  doc.setTextColor(40,40,40);doc.setFontSize(10);doc.setFont('helvetica','normal');
+  const linha=(rot,val)=>{if(!val)return;quebra(6);
+    doc.setFont('helvetica','bold');doc.text(rot+':',M,y);
+    doc.setFont('helvetica','normal');
+    const t=doc.splitTextToSize(semAcento(val),W-2*M-32);
+    doc.text(t,M+32,y);y+=Math.max(6,t.length*5);};
+  linha('Endereco',os.endereco);
+  linha('Servico',os.tipo);
+  linha('Responsavel',os.tecnico);
+  linha('Data',fmtDate(os.data)+(os.hora?' as '+os.hora:''));
+  if(os.checkinTime)linha('Check-in',os.checkinTime+(os.checkinLocal?' (com localizacao registrada)':''));
+  if(os.checkoutTime)linha('Conclusao',os.checkoutTime);
+  linha(vrf?'Splits':'Itens',String(os.qtdSplits||1));
+  if(os.obs)linha('Observacoes',os.obs);
+  y+=4;
+
+  // checklist executado
+  const itens=os.checklist||[];
+  if(itens.length){
+    quebra(14);
+    doc.setFillColor(245,243,238);doc.rect(M,y-5,W-2*M,8,'F');
+    doc.setTextColor(24,81,102);doc.setFont('helvetica','bold');doc.setFontSize(10);
+    doc.text(ehManutencao(os.tipo)?'REGISTRO DA LIMPEZA':'CHECKLIST EXECUTADO',M+2,y);
+    y+=10;
+    doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(60,60,60);
+    itens.forEach(c=>{
+      quebra(8);
+      const marca=c.status==='ok'?'[X]':(c.status==='nok'?'[!]':'[  ]');
+      const t=doc.splitTextToSize(marca+' '+semAcento(c.label),W-2*M-4);
+      doc.text(t,M+4,y);y+=t.length*5;
+    });
+    y+=4;
+  }
+
+  // fotos: as do equipamento e as do checklist, cada uma com a sua legenda
+  const fotos=[];
+  (os.equipamentos||[]).forEach((e,i)=>{
+    const rot=(vrf?'Split ':'Item ')+(i+1)+(e.marca?' — '+e.marca:'')+(e.modelo?' '+e.modelo:'');
+    if(e.fotoEvap)fotos.push({src:e.fotoEvap,label:rot+(vrf?' — evaporadora':' — antes')});
+    if(e.fotoCond)fotos.push({src:e.fotoCond,label:rot+(vrf?' — condensadora':' — depois')});
+  });
+  itens.forEach(c=>{if(c.foto)fotos.push({src:c.foto,label:c.label});});
+
+  if(fotos.length){
+    doc.addPage();y=20;
+    doc.setTextColor(24,81,102);doc.setFont('helvetica','bold');doc.setFontSize(13);
+    doc.text('REGISTRO FOTOGRAFICO',M,y);y+=8;
+    fotos.forEach(f=>{
+      if(y>230){doc.addPage();y=20;}
+      doc.setTextColor(80,80,80);doc.setFont('helvetica','normal');doc.setFontSize(8);
+      const ll=doc.splitTextToSize(semAcento(f.label),W-2*M);
+      doc.text(ll,M,y);y+=ll.length*4+2;
+      // uma foto ilegivel nao pode derrubar o relatorio inteiro
+      try{doc.addImage(f.src,'JPEG',M,y,80,60);}catch(e){}
+      y+=66;
+    });
+  }
+
+  // assinatura do cliente
+  if(os.assinatura){
+    if(y>210){doc.addPage();y=20;}
+    doc.setTextColor(24,81,102);doc.setFont('helvetica','bold');doc.setFontSize(11);
+    doc.text('ACEITE DO CLIENTE',M,y);y+=6;
+    try{doc.addImage(os.assinatura,'JPEG',M,y,70,18);}catch(e){}
+    y+=22;
+    doc.setDrawColor(150,150,150);doc.line(M,y,M+70,y);y+=5;
+    doc.setTextColor(90,90,90);doc.setFont('helvetica','normal');doc.setFontSize(8);
+    doc.text(semAcento(os.cliente||'Cliente'),M,y);
+  }
+
+  const pages=doc.internal.getNumberOfPages();
+  for(let pg=1;pg<=pages;pg++){
+    doc.setPage(pg);
+    doc.setTextColor(150,150,150);doc.setFontSize(7);doc.setFont('helvetica','normal');
+    doc.text(semAcento(WORKSPACE_NOME||'MAPPO')+'  |  Pagina '+pg+'/'+pages,M,290);
+  }
+  doc.save('OS_'+String(os.cliente||'cliente').replace(/[^a-zA-Z0-9]/g,'_')+'_'+(os.data||'').replace(/-/g,'')+'.pdf');
+  toast('PDF gerado!','success');
+}
+
 function vrfExportarPDF(andarId){
   const andar=vrfObraAtual().andares.find(a=>a.id===andarId);
   if(!andar){toast('Andar não encontrado','warn');return;}
@@ -7049,6 +7164,7 @@ function openDetalhe(id){
       <button class="btn btn-danger" onclick="excluirOS('${os.id}')">🗑 Excluir</button>
       <button class="btn btn-ghost" onclick="gerarLinkOS('${os.id}')">${svgIco('mapa','ico-sm')} ${os.pubToken?'Ver link do cliente':'Gerar link do cliente'}</button>
       ${podeRevisar?`<button class="btn btn-gold" onclick="revisarOS('${os.id}')">↩ Enviar p/ revisão</button>`:''}
+      ${os.status==='concluida'?`<button class="btn btn-ghost" onclick="exportarPDFos('${os.id}')">📄 PDF para o cliente</button>`:''}
       ${os.status==='concluida'&&ehManutencao(os.tipo)?`<button class="btn btn-ghost" onclick="agendarProximaManut('${os.id}')">🔄 Agendar retorno</button>`:''}
       <button class="btn btn-primary" onclick="closeModal()">Fechar</button>
     </div>`);
