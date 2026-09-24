@@ -1208,14 +1208,49 @@ function _nomeDoAndar(andarId){
   return andarId;
 }
 
+/* O app está logado mas SEM a nuvem resolvida? fbReady/WORKSPACE só viram válidos quando
+   auth + membership + workspace fecham juntos (ou pelo cache offline). Só vale checar depois
+   que a tela do app está montada: antes disso é boot normal, não problema. */
+function _semNuvem(){
+  if(typeof session==='undefined'||!session)return false;      // login/público: não se aplica
+  const app=document.getElementById('app');
+  if(!app||!app.classList.contains('active'))return false;     // ainda entrando
+  return !fbReady||!WORKSPACE;
+}
+/* Vigia a conexão mesmo quando a sincronização nunca chegou a iniciar — _startPolling() só
+   roda depois de fbReady, então sem esta ronda o caso "nunca conectou" ficaria sem nenhum
+   olho em cima, que foi exatamente o que aconteceu. */
+let _rondaNuvem=null;
+function _vigiarConexao(){
+  if(_rondaNuvem)return;
+  _rondaNuvem=setInterval(()=>{try{_atualizarAlertaSync();}catch(e){}},5000);
+}
+
 /* Desenha (ou esconde) a faixa de alerta. Silenciosa quando está tudo certo — faixa
    que vive na tela vira paisagem e ninguém lê justamente quando importa. */
 function _atualizarAlertaSync(){
   const el=document.getElementById('syncAlerta');
   if(!el)return;
   const falhas=Object.keys(_falhasEnvio), cheias=Object.keys(_chavesQuaseCheias);
-  if(!_versaoNovaDisponivel&&!falhas.length&&!cheias.length){el.hidden=true;el.className='sync-alerta';el.innerHTML='';el.onclick=()=>nav('config');return;}
+  if(!_semNuvem()&&!_versaoNovaDisponivel&&!falhas.length&&!cheias.length){el.hidden=true;el.className='sync-alerta';el.innerHTML='';el.onclick=()=>nav('config');return;}
   el.hidden=false;
+  /* SEM CONEXÃO tem a prioridade máxima: é a mensagem de maior consequência ("nada está
+     sendo salvo fora daqui"), e a ação que resolve — recarregar — é a mesma do aviso de
+     versão nova, então nada se perde por ela vir primeiro.
+     Isto nasceu de um caso real (24/09/2026): o app do gestor rodou horas com fbReady=false e
+     WORKSPACE=null, restaurado do cache. A tela parecia normal, mas NADA subia: cada link de
+     cliente regerado falhava em silêncio e o documento antigo, já revogado, continuava
+     valendo na nuvem. O único aviso era um toast de 3 segundos — fraco demais pra isso. */
+  if(_semNuvem()){
+    el.className='sync-alerta erro';
+    el.onclick=()=>location.reload();
+    el.innerHTML=`<span class="sync-alerta-ico">☁️</span>
+      <span class="sync-alerta-txt"><b>Sem conexão com a nuvem.</b>
+      O que você fizer agora fica só neste aparelho: ninguém mais vê, e links de cliente não
+      são publicados. Recarregue para tentar reconectar.</span>
+      <span class="sync-alerta-acao">Recarregar</span>`;
+    return;
+  }
   /* Versão desatualizada vence tudo: enquanto esta aba roda código velho, qualquer outro
      aviso é secundário -- e várias ações podem falhar sem motivo aparente. */
   if(_versaoNovaDisponivel){
@@ -3315,6 +3350,8 @@ function entrarApp(){
   document.getElementById('loginScreen').classList.add('hidden');
   document.getElementById('app').classList.add('active');
   document.body.classList.add('has-rail');
+  // a partir daqui a tela do app está de pé: passa a vigiar se a nuvem de fato resolveu
+  setTimeout(()=>{try{_vigiarConexao();_atualizarAlertaSync();}catch(e){}},4000);
   // desktop limpo por padrão (menu flutuante no canto); mobile real ignora via media query
   if(!document.body.classList.contains('force-mobile'))document.body.classList.add('desktop-clean');
   // avatar + nome
