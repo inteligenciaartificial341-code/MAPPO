@@ -712,6 +712,11 @@
   .diag-hora{color:var(--gray-400);font-variant-numeric:tabular-nums;flex-shrink:0;font-size:11.5px;}
   .diag-msg{color:var(--gray-700);}
   .diag-empty{font-size:13px;color:var(--gray-400);text-align:center;padding:14px 0;}
+  /* o que ainda falta para concluir a OS — fica logo acima do botão, onde o técnico olha */
+  .pend-box{background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:13px 15px;margin-bottom:12px;}
+  .pend-titulo{font-size:13.5px;font-weight:700;color:#92400e;margin-bottom:7px;}
+  .pend-lista{margin:0;padding-left:19px;font-size:13.5px;color:#92400e;line-height:1.65;}
+  .pend-resto{font-size:12.5px;color:#b45309;margin-top:6px;}
   /* tabela de tamanho por documento (Configurações → Sincronização) */
   .diag-tam{display:flex;align-items:center;gap:9px;padding:7px 2px;border-bottom:1px solid var(--gray-100);font-size:12.5px;}
   .diag-tam:last-child{border-bottom:none;}
@@ -8048,6 +8053,7 @@ function renderExecucao(){
       <button class="btn btn-ghost btn-sm" style="margin-top:8px" onclick="limparSig()">🗑 Limpar</button>
     </div></div>
 
+    <div class="pend-box" id="pendConcluir" hidden></div>
     <button class="btn btn-gold" id="btnConcluir" style="width:100%;padding:18px;font-size:16px" onclick="execConcluir()" disabled>✓ Concluir OS</button>
     <div style="height:40px"></div>`;
 
@@ -8182,13 +8188,47 @@ function initSigCanvas(){
 }
 function limparSig(){const cv=document.getElementById('sigCanvas');if(cv&&sigCtx){sigCtx.clearRect(0,0,cv.width,cv.height);sigHas=false;verificarConcluir();}}
 
+/* O que ainda falta para poder concluir, em português, item a item.
+   Até 24/09/2026 o botão só ficava cinza, sem dizer nada — o técnico ficava tentando
+   concluir sem descobrir que faltava UMA foto no meio de um checklist de 8 itens, e a OS
+   ficava pendente sem motivo aparente. Esta lista é a resposta a isso. */
+function _pendenciasParaConcluir(){
+  if(!execOS)return [];
+  const vrf=ramoTemVRF(), itemLbl=vrf?'split':'item';
+  const faltas=[];
+  if(!execOS.checkinTime)faltas.push('Fazer o check-in de chegada');
+
+  (execOS.equipamentos||[]).forEach((e,i)=>{
+    const quais=[];
+    if(!e.fotoEvap)quais.push(vrf?'etiqueta da evaporadora':'foto "antes"');
+    if(!e.fotoCond)quais.push(vrf?'etiqueta da condensadora':'foto "depois"');
+    if(quais.length)faltas.push(`${itemLbl.charAt(0).toUpperCase()+itemLbl.slice(1)} ${i+1}: ${quais.join(' e ')}`);
+  });
+
+  execOS.checklist.forEach(c=>{
+    const marcado=c.status==='ok'||c.status==='nok';
+    if(c.critico&&!marcado)faltas.push(`Marcar "${c.label}"`);
+    else if(c.critico&&!c.foto)faltas.push(`Foto de "${c.label}"`);
+    else if(marcado&&!c.foto)faltas.push(`Foto de "${c.label}"`);
+  });
+
+  if(!sigHas)faltas.push('Colher a assinatura do cliente');
+  return faltas;
+}
+
 function verificarConcluir(){
   if(!execOS)return;const btn=document.getElementById('btnConcluir');if(!btn)return;
-  const checkin=!!execOS.checkinTime;
-  const equip=(execOS.equipamentos||[]).every(e=>e.fotoEvap&&e.fotoCond);
-  const criticos=execOS.checklist.filter(c=>c.critico).every(c=>(c.status==='ok'||c.status==='nok')&&c.foto);
-  const todasFotos=execOS.checklist.every(c=>c.status==='pending'||c.foto);
-  btn.disabled=!(checkin&&equip&&criticos&&todasFotos&&sigHas);
+  const faltas=_pendenciasParaConcluir();
+  btn.disabled=faltas.length>0;
+  const aviso=document.getElementById('pendConcluir');
+  if(!aviso)return;
+  if(!faltas.length){aviso.hidden=true;aviso.innerHTML='';return;}
+  aviso.hidden=false;
+  // mostra no máximo 6 e resume o resto: uma lista de 20 linhas ninguém lê
+  const mostrar=faltas.slice(0,6), resto=faltas.length-mostrar.length;
+  aviso.innerHTML=`<div class="pend-titulo">Falta ${faltas.length===1?'1 coisa':faltas.length+' coisas'} para concluir:</div>
+    <ul class="pend-lista">${mostrar.map(f=>`<li>${escapeHtml(f)}</li>`).join('')}</ul>
+    ${resto>0?`<div class="pend-resto">…e mais ${resto}.</div>`:''}`;
 }
 
 function execConcluir(){
@@ -8452,22 +8492,24 @@ async function gerarLinkOS(id){
   const os=osList.find(o=>o.id===id);if(!os)return;
   // pubExpira só é gravado na criação do token -- republicações (inclusive as automáticas
   // de agendarRepublicacao) reaproveitam o valor já existente, nunca estendem o prazo.
-  if(_precisaNovoToken(os)){os.pubToken=_pubToken();os.pubExpira=Date.now()+PUB_VALIDADE_MS;saveOS();}
+  const emitiuNovo=_precisaNovoToken(os);
+  if(emitiuNovo){os.pubToken=_pubToken();os.pubExpira=Date.now()+PUB_VALIDADE_MS;saveOS();}
   toast('Preparando o link...');
   const ok=await publicarAcompanhamento(os.pubToken,await pubPayloadOS(os),os.pubExpira);
-  abrirModalLink(os.pubToken,os.cliente,ok,'os',id);
+  abrirModalLink(os.pubToken,os.cliente,ok,'os',id,emitiuNovo);
 }
 /* ── gera (ou reaproveita) o link de um andar da obra ── */
 async function gerarLinkObra(andarId){
   if(!WORKSPACE||!fbReady){toast('Aguarde a sincronização terminar antes de gerar o link','warn');return;}
   const andar=(vrfObraAtual().andares||[]).find(a=>a.id===andarId);if(!andar)return;
-  if(_precisaNovoToken(andar)){andar.pubToken=_pubToken();andar.pubExpira=Date.now()+PUB_VALIDADE_MS;saveVrfObra();}
+  const emitiuNovo=_precisaNovoToken(andar);
+  if(emitiuNovo){andar.pubToken=_pubToken();andar.pubExpira=Date.now()+PUB_VALIDADE_MS;saveVrfObra();}
   toast('Preparando o link...');
   const ok=await publicarAcompanhamento(andar.pubToken,await pubPayloadObra(andarId),andar.pubExpira);
-  abrirModalLink(andar.pubToken,(vrfObraAtual().nome||'Obra')+' — '+andar.nome,ok,'obra',andarId);
+  abrirModalLink(andar.pubToken,(vrfObraAtual().nome||'Obra')+' — '+andar.nome,ok,'obra',andarId,emitiuNovo);
 }
 
-function abrirModalLink(token,nome,publicado,tipo,id){
+function abrirModalLink(token,nome,publicado,tipo,id,emitiuNovo){
   const url=pubURL(token);
   /* Mostrar até quando vale. Sem isto o gestor não tinha como saber se o link que está
      mandando ainda funciona — e descobria pelo cliente dizendo que deu "expirado". */
@@ -8489,6 +8531,9 @@ function abrirModalLink(token,nome,publicado,tipo,id){
         Envie este link para <b>${escapeHtml(nome)}</b>. O cliente abre no navegador do celular, sem instalar nada,
         e acompanha as fotos e etapas conforme o técnico vai lançando.
       </p>
+      ${emitiuNovo?`<p style="font-size:12.5px;color:#92400e;background:#fffbeb;border-radius:8px;padding:9px 11px;line-height:1.5;margin-bottom:12px">
+        🔄 <b>Endereço novo.</b> O link anterior estava vencido ou revogado e deixou de funcionar —
+        é este aqui que precisa chegar ao cliente.</p>`:''}
       <div class="pub-link-box"><input id="pubLinkInput" readonly value="${url}"></div>
       ${avisoValidade}
       ${publicado?'':`<p style="font-size:12.5px;color:#b45309;margin-top:10px">Sem conexão com a nuvem agora — o link foi criado e será publicado assim que o app sincronizar.</p>`}
@@ -8497,9 +8542,15 @@ function abrirModalLink(token,nome,publicado,tipo,id){
       </p>
     </div>
     <div class="modal-foot">
-      <button class="btn btn-danger" onclick="revogarLink('${tipo}','${id}')">Revogar link</button>
-      <button class="btn btn-ghost" onclick="copiarLinkPub()">Copiar link</button>
-      <button class="btn btn-primary" onclick="window.open('https://wa.me/?text=${msg}','_blank')">Enviar no WhatsApp</button>
+      ${(exp&&diasRest<=0)
+        ? /* Link morto: o que resolve é emitir outro, e o botão fica AQUI — sem isso o gestor
+             tinha que fechar, achar de novo onde gera e torcer. Copiar/WhatsApp saem de cena
+             porque enviariam um endereço que já não funciona. */
+          `<button class="btn btn-ghost" onclick="closeModal()">Fechar</button>
+           <button class="btn btn-primary" onclick="closeModal();${tipo==='os'?`gerarLinkOS('${id}')`:`gerarLinkObra('${id}')`}">Emitir link novo</button>`
+        : `<button class="btn btn-danger" onclick="revogarLink('${tipo}','${id}')">Revogar link</button>
+           <button class="btn btn-ghost" onclick="copiarLinkPub()">Copiar link</button>
+           <button class="btn btn-primary" onclick="window.open('https://wa.me/?text=${msg}','_blank')">Enviar no WhatsApp</button>`}
     </div>`,'wide');
 }
 /* ── revoga um link já gerado: expira agora, sem estado/mensagem novos (mesmo mecanismo
