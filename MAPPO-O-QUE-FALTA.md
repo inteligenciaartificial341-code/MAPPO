@@ -8,7 +8,7 @@
 > `MAPPO-O-QUE-TEM.md` (seção do recurso + linha no histórico). Um item só existe em um
 > dos dois arquivos, nunca nos dois.
 
-**Atualizado em:** 25/09/2026 · publicado até `d96a174`
+**Atualizado em:** 25/09/2026 · publicado até `82c6317`
 
 **Próximo combinado:** testes anti-regressão no repositório, depois fotos no IndexedDB (ver o fim
 deste arquivo). Depois disso: GPS/localização por pessoa (Bloco 2, os três estruturais).
