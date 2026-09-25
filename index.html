@@ -1180,6 +1180,74 @@ const _snapshot={};         // último valor confirmado (enviado ou recebido) po
    e ANTES DISTO só aparecia no log de diagnóstico, que ninguém abre — a sincronização
    podia estar parada há dias sem ninguém saber. Mesma ideia do PUB_LIMITE_BYTES que
    os links públicos já usam, agora aplicada à sincronização. */
+/* ── ARMAZÉM DE FOTOS NO APARELHO (IndexedDB) ────────────────────────────────────
+   O localStorage tem ~5 MB e guarda TODAS as fotos de TODAS as ordens abertas. É esse o
+   teto que hoje trava o técnico em campo (~10 a 12 ordens com foto) e o que faz o iPhone
+   descartar a página quando a câmera abre. O IndexedDB guarda centenas de MB no mesmo
+   navegador, é gratuito e não exige plano pago.
+   Este é só o ARMAZÉM. Nada ainda lê ou grava por aqui -- a troca acontece na etapa
+   seguinte, depois de provada. Guardar a foto por uma chave estável significa que mover a
+   foto para cá nunca depende de "onde ela estava". */
+const IDB_NOME='mappo_fotos', IDB_LOJA='fotos', IDB_VERSAO=1;
+let _idbConn=null;
+function _idbAbrir(){
+  if(_idbConn)return Promise.resolve(_idbConn);
+  return new Promise((ok,falha)=>{
+    if(!window.indexedDB){falha(new Error('IndexedDB indisponível neste navegador'));return;}
+    let req;
+    try{req=indexedDB.open(IDB_NOME,IDB_VERSAO);}catch(e){falha(e);return;}
+    req.onupgradeneeded=()=>{
+      const db=req.result;
+      if(!db.objectStoreNames.contains(IDB_LOJA))db.createObjectStore(IDB_LOJA);
+    };
+    req.onsuccess=()=>{_idbConn=req.result;ok(_idbConn);};
+    req.onerror=()=>falha(req.error||new Error('não consegui abrir o armazém de fotos'));
+    req.onblocked=()=>falha(new Error('armazém de fotos bloqueado por outra aba'));
+  });
+}
+function _idbTx(modo,fn){
+  return _idbAbrir().then(db=>new Promise((ok,falha)=>{
+    let tx;
+    try{tx=db.transaction(IDB_LOJA,modo);}catch(e){falha(e);return;}
+    const loja=tx.objectStore(IDB_LOJA);
+    let resultado;
+    try{resultado=fn(loja);}catch(e){falha(e);return;}
+    tx.oncomplete=()=>ok(resultado&&resultado.__req?resultado.__req.result:resultado);
+    tx.onerror=()=>falha(tx.error||new Error('falha na transação do armazém de fotos'));
+    tx.onabort=()=>falha(tx.error||new Error('transação do armazém de fotos abortada'));
+  }));
+}
+/* Grava e só resolve quando a transação FECHA. É isso que permite apagar a foto do
+   localStorage depois sem risco: quando esta promessa cumpre, a foto está durável. */
+function idbGravarFoto(id,uri){
+  return _idbTx('readwrite',loja=>{loja.put(uri,id);});
+}
+function idbLerFoto(id){
+  return _idbTx('readonly',loja=>({__req:loja.get(id)}));
+}
+function idbApagarFoto(id){
+  return _idbTx('readwrite',loja=>{loja.delete(id);});
+}
+function idbTodasAsChaves(){
+  return _idbTx('readonly',loja=>({__req:loja.getAllKeys()}));
+}
+/* Quanto o aparelho está usando. navigator.storage.estimate() cobre IndexedDB e mais;
+   o localStorage é medido à mão porque não aparece nessa conta em todo navegador. */
+async function espacoDoAparelho(){
+  let local=0;
+  try{for(let i=0;i<localStorage.length;i++){
+    const k=localStorage.key(i);local+=(k.length+(localStorage.getItem(k)||'').length)*2;
+  }}catch(e){}
+  let usado=null,cota=null;
+  try{
+    if(navigator.storage&&navigator.storage.estimate){
+      const e=await navigator.storage.estimate();
+      usado=e.usage||null;cota=e.quota||null;
+    }
+  }catch(e){}
+  return {localBytes:local, tetoLocalBytes:5*1024*1024, usadoBytes:usado, cotaBytes:cota};
+}
+
 const DOC_LIMITE_BYTES=1048576;   // o teto real do servidor
 const DOC_ALERTA_BYTES=800000;    // ~76% — avisa ANTES de bater, não depois
 function _bytesDe(str){
@@ -3208,10 +3276,38 @@ function renderDiagTamanhos(){
     </div>`;
   }).join('');
 }
+/* O teto do APARELHO nunca apareceu em tela nenhuma -- e é ele que trava o técnico em
+   campo hoje (~5 MB de localStorage guardando todas as fotos de todas as ordens). Sem esta
+   linha, o gestor via a tabela do servidor toda verde e não entendia por que não conseguia
+   salvar mais fotos. */
+async function renderDiagAparelho(){
+  const alvo=document.getElementById('diagAparelho');
+  if(!alvo)return;
+  let e;
+  try{e=await espacoDoAparelho();}
+  catch(err){alvo.innerHTML='<p class="diag-empty">Não consegui medir o espaço deste aparelho.</p>';return;}
+  const pct=Math.min(100,Math.round(e.localBytes/e.tetoLocalBytes*100));
+  const estado=pct>=95?'cheio':pct>=76?'aviso':'';
+  const kb=n=>n>=1048576?(n/1048576).toFixed(1)+' MB':Math.round(n/1024)+' KB';
+  let extra='';
+  if(e.usadoBytes!==null&&e.cotaBytes)
+    extra='<p style="font-size:11.5px;color:var(--gray-400);margin-top:6px;line-height:1.45">'+
+      'O navegador reserva '+kb(e.cotaBytes)+' para este app no total (fotos guardadas fora do '+
+      'limite acima usam esse espaço maior). Em uso agora: '+kb(e.usadoBytes)+'.</p>';
+  alvo.innerHTML='<div class="diag-tam">'+
+    '<span class="diag-tam-nome">Dados e fotos no aparelho</span>'+
+    '<span class="diag-barra '+estado+'"><i style="width:'+pct+'%"></i></span>'+
+    '<span class="diag-tam-kb">'+kb(e.localBytes)+' · '+pct+'%</span>'+
+    '</div>'+extra+
+    (pct>=76?'<p style="font-size:12px;color:#b45309;margin-top:6px;line-height:1.5">'+
+      'Perto do limite deste aparelho. Ordens antigas já sincronizadas podem ser excluídas '+
+      'com segurança — as fotos delas continuam no servidor.</p>':'');
+}
 function renderDebugLogs(){
   const st=document.getElementById('diagStatus');
   if(st)st.innerHTML=`<span class="diag-dot ${fbReady?'ok':'erro'}"></span> ${fbReady?'Conectado à nuvem — sincronização em tempo real ativa':'Sem conexão com a nuvem — dados salvos apenas neste aparelho'}`;
   renderDiagTamanhos();
+  renderDiagAparelho();   // assíncrono: preenche assim que o navegador responder
   const body=document.getElementById('diagLogBody');
   if(!body)return;
   body.innerHTML=_fbLogs.slice().reverse().map(l=>
@@ -6074,6 +6170,8 @@ function renderConfig(){
       <div style="margin-top:16px">
         <div style="font-size:12.5px;font-weight:600;color:var(--gray-500);margin-bottom:6px">Espaço usado no servidor (limite de 1 MiB por tipo de dado)</div>
         <div id="diagTamanhos"></div>
+        <div style="font-size:12.5px;font-weight:600;color:var(--gray-500);margin:16px 0 6px">Espaço usado neste aparelho</div>
+        <div id="diagAparelho"></div>
       </div>
       <div class="diag-log" id="diagLogBody" style="margin-top:16px"></div>
     </div>
