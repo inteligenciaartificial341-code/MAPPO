@@ -8,7 +8,7 @@
 > antes do commit + publicação. Ao final de cada publicação: mover o item de
 > `MAPPO-O-QUE-FALTA.md` para cá e registrar no histórico no fim do arquivo.
 
-**Estado:** publicado até o commit `ed1ec31` · atualizado em 22/09/2026
+**Estado:** publicado até o commit `ced6f69` · atualizado em 24/09/2026
 **Endereço:** https://inteligenciaartificial341-code.github.io/MAPPO/
 
 ---
@@ -59,6 +59,8 @@ recentes, status da equipe e próximas manutenções. Card do VRF quando o ramo 
 - No detalhe: **trocar o técnico responsável**, ver fotos em tela cheia, escrever nota pro
   técnico, lançar valor e marcar pago/a pagar, **devolver para revisão com motivo**, gerar
   link pro cliente, agendar a próxima manutenção, excluir
+- Concluída, a OS pode virar **PDF para enviar ao cliente**: fotos dos equipamentos, checklist
+  executado, registro fotográfico e o aceite assinado — o mesmo padrão do relatório VRF
 
 ### Clientes
 Cadastro (nome, endereço, contato), histórico de visitas por cliente, sugestão automática
@@ -118,7 +120,8 @@ diagnóstico).
 4. **Assinatura do cliente** na tela
 
 O botão **Concluir só libera** com tudo obrigatório feito: check-in, fotos de todos os itens,
-itens críticos marcados com foto, e assinatura. Fotos são comprimidas antes de enviar.
+itens críticos marcados com foto, e assinatura — e, quando algo falta, **o app lista o que
+falta** em vez de só deixar o botão apagado. Fotos são comprimidas antes de enviar.
 Devolvida para revisão, o técnico vê o motivo e refaz.
 
 ### Outros
@@ -164,6 +167,16 @@ Devolvida para revisão, o técnico vê o motivo e refaz.
 - **Fotos de obra divididas por andar na nuvem** — cada andar tem seu próprio documento, com
   seu próprio limite. Além de remover o teto, faz cada foto nova trafegar só o andar que
   mudou, em vez do acervo inteiro
+- **Fotos da OS em um documento por foto** — mesma ideia, levada ao limite onde ela mais doía:
+  uma única OS com fotos chegava a 1082 KB e o servidor recusava o registro inteiro. Cada foto
+  agora tem seu próprio documento, o registro das ordens ficou em poucos KB, e uma foto grande
+  demais é deixada de lado com aviso **sem travar as outras**
+- **Sessão do Firebase ausente não deixa mais o app numa casca vazia** — se a sessão da nuvem
+  se perde com a sessão local presente, o app pede login de novo em vez de abrir sem nuvem e
+  sem avisar. Nenhum dado do aparelho é apagado nesse caminho
+- **Abrir o link do cliente não derruba o login de quem abriu** — o link público reaproveita a
+  sessão que já existe no navegador, em vez de criar uma identidade anônima que substituía a
+  do gestor (o Firebase só admite um usuário por navegador)
 
 ---
 
@@ -173,6 +186,12 @@ Devolvida para revisão, o técnico vê o motivo e refaz.
 
 | Data | Commit | O que entrou |
 |---|---|---|
+| 24/09/2026 | `ced6f69` | **Fotos da OS em documentos próprios — destrava a sincronização.** Uma única OS com fotos chegava a 1082 KB e o servidor **recusava o registro inteiro** (teto de 1 MiB por documento): trabalhar com 2, 20 ou 100 OS ao mesmo tempo era impossível. Agora cada foto tem seu próprio documento e o registro das ordens ficou em poucos KB. Verificado com 12 OS (48 fotos) subindo sem uma recusa |
+| 24/09/2026 | `2f17d2e` | **PDF da OS concluída para enviar ao cliente.** Relatório com fotos de equipamento, checklist executado, registro fotográfico e aceite assinado — o mesmo padrão que já existia no VRF |
+| 24/09/2026 | `fb93a47` | **Sessão do Firebase ausente deixava o app numa casca vazia.** Com sessão local presente e sessão do Firebase perdida, o app abria sem nuvem e sem avisar — nada subia e nada era dito. Agora pede login de novo, preservando todos os dados do aparelho |
+| 24/09/2026 | `39f490d` | **App avisa na tela quando está sem nuvem.** Era a causa visível do "link sempre expirado": sem conexão, publicar o link não acontecia e o cliente recebia um link que nunca existiu |
+| 24/09/2026 | `526e7a3` | **App diz o que falta para concluir a OS**, em vez de só deixar o botão apagado, e **link morto vira link novo** ao ser reaberto |
+| 24/09/2026 | `c0f295f` | **Layout cortado no celular** (o "revogar" e a aba de configuração eram engolidos), **link do cliente que nascia morto** e trava de foto |
 | 23/09/2026 | `ed1ec31` | **Troca de técnico em OS e manutenção.** Antes, atribuído era definitivo: o técnico da OS era texto fixo e na manutenção nada era editável — um problema sério quando alguém sai da empresa e a manutenção recorrente segue no nome dele. Junto: aviso de nova versão do app disponível, e mensagem clara quando a aba está desatualizada |
 | 22/09/2026 | `470751e` | **Recuperação de senha por e-mail.** Antes não existia caminho nenhum: quem esquecia a senha não entrava mais, e só o dono resolvia à mão no Console do Firebase |
 | 22/09/2026 | `c56d38b` | **Bloco 2.** Técnico removido perde o acesso na hora (antes seguia lendo até fechar a aba) e o **convite de acesso passa a valer 7 dias** — antes o código valia para sempre até ser usado ou revogado. Regras do Firestore publicadas com 19/19 casos verificados no Emulator |

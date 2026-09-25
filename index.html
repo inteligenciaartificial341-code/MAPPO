@@ -1665,20 +1665,27 @@ function fbInit(opts){
     fbDB=firebase.firestore();
     firebase.auth().onAuthStateChanged(user=>{
       if(!user){
-        // modo público: signInAnonymously() ainda não resolveu -- não é falha, só aguarda
-        // (a falha real é tratada no .catch() dela); a própria promise chama onNoUser se der errado.
-        if(!opts.anon&&opts.onNoUser)opts.onNoUser();
-        return;
-      }
-      if(opts.anon){
-        if(!user.isAnonymous){
-          // sessão real persistida neste navegador: link público sempre roda sob identidade anônima, nunca a real
+        if(opts.anon){
+          /* Visitante de link público e NINGUÉM autenticado: só agora cria a identidade
+             anônima. Antes isto era disparado fora do callback, sem saber se já havia
+             sessão — e signInAnonymously() TROCA o usuário atual do Firebase (só existe um
+             por navegador). Resultado: abrir o link do cliente derrubava a sessão do gestor,
+             e o app pedia login de novo. Era o ciclo "entre de novo → gere o link → sem
+             conexão → entre de novo" (relatado em 24/09/2026), e antes disso a causa muda do
+             "link sempre expirado": sem sessão, publicar não acontecia. */
           firebase.auth().signInAnonymously()
             .catch(e=>{fbLog('Falha na autenticação: '+e.code+' — '+e.message,'erro');if(opts.onNoUser)opts.onNoUser();});
           return;
         }
+        if(opts.onNoUser)opts.onNoUser();
+        return;
+      }
+      if(opts.anon){
+        /* Serve QUALQUER usuário já autenticado, anônimo ou real: para ler um pub_* a regra
+           do Firestore exige apenas request.auth != null. Reaproveitar a sessão que existe é
+           o que impede o link público de derrubar o login de quem o abriu. */
         fbReady=true;
-        fbLog('Autenticado na nuvem (uid: '+user.uid+')','ok');
+        fbLog('Link público: usando a sessão existente (uid: '+user.uid+(user.isAnonymous?', anônima':', do próprio app')+')','ok');
         if(opts.onReady)opts.onReady();
         return;
       }
@@ -1686,10 +1693,10 @@ function fbInit(opts){
       if(_signupInProgress)return; // cadastrarEmpresa() resolve manualmente depois do lote gravar
       _resolverWorkspace(user,opts.onReady,opts.onNoAccess);
     });
-    if(opts.anon){
-      firebase.auth().signInAnonymously()
-        .catch(e=>{fbLog('Falha na autenticação: '+e.code+' — '+e.message,'erro');if(opts.onNoUser)opts.onNoUser();});
-    }
+    /* A chamada eager de signInAnonymously() que existia aqui foi REMOVIDA em 24/09/2026:
+       ela rodava antes de o Firebase restaurar a sessão persistida, então trocava por uma
+       identidade anônima mesmo quando havia um gestor logado. Agora só o callback acima
+       decide, e só quando confirma que não há ninguém autenticado. */
     return true;
   }catch(e){fbLog('Falha ao iniciar Firebase: '+e.message,'erro');return false;}
 }

@@ -8,9 +8,10 @@
 > `MAPPO-O-QUE-TEM.md` (seção do recurso + linha no histórico). Um item só existe em um
 > dos dois arquivos, nunca nos dois.
 
-**Atualizado em:** 22/09/2026 · publicado até `8c6bc55`
+**Atualizado em:** 24/09/2026 · publicado até `ced6f69`
 
-**Próximo combinado:** GPS/localização por pessoa (ver Bloco 2, os três estruturais).
+**Próximo combinado:** testes anti-regressão no repositório, depois fotos no IndexedDB (ver o fim
+deste arquivo). Depois disso: GPS/localização por pessoa (Bloco 2, os três estruturais).
 
 ---
 
@@ -115,3 +116,43 @@ incluindo quais são impossíveis sem backend e quais têm custo recorrente.
 
 A mais barata de todas, se um dia quiser um ganho rápido: **pedido automático de avaliação no
 Google** ao concluir a OS — é um link configurável e um botão de WhatsApp, padrão que o app já tem.
+
+---
+
+## Combinado em 24/09/2026 — os dois próximos, nesta ordem
+
+### 1. Testes anti-regressão dentro do repositório 🔴
+
+**Por que existe este item.** Em 24/09/2026 três defeitos apareceram juntos em coisas que já
+funcionavam: layout cortado no celular, link do cliente sempre expirado e OS que o técnico não
+conseguia concluir. Nenhum era novo em si — eram efeitos colaterais de mudanças anteriores que
+ninguém teve como perceber, porque **não havia como perceber**. A causa raiz não é um bug: é a
+ausência de uma rede que pegue o bug antes do usuário.
+
+**O que fazer:**
+
+- Pasta `testes/` no repositório, com as suítes que hoje vivem numa pasta temporária do sistema
+  — que já foi apagada **três vezes**, obrigando a reinstalar o Playwright e reescrever testes
+  do zero. Enquanto os testes não estiverem versionados, eles não existem.
+- **Um comando só** que roda todas (`npm test` ou equivalente), com a contagem de OKs no fim.
+- Regra em `CLAUDE.md`: **todo defeito relatado vira teste antes de virar correção.** O teste
+  falha primeiro (provando que reproduz), depois passa. Sem isso, "corrigido" é opinião.
+- O que não der para testar em navegador automatizado (Google Agenda, notificação real,
+  WhatsApp) vira uma lista curta de verificação manual, entregue ao proprietário.
+
+**Estado hoje:** 19 suítes escritas e passando, mais 5 diagnósticos — todas fora do
+repositório. Migrar é o trabalho.
+
+### 2. Fotos no IndexedDB, não no localStorage 🟠
+
+**O próximo teto, já medido.** A nuvem deixou de ser o limite em `ced6f69` (cada foto tem seu
+documento). O aparelho passou a ser: o `localStorage` tem **~5 MB** e guarda todas as fotos de
+todas as OS abertas, o que dá **~10 a 12 OS com fotos por aparelho**. Passando disso o app
+avisa que não salvou — o aviso funciona, mas o técnico para de trabalhar.
+
+**A saída é gratuita.** O IndexedDB guarda centenas de MB no mesmo navegador, sem plano pago e
+sem Firebase Storage (que exige Blaze desde 03/02/2026). O trabalho é migrar a **leitura e
+escrita das fotos** para ele, mantendo o padrão que já funcionou duas vezes: a aplicação
+continua vendo a foto no mesmo lugar de sempre, e só a camada de armazenamento muda.
+
+**Não é urgente ainda,** mas é o único item cujo prazo é decidido pelo uso, não por nós.
