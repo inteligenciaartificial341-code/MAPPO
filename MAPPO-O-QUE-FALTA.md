@@ -8,7 +8,7 @@
 > `MAPPO-O-QUE-TEM.md` (seção do recurso + linha no histórico). Um item só existe em um
 > dos dois arquivos, nunca nos dois.
 
-**Atualizado em:** 25/09/2026 · publicado até `8a21647`
+**Atualizado em:** 25/09/2026 · publicado até `d96a174`
 
 **Próximo combinado:** testes anti-regressão no repositório, depois fotos no IndexedDB (ver o fim
 deste arquivo). Depois disso: GPS/localização por pessoa (Bloco 2, os três estruturais).
@@ -143,19 +143,13 @@ ausência de uma rede que pegue o bug antes do usuário.
 **Estado hoje:** 19 suítes escritas e passando, mais 5 diagnósticos — todas fora do
 repositório. Migrar é o trabalho.
 
-### 2. Fotos no IndexedDB, não no localStorage 🟠
+### 2. Fotos no IndexedDB — ✅ feito para as ordens de serviço, falta obra e tarefas
 
-**O próximo teto, já medido.** A nuvem deixou de ser o limite em `ced6f69` (cada foto tem seu
-documento). O aparelho passou a ser: o `localStorage` tem **~5 MB** e guarda todas as fotos de
-todas as OS abertas, o que dá **~10 a 12 OS com fotos por aparelho**. Passando disso o app
-avisa que não salvou — o aviso funciona, mas o técnico para de trabalhar.
+**Feito em 25/09/2026** (`d79ad5c` + `d96a174`): as fotos das OS saíram do `localStorage` e
+vivem no IndexedDB, carregadas só quando aparecem na tela. Uma OS com 4 fotos ocupava 960 KB
+no aparelho e passou a ocupar 0 KB.
 
-**A saída é gratuita.** O IndexedDB guarda centenas de MB no mesmo navegador, sem plano pago e
-sem Firebase Storage (que exige Blaze desde 03/02/2026). O trabalho é migrar a **leitura e
-escrita das fotos** para ele, mantendo o padrão que já funcionou duas vezes: a aplicação
-continua vendo a foto no mesmo lugar de sempre, e só a camada de armazenamento muda.
-
-**Ficou mais urgente em 25/09/2026.** A pressão de memória dessas fotos é o que faz o celular
-descartar a página quando a câmera abre — foi a causa do técnico ser jogado pra tela principal
-ao enviar foto (`9a7c928`). Aquela correção faz o app voltar pro lugar certo depois da recarga,
-mas não impede a recarga: quem impede é tirar as fotos do `localStorage`.
+**O que falta:** aplicar o mesmo às **fotos de obra (VRF)** e às **fotos de tarefas**, que
+ainda ficam no `localStorage`. A nuvem delas já foi resolvida em `8a21647` (um documento por
+foto), então o que resta é só o lado do aparelho — mesmo mecanismo já construído e testado,
+só apontado para as outras duas coleções.

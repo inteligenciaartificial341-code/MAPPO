@@ -8,7 +8,7 @@
 > antes do commit + publicação. Ao final de cada publicação: mover o item de
 > `MAPPO-O-QUE-FALTA.md` para cá e registrar no histórico no fim do arquivo.
 
-**Estado:** publicado até o commit `8a21647` · atualizado em 25/09/2026
+**Estado:** publicado até o commit `d96a174` · atualizado em 25/09/2026
 **Endereço:** https://inteligenciaartificial341-code.github.io/MAPPO/
 
 ---
@@ -186,6 +186,8 @@ Devolvida para revisão, o técnico vê o motivo e refaz.
 
 | Data | Commit | O que entrou |
 |---|---|---|
+| 25/09/2026 | `d96a174` | **A foto saiu do `localStorage`.** A ordem guarda só a referência; a imagem mora no IndexedDB e é carregada quando aparece na tela. Medido: uma OS com 4 fotos ocupava 960 KB no aparelho e passou a ocupar 0 KB, com os bytes voltando inteiros. O teto de ~5 MB era o que travava o técnico em campo (~10 a 12 ordens com foto) e o que fazia o iPhone descartar a página na câmera. Uma referência que chegue a um lugar não convertido vira imagem quebrada **na tela**, nunca um apagamento silencioso |
+| 25/09/2026 | `d79ad5c` | **Armazém de fotos no aparelho (IndexedDB) e o espaço do aparelho na tela.** Medido lado a lado: as mesmas 40 fotos de 200 KB entram no IndexedDB e estouram o `localStorage` com `QuotaExceededError`. O teto do aparelho nunca aparecia em tela nenhuma — o gestor via o servidor todo verde e não entendia por que não conseguia salvar |
 | 25/09/2026 | `8a21647` | **Fotos de obra em um documento por foto, e excluir andar libera de verdade.** As fotos de um andar iam todas num documento só: um andar bem fotografado chegava aos 94% do teto de 1 MiB e, ao encher, parava de sincronizar — foto tirada num celular não aparecia no outro. Medido: 16 fotos de 60 KB levavam o documento do andar a 961 KB; agora ele fica em 1 KB. Junto, duas causas de "excluí o andar e não diminuiu": nada no app apagava o documento na nuvem, e o outro celular ressuscitava o andar excluído ao reenviar |
 | 25/09/2026 | `16a208e` | **Foto vira miniatura na OS e abre no tamanho da tela ao tocar.** Na tela do técnico ela ocupava 100% da largura e nem abria ao clicar. Junto: em 6 lugares a mesma foto era escrita duas vezes no HTML (no `src` e no `onclick`), dobrando a memória usada por foto |
 | 25/09/2026 | `2cd2607` | **Tabela de espaço acusava 100% nas ordens com o servidor quase vazio.** Ela media a cópia do aparelho (com as fotos dentro) em vez do que de fato sobe (sem fotos, desde `ced6f69`) — e mandou o gestor atrás de um problema que não existia |
