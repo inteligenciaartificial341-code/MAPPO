@@ -790,6 +790,13 @@
   /* textarea em vez de input no link do cliente: o input cortava o endereço bem no fim,
      que é justamente a parte que muda quando um endereço novo é emitido -- o gestor não
      tinha como perceber que estava enviando um link antigo. Aqui ele aparece inteiro. */
+  /* A foto dentro da OS era desenhada a 100% da largura: empurrava tudo pra baixo, obrigava
+     o técnico a rolar a tela inteira pra conferir o checklist, e nem abria ao tocar. Vira
+     miniatura; o toque abre no tamanho da tela (openLightbox). Só muda a EXIBIÇÃO -- o
+     arquivo guardado é o mesmo. */
+  .foto-mini{width:84px;height:84px;object-fit:cover;border-radius:10px;border:2px solid var(--green);cursor:zoom-in;display:block}
+  .foto-mini-wrap{display:flex;align-items:center;gap:10px;margin-top:8px}
+  .foto-mini-dica{font-size:11.5px;color:var(--gray-400);line-height:1.45}
   .pub-link-box textarea{width:100%;padding:12px 14px;border:2px solid var(--gray-200);border-radius:10px;font-size:12.5px;font-family:ui-monospace,Menlo,monospace;background:var(--gray-50);color:var(--gray-600);resize:none;line-height:1.5;word-break:break-all;}
   .pub-token-fim{font-size:12.5px;color:var(--gray-500);margin-top:8px}
   .pub-token-fim b{font-family:ui-monospace,Menlo,monospace;background:#eef2ff;color:#3730a3;padding:2px 7px;border-radius:5px;letter-spacing:.5px}
@@ -5540,7 +5547,7 @@ function vrfAbrirAndar(andarId){
           ${fs.length?`<span class="vrf-etapa-fotos">${svgIco('camera','ico-sm')} ${fs.length}</span>`:''}
         </div>
         ${nota?`<div class="vrf-etapa-nota">${svgIco('edit','ico-sm')} ${escapeHtml(nota)}</div>`:''}
-        ${fs.length?`<div class="vrf-etapa-gallery">${fs.map(src=>`<img src="${src}" onclick="openLightbox('${src}')">`).join('')}</div>`:''}
+        ${fs.length?`<div class="vrf-etapa-gallery">${fs.map(src=>`<img src="${src}" onclick="openLightbox(this.src)">`).join('')}</div>`:''}
       </div>`;
     }).join('');
     return `<div class="vrf-fase">
@@ -7349,8 +7356,8 @@ function openDetalhe(id){
       <div class="card-pad" style="padding:14px">
         <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--gray-400);margin-bottom:10px">${vrf?'Split':'Item'} ${i+1}${vrf?` ${e.marca?'· '+escapeHtml(e.marca):''} ${escapeHtml(e.modelo||'')}`:''}</div>
         <div class="frow" style="gap:10px">
-          <div><div style="font-size:11px;color:var(--gray-400);margin-bottom:4px">${vrf?'Evaporadora':'Antes'}</div>${e.fotoEvap?`<img src="${e.fotoEvap}" onclick="openLightbox('${e.fotoEvap}')" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid var(--green)">`:`<div style="aspect-ratio:4/3;background:var(--gray-100);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px">📷</div>`}</div>
-          <div><div style="font-size:11px;color:var(--gray-400);margin-bottom:4px">${vrf?'Condensadora':'Depois'}</div>${e.fotoCond?`<img src="${e.fotoCond}" onclick="openLightbox('${e.fotoCond}')" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid var(--green)">`:`<div style="aspect-ratio:4/3;background:var(--gray-100);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px">📷</div>`}</div>
+          <div><div style="font-size:11px;color:var(--gray-400);margin-bottom:4px">${vrf?'Evaporadora':'Antes'}</div>${e.fotoEvap?`<img src="${e.fotoEvap}" onclick="openLightbox(this.src)" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid var(--green)">`:`<div style="aspect-ratio:4/3;background:var(--gray-100);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px">📷</div>`}</div>
+          <div><div style="font-size:11px;color:var(--gray-400);margin-bottom:4px">${vrf?'Condensadora':'Depois'}</div>${e.fotoCond?`<img src="${e.fotoCond}" onclick="openLightbox(this.src)" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid var(--green)">`:`<div style="aspect-ratio:4/3;background:var(--gray-100);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px">📷</div>`}</div>
         </div>
       </div>
     </div>`).join('');
@@ -7364,7 +7371,7 @@ function openDetalhe(id){
         <span style="flex:1;font-size:13px">${escapeHtml(c.label)} ${c.critico?'<span style="font-size:10px;background:#fee2e2;color:#991b1b;padding:1px 6px;border-radius:8px;font-weight:600">CRÍTICO</span>':''}</span>
         ${temFoto?`<span class="chk-cam">${svgIco('camera','ico-sm')}</span><span class="chk-arrow" id="chkArrow${ci}">${svgIco('back','ico-sm')}</span>`:'<span style="font-size:11px;color:var(--gray-400)">sem foto</span>'}
       </div>
-      ${temFoto?`<div class="chk-foto" id="chkFoto${ci}"><img src="${c.foto}" onclick="openLightbox('${c.foto}')" style="width:100%;border-radius:10px;cursor:pointer;display:block"></div>`:''}
+      ${temFoto?`<div class="chk-foto" id="chkFoto${ci}"><img src="${c.foto}" onclick="openLightbox(this.src)" style="width:100%;border-radius:10px;cursor:pointer;display:block"></div>`:''}
     </div>`;
   }).join('');
 
@@ -8263,7 +8270,7 @@ function verTarefaDetalhe(id){
       ${(t.checkins&&t.checkins.length)?`<div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--gray-400);margin-bottom:8px">Presença na obra</div>
       <div class="tf-checkin-hist" style="margin-bottom:14px">${t.checkins.slice().reverse().map(c=>`<div class="tf-checkin-dia">${svgIco('pin','ico-sm')} ${fmtDate(c.data)} — ${c.hora}${c.lat?` · <span style="color:var(--petrol);cursor:pointer" onclick="abrirMapaCoord(${c.lat},${c.lng},'${escapeHtml(t.tecnico||'Técnico')} — ${fmtDate(c.data)}')">ver no mapa</span>`:' <span style="color:var(--gray-400)">(sem GPS)</span>'}</div>`).join('')}</div>`:''}
       <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--gray-400);margin-bottom:8px">Fotos (${nf}/${t.maxFotos})</div>
-      ${nf?`<div class="tf-fotos-grid">${t.fotos.map(f=>`<div class="tf-foto"><img src="${f}" onclick="openLightbox('${f}')"></div>`).join('')}</div>`:'<p style="font-size:13px;color:var(--gray-400)">Nenhuma foto enviada ainda.</p>'}
+      ${nf?`<div class="tf-fotos-grid">${t.fotos.map(f=>`<div class="tf-foto"><img src="${f}" onclick="openLightbox(this.src)"></div>`).join('')}</div>`:'<p style="font-size:13px;color:var(--gray-400)">Nenhuma foto enviada ainda.</p>'}
       ${t.temNotas?`<div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--gray-400);margin:14px 0 8px">Notas do prestador</div>
       ${t.nota?`<div style="padding:12px;background:var(--gray-50);border-radius:10px;font-size:13.5px;color:var(--gray-700);line-height:1.55">${escapeHtml(t.nota)}</div>`:'<p style="font-size:13px;color:var(--gray-400)">Nenhuma nota escrita ainda.</p>'}`:''}
     </div>
@@ -8328,7 +8335,7 @@ function renderExecTarefa(t){
   <div class="card" style="margin-bottom:16px"><div class="card-pad">
     <h3 style="font-family:'Inter',sans-serif;letter-spacing:-.02em;font-size:18px;margin-bottom:4px">2. Registro fotográfico</h3>
     <p style="font-size:13px;color:var(--gray-400);margin-bottom:14px">${nf}/${t.maxFotos} foto${t.maxFotos!==1?'s':''} enviada${nf!==1?'s':''}</p>
-    ${nf?`<div class="tf-fotos-grid">${t.fotos.map((f,i)=>`<div class="tf-foto"><img src="${f}" onclick="openLightbox('${f}')"><button class="tf-foto-x" onclick="tarefaRemoverFoto(${i})">✕</button></div>`).join('')}</div>`:''}
+    ${nf?`<div class="tf-fotos-grid">${t.fotos.map((f,i)=>`<div class="tf-foto"><img src="${f}" onclick="openLightbox(this.src)"><button class="tf-foto-x" onclick="tarefaRemoverFoto(${i})">✕</button></div>`).join('')}</div>`:''}
     ${podeFoto
       ?`<button class="btn btn-ghost" style="width:100%;margin-top:${nf?'12px':'0'}" onclick="document.getElementById('tarefaCamInput').click()">${svgIco('camera','ico-sm')} Tirar foto</button>`
       :`<p style="font-size:12.5px;color:var(--gray-400);margin-top:10px">Limite de fotos atingido.</p>`}
@@ -8562,12 +8569,12 @@ function switchEquipTab(i){
     <div class="fg"><label>📷 ${vrf?'Etiqueta — Evaporadora':'Antes'}</label>
       <button class="btn ${e.fotoEvap?'btn-gold':'btn-ghost'}" style="width:100%" onclick="document.getElementById('fEvap${i}').click()">${e.fotoEvap?'✅ Foto enviada — trocar':'📷 Tirar foto'}</button>
       <input type="file" id="fEvap${i}" accept="image/*" style="display:none" onchange="onEquipFoto(event,${i},'evap')">
-      ${e.fotoEvap?`<img src="${e.fotoEvap}" style="width:100%;margin-top:8px;border-radius:8px;border:2px solid var(--green)">`:''}
+      ${e.fotoEvap?`<div class="foto-mini-wrap"><img src="${e.fotoEvap}" class="foto-mini" onclick="openLightbox(this.src)" alt="Foto da etiqueta da evaporadora"><span class="foto-mini-dica">Toque na foto para ver grande</span></div>`:''}
     </div>
     <div class="fg"><label>📷 ${vrf?'Etiqueta — Condensadora':'Depois'}</label>
       <button class="btn ${e.fotoCond?'btn-gold':'btn-ghost'}" style="width:100%" onclick="document.getElementById('fCond${i}').click()">${e.fotoCond?'✅ Foto enviada — trocar':'📷 Tirar foto'}</button>
       <input type="file" id="fCond${i}" accept="image/*" style="display:none" onchange="onEquipFoto(event,${i},'cond')">
-      ${e.fotoCond?`<img src="${e.fotoCond}" style="width:100%;margin-top:8px;border-radius:8px;border:2px solid var(--green)">`:''}
+      ${e.fotoCond?`<div class="foto-mini-wrap"><img src="${e.fotoCond}" class="foto-mini" onclick="openLightbox(this.src)" alt="Foto da etiqueta da condensadora"><span class="foto-mini-dica">Toque na foto para ver grande</span></div>`:''}
     </div>`;
 }
 
@@ -8609,7 +8616,7 @@ function renderChecklistExec(){
         ${showFoto?`<div style="padding:0 14px 14px">
           <button class="btn ${item.foto?'btn-gold':'btn-ghost'} btn-sm" style="width:100%" onclick="document.getElementById('cf${i}').click()">${item.foto?'✅ Foto enviada — trocar':'📷 Foto obrigatória'}</button>
           <input type="file" id="cf${i}" accept="image/*" style="display:none" onchange="onCheckFoto(event,${i})">
-          ${item.foto?`<img src="${item.foto}" style="width:100%;margin-top:8px;border-radius:8px;border:2px solid var(--green)">`:''}
+          ${item.foto?`<div class="foto-mini-wrap"><img src="${item.foto}" class="foto-mini" onclick="openLightbox(this.src)" alt="Foto do item do checklist"><span class="foto-mini-dica">Toque na foto para ver grande</span></div>`:''}
         </div>`:''}
       </div>`;
     }).join('')}
