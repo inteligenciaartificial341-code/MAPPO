@@ -1555,7 +1555,11 @@ async function _resolverFotosOS(remoto,local){
   const porId={};(local||[]).forEach(o=>{if(o&&o.id)porId[o.id]=o;});
   const buscar=[];
   (remoto||[]).forEach(os=>{
-    if(!os||!os.id||!Array.isArray(os.__f))return;
+    /* __f ausente NÃO pode fazer a função desistir da ordem inteira: uma ordem que a nuvem
+       ainda não sabe ter foto nenhuma passaria direto, e o merge seguinte apagaria TODAS as
+       fotos que só existem aqui. */
+    if(!os||!os.id)return;
+    const fotosNoRemoto=Array.isArray(os.__f)?os.__f:[];
     const localOS=porId[os.id];
     const mapaLocal={};
     // vale tanto a foto em si (formato antigo) quanto a referência: os dois significam
@@ -1565,8 +1569,16 @@ async function _resolverFotosOS(remoto,local){
       if(_ehFotoDeVerdade(v)||_ehReferenciaDeFoto(v))mapaLocal[campo]=v;
     });
     _camposFotoOS(os,(campo,get,set)=>{
-      if(os.__f.indexOf(campo)<0)return;
-      if(mapaLocal[campo]){set(mapaLocal[campo]);return;}     // já está aqui
+      /* O QUE ESTÁ NESTE APARELHO SEMPRE VENCE O VAZIO DA NUVEM.
+         Antes, só os campos listados no __f do documento remoto eram preservados -- e o __f
+         descreve o que a NUVEM já conhece. Uma foto tirada agora ainda não está lá, então
+         ela caía fora desta verificação, o remoto vinha com null naquele campo e o merge
+         seguinte APAGAVA a foto recém-tirada. Era o "salvei a condensadora e a evaporadora
+         sumiu" relatado em 25/09/2026, e o mesmo motivo de a OS voltar de concluída para em
+         andamento (sem a foto, ela deixa de cumprir os requisitos).
+         A regra correta é simples: a nuvem não conhecer uma foto nunca é razão para apagá-la. */
+      if(mapaLocal[campo]){set(mapaLocal[campo]);return;}
+      if(fotosNoRemoto.indexOf(campo)<0)return;               // a nuvem também não tem: nada a fazer
       buscar.push({osId:os.id,campo,set});
     });
   });
