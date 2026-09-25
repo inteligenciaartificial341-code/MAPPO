@@ -8,7 +8,7 @@
 > antes do commit + publicação. Ao final de cada publicação: mover o item de
 > `MAPPO-O-QUE-FALTA.md` para cá e registrar no histórico no fim do arquivo.
 
-**Estado:** publicado até o commit `ced6f69` · atualizado em 24/09/2026
+**Estado:** publicado até o commit `df4f313` · atualizado em 24/09/2026
 **Endereço:** https://inteligenciaartificial341-code.github.io/MAPPO/
 
 ---
@@ -186,6 +186,7 @@ Devolvida para revisão, o técnico vê o motivo e refaz.
 
 | Data | Commit | O que entrou |
 |---|---|---|
+| 24/09/2026 | `df4f313` | **Abrir o link do cliente derrubava o login do gestor.** Era a causa única do loop "entre de novo" a cada recarregamento — e, antes disso, a causa muda do "link sempre expirado": o link público criava uma identidade anônima que **substituía a sessão real** (o Firebase só admite um usuário por navegador), então publicar o link falhava em silêncio. Agora o link reaproveita a sessão que já existe |
 | 24/09/2026 | `ced6f69` | **Fotos da OS em documentos próprios — destrava a sincronização.** Uma única OS com fotos chegava a 1082 KB e o servidor **recusava o registro inteiro** (teto de 1 MiB por documento): trabalhar com 2, 20 ou 100 OS ao mesmo tempo era impossível. Agora cada foto tem seu próprio documento e o registro das ordens ficou em poucos KB. Verificado com 12 OS (48 fotos) subindo sem uma recusa |
 | 24/09/2026 | `2f17d2e` | **PDF da OS concluída para enviar ao cliente.** Relatório com fotos de equipamento, checklist executado, registro fotográfico e aceite assinado — o mesmo padrão que já existia no VRF |
 | 24/09/2026 | `fb93a47` | **Sessão do Firebase ausente deixava o app numa casca vazia.** Com sessão local presente e sessão do Firebase perdida, o app abria sem nuvem e sem avisar — nada subia e nada era dito. Agora pede login de novo, preservando todos os dados do aparelho |
