@@ -8,7 +8,7 @@
 > `MAPPO-O-QUE-TEM.md` (seção do recurso + linha no histórico). Um item só existe em um
 > dos dois arquivos, nunca nos dois.
 
-**Atualizado em:** 25/09/2026 · publicado até `106e3ea`
+**Atualizado em:** 25/09/2026 · publicado até `9a7c928`
 
 **Próximo combinado:** testes anti-regressão no repositório, depois fotos no IndexedDB (ver o fim
 deste arquivo). Depois disso: GPS/localização por pessoa (Bloco 2, os três estruturais).
@@ -155,4 +155,7 @@ sem Firebase Storage (que exige Blaze desde 03/02/2026). O trabalho é migrar a 
 escrita das fotos** para ele, mantendo o padrão que já funcionou duas vezes: a aplicação
 continua vendo a foto no mesmo lugar de sempre, e só a camada de armazenamento muda.
 
-**Não é urgente ainda,** mas é o único item cujo prazo é decidido pelo uso, não por nós.
+**Ficou mais urgente em 25/09/2026.** A pressão de memória dessas fotos é o que faz o celular
+descartar a página quando a câmera abre — foi a causa do técnico ser jogado pra tela principal
+ao enviar foto (`9a7c928`). Aquela correção faz o app voltar pro lugar certo depois da recarga,
+mas não impede a recarga: quem impede é tirar as fotos do `localStorage`.
