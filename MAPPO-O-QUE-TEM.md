@@ -8,7 +8,7 @@
 > antes do commit + publicação. Ao final de cada publicação: mover o item de
 > `MAPPO-O-QUE-FALTA.md` para cá e registrar no histórico no fim do arquivo.
 
-**Estado:** publicado até o commit `9a7c928` · atualizado em 24/09/2026
+**Estado:** publicado até o commit `9a7c928` · atualizado em 25/09/2026
 **Endereço:** https://inteligenciaartificial341-code.github.io/MAPPO/
 
 ---
