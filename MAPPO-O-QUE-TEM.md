@@ -8,7 +8,7 @@
 > antes do commit + publicação. Ao final de cada publicação: mover o item de
 > `MAPPO-O-QUE-FALTA.md` para cá e registrar no histórico no fim do arquivo.
 
-**Estado:** publicado até o commit `9a7c928` · atualizado em 25/09/2026
+**Estado:** publicado até o commit `8a21647` · atualizado em 25/09/2026
 **Endereço:** https://inteligenciaartificial341-code.github.io/MAPPO/
 
 ---
@@ -186,6 +186,9 @@ Devolvida para revisão, o técnico vê o motivo e refaz.
 
 | Data | Commit | O que entrou |
 |---|---|---|
+| 25/09/2026 | `8a21647` | **Fotos de obra em um documento por foto, e excluir andar libera de verdade.** As fotos de um andar iam todas num documento só: um andar bem fotografado chegava aos 94% do teto de 1 MiB e, ao encher, parava de sincronizar — foto tirada num celular não aparecia no outro. Medido: 16 fotos de 60 KB levavam o documento do andar a 961 KB; agora ele fica em 1 KB. Junto, duas causas de "excluí o andar e não diminuiu": nada no app apagava o documento na nuvem, e o outro celular ressuscitava o andar excluído ao reenviar |
+| 25/09/2026 | `16a208e` | **Foto vira miniatura na OS e abre no tamanho da tela ao tocar.** Na tela do técnico ela ocupava 100% da largura e nem abria ao clicar. Junto: em 6 lugares a mesma foto era escrita duas vezes no HTML (no `src` e no `onclick`), dobrando a memória usada por foto |
+| 25/09/2026 | `2cd2607` | **Tabela de espaço acusava 100% nas ordens com o servidor quase vazio.** Ela media a cópia do aparelho (com as fotos dentro) em vez do que de fato sobe (sem fotos, desde `ced6f69`) — e mandou o gestor atrás de um problema que não existia |
 | 25/09/2026 | `9a7c928` | **A foto do técnico jogava ele de volta pra tela principal.** Ao enviar foto dentro da OS, o celular descartava a página por pressão de memória (a câmera em primeiro plano + fotos em base64) e recarregava — e o boot do técnico sempre termina na tela principal, então ele reaparecia fora da OS, sem a foto. Agora o app anota qual OS estava aberta e volta pra ela depois da recarga. Junto: três pontos que engoliam a confirmação "Foto salva" ao quebrar em elementos que já não estavam na tela |
 | 25/09/2026 | `106e3ea` | **Todo link do cliente nascia mostrando "Link expirado".** Uma linha: `setTimeout` tem teto de ~24,8 dias e, acima disso, dispara **na hora** — o link vale 30 dias, então a tela do cliente era desenhada e apagada milissegundos depois, com o dado íntegro no servidor. Valia para **todos** os links desde 24/08/2026, e gerar outro nunca resolveria (o novo também nasce com 30 dias). Junto: o modal passa a conferir no servidor se o link funciona, mostra o endereço inteiro com o token destacado, avisa enquanto um endereço novo não foi enviado, e oferece "Emitir outro endereço" a qualquer momento |
 | 24/09/2026 | `df4f313` | **Abrir o link do cliente derrubava o login do gestor.** Era a causa única do loop "entre de novo" a cada recarregamento — e, antes disso, a causa muda do "link sempre expirado": o link público criava uma identidade anônima que **substituía a sessão real** (o Firebase só admite um usuário por navegador), então publicar o link falhava em silêncio. Agora o link reaproveita a sessão que já existe |
