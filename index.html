@@ -1417,6 +1417,131 @@ function _marcarFotoEnviada(id){
   }catch(e){_quietWrite=false;}
 }
 
+/* ── FOTOS DE OBRA: UMA FOTO, UM DOCUMENTO ──────────────────────────────────────
+   Até aqui as fotos de um andar iam TODAS dentro do documento daquele andar. Um andar
+   bem fotografado chegava aos 90% do teto de 1 MiB (relatado em 25/09/2026) e, ao encher,
+   aquele andar parava de sincronizar -- foto tirada num celular não aparecia no outro.
+   Mesma cura já aplicada às ordens de serviço em ced6f69: cada foto vira um documento
+   próprio, com o seu próprio 1 MiB, e o documento do andar guarda só a ESTRUTURA (quais
+   fotos existem, em que etapa e em que ordem). O teto por andar deixa de existir.
+   O aparelho continua com a forma de sempre (vrfFotos[andar][etapa] = [foto, foto]) --
+   quem monta e desmonta é só a camada de sincronização, então nenhuma tela muda. */
+const FOTO_OBRA_PREFIXO='mappo_fotoobra__';
+/* Identidade da foto pelo CONTEÚDO, não pela posição. Se fosse pela posição, apagar a
+   primeira foto renomearia todas as seguintes: reenvio inteiro e documentos órfãos a cada
+   remoção. Por conteúdo, a foto tem sempre o mesmo nome, e duas fotos idênticas ocupam um
+   documento só. Dois acumuladores de 32 bits (~64 bits juntos) -- colisão entre as centenas
+   de fotos de uma obra é desprezível, e o custo é ~1ms por foto. */
+function _idFotoObra(uri){
+  let h1=0x811c9dc5,h2=0x01000193;
+  for(let i=0;i<uri.length;i++){
+    const c=uri.charCodeAt(i);
+    h1=((h1^c)*16777619)>>>0;
+    h2=(((h2+c)>>>0)*2654435761)>>>0;
+  }
+  return FOTO_OBRA_PREFIXO+h1.toString(36)+'_'+h2.toString(36);
+}
+function _ehFotoDeVerdade(v){return typeof v==='string'&&v.slice(0,5)==='data:';}
+/* Versão "magra" de um andar: cada foto vira o NOME do documento dela. Devolve também a
+   lista de fotos a enviar. A estrutura (etapas e ordem) fica intacta. */
+function _separarFotosAndar(andarObj){
+  const slim={},fotos=[];
+  Object.keys(andarObj||{}).forEach(etapa=>{
+    const lista=andarObj[etapa];
+    if(!Array.isArray(lista)){slim[etapa]=lista;return;}
+    slim[etapa]=lista.map(v=>{
+      if(!_ehFotoDeVerdade(v))return v;      // já é um marcador (veio da nuvem assim)
+      const id=_idFotoObra(v);
+      fotos.push({id,uri:v});
+      return id;
+    });
+  });
+  return {slim,fotos};
+}
+/* Devolve as fotos para dentro do andar que veio da nuvem. Primeiro o que já existe NESTE
+   aparelho (sem rede); só busca o documento da foto que é nova aqui. Resolver ANTES do
+   merge é obrigatório -- o merge compara valor a valor, e um marcador no lugar da foto
+   apagaria a foto local de quem não tem alteração pendente naquela etapa. */
+async function _resolverFotosAndar(remotoAndar,localAndar){
+  const porId={};
+  Object.keys(localAndar||{}).forEach(etapa=>{
+    const l=localAndar[etapa];
+    if(Array.isArray(l))l.forEach(v=>{if(_ehFotoDeVerdade(v))porId[_idFotoObra(v)]=v;});
+  });
+  const faltando=[];
+  Object.keys(remotoAndar||{}).forEach(etapa=>{
+    const lista=remotoAndar[etapa];
+    if(!Array.isArray(lista))return;
+    lista.forEach((v,i)=>{
+      if(_ehFotoDeVerdade(v))return;
+      if(porId[v]){lista[i]=porId[v];return;}
+      faltando.push({etapa,i,id:v});
+    });
+  });
+  if(faltando.length&&fbReady&&WORKSPACE){
+    const col=fbDB.collection('workspaces').doc(WORKSPACE).collection('data');
+    for(const f of faltando){
+      try{
+        const s=await col.doc(f.id).get();
+        if(s.exists&&typeof s.data().json==='string')remotoAndar[f.etapa][f.i]=s.data().json;
+      }catch(e){fbLog('Não consegui baixar uma foto de obra: '+(e.code||e.message),'erro');}
+    }
+  }
+  /* Marcador NOSSO que sobrou (a foto não existe mais no servidor) é removido: deixá-lo
+     viraria uma "foto" quebrada na galeria. Só isso -- qualquer outro valor que eu não
+     reconheça fica onde está. Filtrar por "não é data:" apagaria em silêncio qualquer
+     formato antigo ou futuro guardado aí, e apagar dado que não se entende é pior do que
+     mostrar algo estranho. */
+  Object.keys(remotoAndar||{}).forEach(etapa=>{
+    const lista=remotoAndar[etapa];
+    if(!Array.isArray(lista))return;
+    remotoAndar[etapa]=lista.filter(v=>
+      !(typeof v==='string'&&v.slice(0,FOTO_OBRA_PREFIXO.length)===FOTO_OBRA_PREFIXO));
+  });
+  return remotoAndar;
+}
+
+/* Apaga um andar NA NUVEM: as fotos e o documento do andar. Antes isto não existia --
+   nenhum documento de andar era apagado em lugar nenhum do app -- então excluir um andar
+   só sumia com ele no aparelho: o documento continuava no servidor, ocupando o espaço que
+   o gestor achava ter liberado. Fotos primeiro, estrutura depois: o contrário deixaria, no
+   intervalo, uma estrutura apontando pra foto que já não existe. */
+async function _apagarAndarNaNuvem(andarId,andarObj){
+  if(!fbReady||!WORKSPACE)return;
+  const col=fbDB.collection('workspaces').doc(WORKSPACE).collection('data');
+  const ids=new Set();
+  Object.keys(andarObj||{}).forEach(etapa=>{
+    const l=andarObj[etapa];
+    if(!Array.isArray(l))return;
+    l.forEach(v=>{
+      if(_ehFotoDeVerdade(v))ids.add(_idFotoObra(v));
+      else if(typeof v==='string'&&v.slice(0,FOTO_OBRA_PREFIXO.length)===FOTO_OBRA_PREFIXO)ids.add(v);
+    });
+  });
+  let apagadas=0;
+  for(const id of ids){
+    try{await col.doc(id).delete();apagadas++;}
+    catch(e){fbLog('Não consegui apagar uma foto de obra: '+(e.code||e.message),'erro');}
+  }
+  try{
+    await col.doc(_docDoAndar(andarId)).delete();
+    fbLog('Andar apagado na nuvem ('+apagadas+' foto(s) liberadas)','ok');
+  }catch(e){fbLog('Não consegui apagar o andar na nuvem: '+(e.code||e.message),'erro');}
+}
+
+/* Reenvio completo das fotos de obra: só na PRIMEIRA vez deste aparelho em cada formato.
+   Sem esta trava, um aparelho sem nenhuma alteração pendente reenviava TODOS os andares em
+   modo união (mantém nuvem + local, nunca remove) -- e assim devolvia à nuvem o andar que
+   outro aparelho tinha acabado de excluir. Com dois celulares, excluir andar não funcionava. */
+const MIGR_FOTOS_CHAVE='mappo_fotos_migr', MIGR_FOTOS_VERSAO='2';
+function _migracaoFotosPendente(){
+  try{return localStorage.getItem(MIGR_FOTOS_CHAVE)!==MIGR_FOTOS_VERSAO;}catch(e){return false;}
+}
+function _marcarMigracaoFotos(){
+  try{_quietWrite=true;localStorage.setItem(MIGR_FOTOS_CHAVE,MIGR_FOTOS_VERSAO);_quietWrite=false;}
+  catch(e){_quietWrite=false;fbLog('Não consegui marcar a migração das fotos: '+e.message,'erro');}
+}
+
 /* Monta o resultado do merge para UM andar: parte de `base`, troca a subárvore desse andar
    pela de `fonteAndar`, e reaplica por cima o que foi lançado NESTE aparelho e ainda não
    subiu. É a mesma regra do _mergeLeafs, restrita a um andar — o _mergeLeafs não serve aqui
@@ -2213,11 +2338,38 @@ async function _pushFotosPorAndar(){
   let andares=[...new Set(Object.keys(pend)
     .map(p=>{const i=p.indexOf(SEP);return i<0?'':p.slice(0,i);})
     .filter(Boolean))];
-  if(!andares.length)andares=Object.keys(local);   // nada pendente: migra tudo
+  /* Nada pendente: só reenvia tudo na migração (uma vez por formato). Fora dela, um
+     aparelho que não mexeu em nada não reenvia andar nenhum -- é isso que impede ele de
+     ressuscitar o andar que o outro celular acabou de excluir. */
+  const migrando=!andares.length&&_migracaoFotosPendente();
+  if(!andares.length){
+    if(!migrando){_snapshot[CHAVE_FOTOS]=localStorage.getItem(CHAVE_FOTOS);return;}
+    andares=Object.keys(local);
+  }
+  let falhou=false;
   for(const g of andares){
     const nomeDoc=_docDoAndar(g);
     try{
-      const corpo=JSON.stringify(local[g]!==undefined?{[g]:local[g]}:{});
+      /* As fotos saem primeiro, cada uma no seu documento. Se a estrutura subisse antes,
+         outro aparelho poderia ler um andar apontando pra foto que ainda não existe. */
+      let corpoObj={};
+      if(local[g]!==undefined){
+        const {slim,fotos}=_separarFotosAndar(local[g]);
+        const enviadas=_fotosJaEnviadas();
+        const col=fbDB.collection('workspaces').doc(WORKSPACE).collection('data');
+        for(const f of fotos){
+          if(enviadas.indexOf(f.id)>=0)continue;
+          const bf=_bytesDe(f.uri);
+          if(bf>=DOC_LIMITE_BYTES){
+            fbLog('Foto de obra grande demais para o servidor ('+Math.round(bf/1024)+' KB) — ignorada no envio','erro');
+            continue;                     // uma foto gigante não pode travar as outras
+          }
+          await col.doc(f.id).set({json:f.uri,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+          _marcarFotoEnviada(f.id);
+        }
+        corpoObj={[g]:slim};
+      }
+      const corpo=JSON.stringify(corpoObj);
       const bytes=_bytesDe(corpo);
       if(bytes>=DOC_ALERTA_BYTES){
         if(_chavesQuaseCheias[nomeDoc]===undefined)
@@ -2237,25 +2389,31 @@ async function _pushFotosPorAndar(){
            Usar o merge normal aqui apagaria da nuvem tudo que este aparelho ainda não tem. */
         const temPendencia=Object.keys(_pend[CHAVE_FOTOS]||{})
           .some(p=>{const i=p.indexOf(SEP);return i>0&&p.slice(0,i)===g;});
+        // o que vai pro servidor é sempre a forma magra (marcadores), nunca as fotos
+        const localMagro={};localMagro[g]=corpoObj[g]||undefined;
         if(!temPendencia){
           const out=JSON.parse(JSON.stringify(remoto));
-          out[g]=Object.assign({},remoto[g]||{},local[g]||{});
+          out[g]=Object.assign({},remoto[g]||{},corpoObj[g]||{});
           return JSON.stringify(out);
         }
-        return JSON.stringify(_mesclarAndar(g,remoto,remoto[g],local));
+        return JSON.stringify(_mesclarAndar(g,remoto,remoto[g],localMagro));
       };
       const mergedStr=await _gravarMesclado(ref,mesclar);
       // a nuvem pode ter trazido coisa de outro aparelho junto: aplica aqui também
-      _aplicarShardFotos(mergedStr);
-      _confirmarEnvioAndar(g,mergedStr);
+      // (assíncrono agora -- o que volta vem com marcadores e precisa virar foto de novo)
+      await _aplicarShardFotos(mergedStr);
+      _confirmarEnvioAndar(g,JSON.stringify({[g]:(local[g]!==undefined?local[g]:undefined)}));
       if(_falhasEnvio[nomeDoc]){delete _falhasEnvio[nomeDoc];_atualizarAlertaSync();}
     }catch(e){
       fbLog('Falha ao enviar fotos de um andar: '+e.message,'erro');
       if(!_falhasEnvio[nomeDoc])_falhasEnvio[nomeDoc]={erro:e.message,hora:new Date().toLocaleTimeString('pt-BR')};
       else _falhasEnvio[nomeDoc].erro=e.message;
+      falhou=true;
       _atualizarAlertaSync();
     }
   }
+  // só dá a migração por feita se TODOS os andares subiram: senão o que falhou nunca iria
+  if(migrando&&!falhou)_marcarMigracaoFotos();
   _snapshot[CHAVE_FOTOS]=localStorage.getItem(CHAVE_FOTOS);
 }
 
@@ -2574,21 +2732,32 @@ function _ehChaveDeSync(id){
 
 /* Chegou o documento de UM andar. Troca só a subárvore daquele andar — os demais andares
    que já estão aqui não são tocados. */
-function _aplicarShardFotos(jsonStr){
-  const shard=_obj(jsonStr);
-  const andares=Object.keys(shard);
-  if(!andares.length)return;            // shard vazio nunca apaga nada aqui
-  _detectarMudancasNaoVistas(CHAVE_FOTOS);
-  const atual=localStorage.getItem(CHAVE_FOTOS);
-  const local=_obj(atual);
-  let out=local;
-  andares.forEach(g=>{out=_mesclarAndar(g,out,shard[g],local);});
-  const novo=JSON.stringify(out);
-  if(novo===atual){_snapshot[CHAVE_FOTOS]=novo;return;}
-  _setLocalQuiet(CHAVE_FOTOS,novo);
-  _aplicarNaMemoria(CHAVE_FOTOS,out);
-  fbLog('Recebido: fotos de obra','pull');
-  fbOnRemoteChange(CHAVE_FOTOS);
+async function _aplicarShardFotos(jsonStr){
+  try{
+    const shard=_obj(jsonStr);
+    const andares=Object.keys(shard);
+    if(!andares.length)return;            // shard vazio nunca apaga nada aqui
+    _detectarMudancasNaoVistas(CHAVE_FOTOS);
+    /* O andar chega da nuvem com MARCADORES no lugar das fotos. Remontar tem de acontecer
+       ANTES do merge: o merge compara valor a valor, e um marcador onde havia foto apagaria
+       a foto local de quem não tem alteração pendente naquela etapa. */
+    const antes=_obj(localStorage.getItem(CHAVE_FOTOS));
+    for(const g of andares){
+      try{await _resolverFotosAndar(shard[g],antes[g]);}
+      catch(e){fbLog('Falha ao remontar as fotos de um andar: '+(e&&e.message),'erro');}
+    }
+    // relê: a busca das fotos é assíncrona e o aparelho pode ter mexido nesse meio tempo
+    const atual=localStorage.getItem(CHAVE_FOTOS);
+    const local=_obj(atual);
+    let out=local;
+    andares.forEach(g=>{out=_mesclarAndar(g,out,shard[g],local);});
+    const novo=JSON.stringify(out);
+    if(novo===atual){_snapshot[CHAVE_FOTOS]=novo;return;}
+    _setLocalQuiet(CHAVE_FOTOS,novo);
+    _aplicarNaMemoria(CHAVE_FOTOS,out);
+    fbLog('Recebido: fotos de obra','pull');
+    fbOnRemoteChange(CHAVE_FOTOS);
+  }catch(e){fbLog('Falha ao aplicar as fotos de um andar: '+(e&&e.message),'erro');}
 }
 
 /* Documento ANTIGO (mappo_vrf_fotos, de antes da divisão por andar). Durante a transição
@@ -5449,14 +5618,17 @@ function vrfAddAndar(){
   vrfObraAtual().andares.push({id:_novoIdAndar(),nome:'Andar '+(vrfObraAtual().andares.length+1)});
   saveVrfObra();vrfConfigObra();
 }
-function vrfRemoverAndar(i){
+async function vrfRemoverAndar(i){
   if(vrfObraAtual().andares.length<=1){toast('A obra precisa de ao menos 1 andar','warn');return;}
   const an=vrfObraAtual().andares[i];
   if(!confirm('Remover "'+an.nome+'"? As marcações e fotos desse andar serão apagadas.'))return;
+  const fotosDoAndar=vrfFotos[an.id];   // guarda ANTES de apagar: é a lista do que remover na nuvem
   delete vrfProgresso[an.id];delete vrfFotos[an.id];delete vrfNotas[an.id];
   vrfObraAtual().andares.splice(i,1);
   saveVrfObra();saveVrfProgresso();saveVrfFotos();saveVrfNotas();
   vrfConfigObra();
+  // e agora some de verdade do servidor, senão o espaço nunca é liberado
+  await _apagarAndarNaNuvem(an.id,fotosDoAndar);
 }
 function vrfRenomearAndar(i,nome){if(vrfObraAtual().andares[i]){vrfObraAtual().andares[i].nome=nome.trim()||('Andar '+(i+1));saveVrfObra();}}
 function vrfSalvarObra(){
