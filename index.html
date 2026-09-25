@@ -787,6 +787,12 @@
   .mapa-painel.colapsado .mapa-painel-body{display:none;}
   /* caixa do link no modal do gestor */
   .pub-link-box input{width:100%;padding:12px 14px;border:2px solid var(--gray-200);border-radius:10px;font-size:13px;font-family:ui-monospace,Menlo,monospace;background:var(--gray-50);color:var(--gray-600);}
+  /* textarea em vez de input no link do cliente: o input cortava o endereço bem no fim,
+     que é justamente a parte que muda quando um endereço novo é emitido -- o gestor não
+     tinha como perceber que estava enviando um link antigo. Aqui ele aparece inteiro. */
+  .pub-link-box textarea{width:100%;padding:12px 14px;border:2px solid var(--gray-200);border-radius:10px;font-size:12.5px;font-family:ui-monospace,Menlo,monospace;background:var(--gray-50);color:var(--gray-600);resize:none;line-height:1.5;word-break:break-all;}
+  .pub-token-fim{font-size:12.5px;color:var(--gray-500);margin-top:8px}
+  .pub-token-fim b{font-family:ui-monospace,Menlo,monospace;background:#eef2ff;color:#3730a3;padding:2px 7px;border-radius:5px;letter-spacing:.5px}
   /* ── PÁGINA PÚBLICA DO CLIENTE ── */
   body.modo-publico{background:var(--gray-50);}
   #pubScreen{min-height:100vh;background:var(--gray-50);}
@@ -8753,6 +8759,23 @@ const PUB_LIMITE_BYTES=700000;  // margem segura do limite de 1MB por documento
 /* [ASSUMPTION] nenhuma fonte (PRD/espinha) define prazo padrão -- 30 dias é valor
    conservador pra um link de acompanhamento de serviço já concluído/em andamento. */
 const PUB_VALIDADE_MS=30*24*60*60*1000;
+/* setTimeout estoura acima de 2.147.483.647 ms (~24,8 dias): acima disso o valor vira
+   int32 negativo e o timer dispara NA HORA, não no prazo pedido. Como o link vale 30 dias,
+   o agendamento da expiração SEMPRE estourava -- e todo link recém-gerado virava
+   "Link expirado" no mesmo instante em que o cliente abria, com o dado íntegro no servidor.
+   Era o defeito relatado desde 24/08/2026 (fef662a), e a razão de "gerar outro link" nunca
+   resolver: o link novo também nasce com 30 dias. Fatia a espera em pedaços seguros. */
+const MAX_TIMEOUT_MS=2147483647;
+function agendarLonge(ms,fn){
+  const h={id:null};
+  (function passo(resta){
+    if(resta<=0){fn();return;}
+    const fatia=Math.min(resta,MAX_TIMEOUT_MS);
+    h.id=setTimeout(()=>passo(resta-fatia),fatia);
+  })(Math.max(0,ms));
+  return h;
+}
+function cancelarLonge(h){if(h&&h.id)clearTimeout(h.id);}
 const _thumbCache={};
 const _pubUltimo={};            // token → último conteúdo publicado (evita reescrever igual)
 
@@ -8914,23 +8937,47 @@ async function gerarLinkOS(id){
   // pubExpira só é gravado na criação do token -- republicações (inclusive as automáticas
   // de agendarRepublicacao) reaproveitam o valor já existente, nunca estendem o prazo.
   const emitiuNovo=_precisaNovoToken(os);
-  if(emitiuNovo){os.pubToken=_pubToken();os.pubExpira=Date.now()+PUB_VALIDADE_MS;saveOS();}
+  // pubNaoEnviado: endereço novo que o gestor ainda não copiou nem mandou. Sobrevive a
+  // fechar e reabrir o modal -- antes o aviso de "endereço novo" só aparecia no instante
+  // da emissão e sumia para sempre, deixando o gestor reenviando o endereço antigo.
+  if(emitiuNovo){os.pubToken=_pubToken();os.pubExpira=Date.now()+PUB_VALIDADE_MS;os.pubNaoEnviado=true;saveOS();}
   toast('Preparando o link...');
   const ok=await publicarAcompanhamento(os.pubToken,await pubPayloadOS(os),os.pubExpira);
-  abrirModalLink(os.pubToken,os.cliente,ok,'os',id,emitiuNovo);
+  abrirModalLink(os.pubToken,os.cliente,ok,'os',id,emitiuNovo,await conferirLinkNoServidor(os.pubToken));
+}
+/* Confere no SERVIDOR se o link realmente funciona, em vez de confiar na cópia do aparelho.
+   O modal decidia tudo por alvo.pubExpira local: quando os dois divergiam, o gestor via
+   "válido, faltam N dias" e o cliente via "expirado" -- e só o cliente descobria.
+   Devolve null quando não deu pra conferir (offline), para não acusar falso problema. */
+async function conferirLinkNoServidor(token){
+  if(!fbReady||!WORKSPACE||!token)return null;
+  try{
+    const s=await fbDB.collection('workspaces').doc(WORKSPACE).collection('data').doc('pub_'+token).get();
+    if(!s.exists)return{existe:false,vivo:false};
+    const exp=s.data().expiraEm;
+    return{existe:true,vivo:!exp||exp>Date.now(),expiraEm:exp||null};
+  }catch(e){
+    /* Nenhum erro vira veredito de "link morto". Em especial permission-denied: quem está
+       lendo aqui é o GESTOR, e a regra libera membro do workspace por isMember() mesmo com
+       o pub_ vencido -- o ramo de expiração só vale para quem não é membro. Então negativa
+       aqui é falha de acesso, não expiração, e confundir as duas faria o app declarar morto
+       um link perfeitamente vivo. Sem certeza, devolve null e o modal cai no palpite local. */
+    fbLog('Não foi possível conferir o link no servidor: '+(e.code||'?')+' — '+e.message,'erro');
+    return null;
+  }
 }
 /* ── gera (ou reaproveita) o link de um andar da obra ── */
 async function gerarLinkObra(andarId){
   if(!WORKSPACE||!fbReady){toast('Aguarde a sincronização terminar antes de gerar o link','warn');return;}
   const andar=(vrfObraAtual().andares||[]).find(a=>a.id===andarId);if(!andar)return;
   const emitiuNovo=_precisaNovoToken(andar);
-  if(emitiuNovo){andar.pubToken=_pubToken();andar.pubExpira=Date.now()+PUB_VALIDADE_MS;saveVrfObra();}
+  if(emitiuNovo){andar.pubToken=_pubToken();andar.pubExpira=Date.now()+PUB_VALIDADE_MS;andar.pubNaoEnviado=true;saveVrfObra();}
   toast('Preparando o link...');
   const ok=await publicarAcompanhamento(andar.pubToken,await pubPayloadObra(andarId),andar.pubExpira);
-  abrirModalLink(andar.pubToken,(vrfObraAtual().nome||'Obra')+' — '+andar.nome,ok,'obra',andarId,emitiuNovo);
+  abrirModalLink(andar.pubToken,(vrfObraAtual().nome||'Obra')+' — '+andar.nome,ok,'obra',andarId,emitiuNovo,await conferirLinkNoServidor(andar.pubToken));
 }
 
-function abrirModalLink(token,nome,publicado,tipo,id,emitiuNovo){
+function abrirModalLink(token,nome,publicado,tipo,id,emitiuNovo,noServidor){
   const url=pubURL(token);
   /* Mostrar até quando vale. Sem isto o gestor não tinha como saber se o link que está
      mandando ainda funciona — e descobria pelo cliente dizendo que deu "expirado". */
@@ -8939,11 +8986,30 @@ function abrirModalLink(token,nome,publicado,tipo,id,emitiuNovo){
     : ((vrfObraAtual()||{}).andares||[]).find(a=>a.id===id);
   const exp=alvo&&alvo.pubExpira;
   const diasRest=exp?Math.ceil((exp-Date.now())/86400000):null;
-  const avisoValidade=exp
-    ? (diasRest>0
-        ? `<p style="font-size:12.5px;color:var(--gray-500);margin-top:10px">⏳ Válido até <b>${fmtDate(new Date(exp).toISOString().split('T')[0])}</b> — ${diasRest} dia${diasRest>1?'s':''} restante${diasRest>1?'s':''}.</p>`
-        : `<p style="font-size:12.5px;color:#b45309;margin-top:10px">⚠️ Este link está <b>vencido ou revogado</b>. Feche e toque em gerar o link de novo — o MAPPO emite um endereço novo.</p>`)
-    : '<p style="font-size:12.5px;color:var(--gray-500);margin-top:10px">Link antigo, sem prazo de validade.</p>';
+  /* O SERVIDOR decide se o link funciona; a cópia do aparelho é só um palpite. noServidor
+     null = não deu pra conferir (offline): aí vale o palpite local, sem acusar falso erro.
+     "Não existe" só vira alarme quando a publicação TAMBÉM falhou: se acabamos de publicar
+     com sucesso, o documento está lá, e uma leitura que não o enxergou é problema da leitura
+     -- gritar "não está publicado" aí seria trocar um erro por outro, na cara do gestor. */
+  const sumiu=!!(noServidor&&!noServidor.existe&&!publicado);
+  const venceuNoServidor=!!(noServidor&&noServidor.existe&&!noServidor.vivo);
+  const morto=venceuNoServidor||sumiu||(!noServidor&&!!(exp&&diasRest<=0));
+  const avisoValidade=morto
+    ? `<p style="font-size:12.5px;color:#b45309;margin-top:10px">⚠️ ${sumiu
+        ? 'Este endereço <b>não está publicado</b> — o cliente veria "link não encontrado".'
+        : 'Este link está <b>vencido ou revogado</b> e não funciona mais.'}
+        Toque em <b>Emitir endereço novo</b> abaixo.</p>`
+    : (exp
+        ? `<p style="font-size:12.5px;color:var(--gray-500);margin-top:10px">⏳ Válido até <b>${fmtDate(new Date(exp).toISOString().split('T')[0])}</b> — ${diasRest} dia${diasRest>1?'s':''} restante${diasRest>1?'s':''}${noServidor?' · conferido no servidor agora':''}.</p>`
+        : '<p style="font-size:12.5px;color:var(--gray-500);margin-top:10px">Link antigo, sem prazo de validade.</p>');
+  /* Aviso que NÃO some ao fechar o modal: enquanto o endereço novo não for copiado nem
+     enviado, ele continua aparecendo. Era esse o buraco — o gestor emitia um endereço
+     novo, fechava, e voltava a mandar o antigo sem nenhum sinal de que tinha mudado. */
+  const avisoNovo=(emitiuNovo||(alvo&&alvo.pubNaoEnviado))&&!morto
+    ? `<p style="font-size:12.5px;color:#92400e;background:#fffbeb;border-radius:8px;padding:9px 11px;line-height:1.5;margin-bottom:12px">
+        🔄 <b>Este endereço é novo${emitiuNovo?'':' e ainda não foi enviado'}.</b> O anterior deixou de funcionar —
+        se você já mandou o link antigo para o cliente, mande este no lugar.</p>`
+    : '';
   const msg=encodeURIComponent('Acompanhe o serviço da '+(WORKSPACE_NOME||'empresa')+' em tempo real: '+url);
   showModal(`
     <div class="modal-head"><h2>Link de acompanhamento</h2></div>
@@ -8952,10 +9018,9 @@ function abrirModalLink(token,nome,publicado,tipo,id,emitiuNovo){
         Envie este link para <b>${escapeHtml(nome)}</b>. O cliente abre no navegador do celular, sem instalar nada,
         e acompanha as fotos e etapas conforme o técnico vai lançando.
       </p>
-      ${emitiuNovo?`<p style="font-size:12.5px;color:#92400e;background:#fffbeb;border-radius:8px;padding:9px 11px;line-height:1.5;margin-bottom:12px">
-        🔄 <b>Endereço novo.</b> O link anterior estava vencido ou revogado e deixou de funcionar —
-        é este aqui que precisa chegar ao cliente.</p>`:''}
-      <div class="pub-link-box"><input id="pubLinkInput" readonly value="${url}"></div>
+      ${avisoNovo}
+      <div class="pub-link-box"><textarea id="pubLinkInput" readonly rows="3" onclick="this.select()">${url}</textarea></div>
+      <p class="pub-token-fim">Termina em <b>${escapeHtml(token)}</b> — confira se é o mesmo endereço que o cliente recebeu.</p>
       ${avisoValidade}
       ${publicado?'':`<p style="font-size:12.5px;color:#b45309;margin-top:10px">Sem conexão com a nuvem agora — o link foi criado e será publicado assim que o app sincronizar.</p>`}
       <p style="font-size:12px;color:var(--gray-400);margin-top:12px;line-height:1.5">
@@ -8963,15 +9028,19 @@ function abrirModalLink(token,nome,publicado,tipo,id,emitiuNovo){
       </p>
     </div>
     <div class="modal-foot">
-      ${(exp&&diasRest<=0)
+      ${morto
         ? /* Link morto: o que resolve é emitir outro, e o botão fica AQUI — sem isso o gestor
              tinha que fechar, achar de novo onde gera e torcer. Copiar/WhatsApp saem de cena
              porque enviariam um endereço que já não funciona. */
           `<button class="btn btn-ghost" onclick="closeModal()">Fechar</button>
-           <button class="btn btn-primary" onclick="closeModal();${tipo==='os'?`gerarLinkOS('${id}')`:`gerarLinkObra('${id}')`}">Emitir link novo</button>`
-        : `<button class="btn btn-danger" onclick="revogarLink('${tipo}','${id}')">Revogar link</button>
-           <button class="btn btn-ghost" onclick="copiarLinkPub()">Copiar link</button>
-           <button class="btn btn-primary" onclick="window.open('https://wa.me/?text=${msg}','_blank')">Enviar no WhatsApp</button>`}
+           <button class="btn btn-primary" onclick="closeModal();${tipo==='os'?`gerarLinkOS('${id}')`:`gerarLinkObra('${id}')`}">Emitir endereço novo</button>`
+        : /* Link vivo: "emitir endereço novo" fica disponível MESMO ASSIM. Antes só aparecia
+             quando o app achava que o link tinha morrido — e se o app se enganasse, o gestor
+             ficava sem saída nenhuma pela tela. Agora ele sempre tem como forçar um endereço. */
+          `<button class="btn btn-ghost btn-sm" onclick="closeModal();${tipo==='os'?`emitirEnderecoNovo('os','${id}')`:`emitirEnderecoNovo('obra','${id}')`}">Emitir outro endereço</button>
+           <button class="btn btn-danger btn-sm" onclick="revogarLink('${tipo}','${id}')">Revogar</button>
+           <button class="btn btn-ghost" onclick="copiarLinkPub('${tipo}','${id}')">Copiar link</button>
+           <button class="btn btn-primary" onclick="marcarLinkEnviado('${tipo}','${id}');window.open('https://wa.me/?text=${msg}','_blank')">Enviar no WhatsApp</button>`}
     </div>`,'wide');
 }
 /* ── revoga um link já gerado: expira agora, sem estado/mensagem novos (mesmo mecanismo
@@ -8996,8 +9065,44 @@ async function revogarLink(tipo,id){
   if(ok){closeModal();toast('Link revogado','success');}
   else toast('Não foi possível revogar — verifique sua conexão e tente de novo','error');
 }
-function copiarLinkPub(){
+/* Troca o endereço por um novo mesmo com o atual vivo. Mata o atual no servidor ANTES de
+   trocar: sem isso o endereço antigo continuaria funcionando por até 30 dias, e "emitir
+   outro" viraria só mais um link válido em circulação em vez de uma substituição. */
+async function emitirEnderecoNovo(tipo,id){
+  if(!confirm('Emitir outro endereço? O endereço atual para de funcionar na hora — quem já recebeu vai precisar do novo.'))return;
+  if(tipo==='os'){
+    const os=osList.find(o=>o.id===id);if(!os)return;
+    if(os.pubToken){
+      os.pubExpira=Date.now();saveOS();
+      const ok=await publicarAcompanhamento(os.pubToken,await pubPayloadOS(os),os.pubExpira);
+      if(!ok){toast('Não foi possível encerrar o endereço atual — verifique a conexão','error');return;}
+    }
+    gerarLinkOS(id);
+  }else if(tipo==='obra'){
+    const andar=(vrfObraAtual().andares||[]).find(a=>a.id===id);if(!andar)return;
+    if(andar.pubToken){
+      andar.pubExpira=Date.now();saveVrfObra();
+      const p=await pubPayloadObra(id);
+      const ok=p?await publicarAcompanhamento(andar.pubToken,p,andar.pubExpira):false;
+      if(!ok){toast('Não foi possível encerrar o endereço atual — verifique a conexão','error');return;}
+    }
+    gerarLinkObra(id);
+  }
+}
+/* O aviso "endereço novo" só some quando o gestor de fato leva o link embora (copiou ou
+   mandou no WhatsApp). Antes ele sumia ao fechar o modal, que não prova envio nenhum. */
+function marcarLinkEnviado(tipo,id){
+  if(tipo==='os'){
+    const os=osList.find(o=>o.id===id);
+    if(os&&os.pubNaoEnviado){delete os.pubNaoEnviado;saveOS();}
+  }else{
+    const andar=((vrfObraAtual()||{}).andares||[]).find(a=>a.id===id);
+    if(andar&&andar.pubNaoEnviado){delete andar.pubNaoEnviado;saveVrfObra();}
+  }
+}
+function copiarLinkPub(tipo,id){
   const i=document.getElementById('pubLinkInput');if(!i)return;
+  if(tipo&&id)marcarLinkEnviado(tipo,id);
   i.select();i.setSelectionRange(0,99999);
   const done=()=>toast('Link copiado','success');
   const falhouCopia=()=>toast('Não foi possível copiar — selecione e copie manualmente','error');
@@ -9084,7 +9189,7 @@ function _pubOuvirToken(wsId,token){
   // legitimamente mais recente.
   let expiraTimer=null;
   ref.onSnapshot(snap=>{
-    clearTimeout(expiraTimer);
+    cancelarLonge(expiraTimer);
     if(!snap.exists){
       if(!recebeu)renderPublicoErro('Link não encontrado','Confira se o endereço está completo ou peça um novo link.');
       return;
@@ -9098,11 +9203,12 @@ function _pubOuvirToken(wsId,token){
     }
     try{
       recebeu=true;renderPublico(JSON.parse(d.json));
-      if(d.expiraEm)expiraTimer=setTimeout(()=>{renderPublicoErro('Link expirado','Peça um novo link à empresa.');},Math.max(0,d.expiraEm-Date.now()));
+      // agendarLonge, nunca setTimeout direto: 30 dias estoura o teto e dispara na hora
+      if(d.expiraEm)expiraTimer=agendarLonge(d.expiraEm-Date.now(),()=>{renderPublicoErro('Link expirado','Peça um novo link à empresa.');});
     }
     catch(e){renderPublicoErro('Não foi possível carregar','Tente atualizar a página em instantes.');}
   },err=>{
-    clearTimeout(expiraTimer);
+    cancelarLonge(expiraTimer);
     // permission-denied é o que a regra do Firestore devolve pra um pub_ com expiraEm no
     // passado (uma vez que a regra nova estiver publicada) -- mesma mensagem do caminho acima.
     if(err&&err.code==='permission-denied'){
