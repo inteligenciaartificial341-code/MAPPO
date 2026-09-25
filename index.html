@@ -2505,10 +2505,27 @@ function _mergeMapa(a,b){
 }
 
 /* Aplica um valor já parseado nas variáveis em memória */
+/* execOS é uma REFERÊNCIA para dentro de osList (abrirExecucao faz osList.find). Toda vez
+   que osList é substituído por inteiro -- pull da nuvem, ou a releitura de 5 em 5 segundos --
+   essa referência vira um objeto órfão: o técnico segue preenchendo uma cópia que não está
+   mais na lista, e o saveExecOS seguinte reescreve por cima o que tiver chegado nesse meio
+   tempo. Reancorar pelo id mantém execOS apontando para o objeto que está de fato na lista. */
+function _reancorarExecOS(){
+  try{
+    if(!execOS)return;
+    const novo=(osList||[]).find(o=>o&&o.id===execOS.id);
+    if(novo&&novo!==execOS)execOS=novo;
+  }catch(e){/* execOS ainda nem foi declarado (boot): não há execução aberta pra reancorar */}
+}
+/* A tela de execução está aberta? Acesso protegido porque fbOnRemoteChange pode ser
+   alcançado antes de a declaração de execOS ter rodado, durante o boot. */
+function _execucaoAberta(){
+  try{return !!execOS;}catch(e){return false;}
+}
 function _aplicarNaMemoria(key,val){
   switch(key){
     case'mappo_tecnicos':tecnicos=val;break;
-    case'mappo_os':osList=val;break;
+    case'mappo_os':osList=val;_reancorarExecOS();break;
     case'mappo_clientes':clientes=val;break;
     case'mappo_manut':manutencoes=val;break;
     case'mappo_settings':settings=val;break;
@@ -2758,7 +2775,15 @@ function fbOnRemoteChange(key){
     'mappo_modulo_config':['config','dashboard','home','splits']
   };
   const views=reRender[key]||[];
-  if(views.includes(currentView)&&typeof renderView==='function'){
+  /* A tela de execução da OS é desenhada POR CIMA da view atual: abrirExecucao chama
+     renderExecucao direto, sem mexer em currentView. Re-renderizar a view de baixo aqui
+     apagava o formulário que o técnico está preenchendo e o devolvia para a lista -- e era a
+     PRÓPRIA foto dele que disparava o eco: salvar -> subir -> o snapshot volta -> re-render.
+     Ele era expulso da OS no instante do envio, e o resto do callback da foto quebrava em
+     elementos que já não existiam, engolindo o "Foto salva" e parecendo erro de envio.
+     Com a execução aberta o dado continua sendo aplicado em memória e no aparelho; só o
+     repinte da tela de baixo espera até ele sair (voltarExec/concluir já re-renderizam). */
+  if(views.includes(currentView)&&typeof renderView==='function'&&!_execucaoAberta()){
     try{renderView(currentView);}catch(e){}
   }
   if(typeof atualizarBadges==='function')atualizarBadges();
@@ -3649,6 +3674,9 @@ function entrarApp(){
   if(session.perfil==='tecnico'){
     aplicarMenuTecnico();
     nav('home');
+    // a página pode ter sido recarregada pelo celular no meio de uma OS (câmera aberta):
+    // volta pra ela em vez de deixar o técnico na tela principal sem entender o que houve
+    _retomarExecucaoSePreciso();
     retomarLiveSePreciso(); // se o GPS ao vivo estava ativo e ainda vale, religa
   }else{
     document.querySelectorAll('.nav-item').forEach(el=>el.style.display='');
@@ -8431,8 +8459,36 @@ function concluirTarefa(){
 
 /* EXECUÇÃO DA OS (técnico) */
 let execOS=null;
+/* O celular descarta a página enquanto a câmera está aberta (pressão de memória -- o app
+   carrega as fotos em base64) e recarrega ao voltar. Como entrarApp() sempre termina em
+   nav('home') pro técnico, ele reaparecia na TELA PRINCIPAL, fora da OS, com a foto perdida:
+   exatamente o "sai da aba da OS e não envia a foto" relatado em 25/09/2026. Guardar qual OS
+   estava aberta faz a recarga voltar pro mesmo lugar em vez de jogá-lo pro começo.
+   sessionStorage de propósito: é por aba, some ao fechar o app e nunca vai pra nuvem. */
+const EXEC_ABERTA='mappo_exec_aberta';
+function _lembrarExecucao(id){
+  try{sessionStorage.setItem(EXEC_ABERTA,JSON.stringify({id,ts:Date.now()}));}
+  catch(e){fbLog('Não consegui lembrar a OS aberta: '+e.message,'erro');}
+}
+function _esquecerExecucao(){
+  try{sessionStorage.removeItem(EXEC_ABERTA);}
+  catch(e){fbLog('Não consegui limpar a OS aberta: '+e.message,'erro');}
+}
+function _retomarExecucaoSePreciso(){
+  let m=null;
+  try{m=JSON.parse(sessionStorage.getItem(EXEC_ABERTA)||'null');}catch(e){return false;}
+  if(!m||!m.id)return false;
+  // janela curta: retoma o que foi interrompido agora há pouco, nunca uma OS de horas atrás
+  if(Date.now()-(m.ts||0)>30*60*1000){_esquecerExecucao();return false;}
+  const os=(osList||[]).find(o=>o&&o.id===m.id);
+  if(!os||os.status==='concluida'){_esquecerExecucao();return false;}
+  if(session&&session.perfil==='tecnico'&&os.tecnico!==session.nome){_esquecerExecucao();return false;}
+  try{abrirExecucao(m.id);return true;}
+  catch(e){fbLog('Não consegui retomar a OS que estava aberta: '+e.message,'erro');_esquecerExecucao();return false;}
+}
 function abrirExecucao(id){
   execOS=osList.find(o=>o.id===id);if(!execOS)return;
+  _lembrarExecucao(id);
   if(execOS.status==='revisao'){execOS.status='andamento';saveOS();}
   if(!execOS.checklist||!execOS.checklist.length)execOS.checklist=checklistDoTipo(execOS.tipo);
   if(corrigirChecklistSeVazio(execOS))saveOS(); // OS de manutenção antiga: aplica o checklist correto
@@ -8499,6 +8555,7 @@ function switchEquipTab(i){
   const vrf=ramoTemVRF();
   document.querySelectorAll('[id^="etab"]').forEach((t,idx)=>t.classList.toggle('active',idx===i&&!(execOS.equipamentos[idx].fotoEvap&&execOS.equipamentos[idx].fotoCond)));
   const area=document.getElementById('equipPanelArea');
+  if(!area)return;   // tela de execução já não está montada -- nada a repintar
   area.innerHTML=`
     ${vrf?`<div class="fg"><label>Marca</label><input type="text" value="${escapeHtml(e.marca||'')}" oninput="updEquip(${i},'marca',this.value)" placeholder="LG, Daikin, Midea..."></div>
     <div class="fg"><label>Modelo</label><input type="text" value="${escapeHtml(e.modelo||'')}" oninput="updEquip(${i},'modelo',this.value)" placeholder="Modelo do aparelho"></div>`:''}
@@ -8522,13 +8579,18 @@ function onEquipFoto(evt,i,tipo){
     if(tipo==='evap')execOS.equipamentos[i].fotoEvap=b64;
     else execOS.equipamentos[i].fotoCond=b64;
     saveExecOS();switchEquipTab(i);
-    document.querySelectorAll('[id^="etab"]')[i].innerHTML=(execOS.equipamentos[i].fotoEvap&&execOS.equipamentos[i].fotoCond?'✅':'')+' '+(ramoTemVRF()?'Split':'Item')+' '+(i+1);
+    /* A aba pode não estar mais na tela (o técnico saiu, ou a view foi repintada). Antes
+       isto estourava em undefined.innerHTML e derrubava o resto do callback: o "Foto salva"
+       nunca aparecia e o envio parecia ter falhado, mesmo com a foto já gravada. */
+    const aba=document.querySelectorAll('[id^="etab"]')[i];
+    if(aba)aba.innerHTML=(execOS.equipamentos[i].fotoEvap&&execOS.equipamentos[i].fotoCond?'✅':'')+' '+(ramoTemVRF()?'Split':'Item')+' '+(i+1);
     verificarConcluir();toast('Foto salva','success');
   });
 }
 
 function renderChecklistExec(){
   const area=document.getElementById('checklistArea');
+  if(!area)return;   // tela de execução já não está montada -- nada a repintar
   const done=execOS.checklist.filter(c=>c.foto).length;
   area.innerHTML=`
     <div style="background:var(--gray-200);border-radius:20px;height:6px;overflow:hidden;margin-bottom:6px"><div style="width:${Math.round(done/execOS.checklist.length*100)}%;height:100%;background:var(--petrol);border-radius:20px;transition:width .3s"></div></div>
@@ -8666,11 +8728,11 @@ function execConcluir(){
   saveExecOS();
   const c=execOS.cliente,tipo=execOS.tipo;
   toast('OS concluída com sucesso!','success');
-  execOS=null;nav('ordens');
+  execOS=null;_esquecerExecucao();nav('ordens');
 }
 
 function saveExecOS(){const idx=osList.findIndex(o=>o.id===execOS.id);if(idx>=0)osList[idx]=execOS;saveOS();}
-function voltarExec(){execOS=null;renderView('ordens');}
+function voltarExec(){execOS=null;_esquecerExecucao();renderView('ordens');}
 
 /* manutenções do técnico (leitura) */
 function renderManutTecnico(){
@@ -8701,6 +8763,7 @@ function startNotifChecker(){
   // sync entre abas/dispositivos
   setInterval(()=>{
     osList=JSON.parse(localStorage.getItem('mappo_os')||'[]');
+    _reancorarExecOS(); // osList inteiro acabou de ser trocado por objetos novos
     manutencoes=JSON.parse(localStorage.getItem('mappo_manut')||'[]');
     const tecs=JSON.parse(localStorage.getItem('mappo_tecnicos')||'null');
     if(tecs&&tecs.length)tecnicos=tecs;
