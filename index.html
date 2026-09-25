@@ -3015,6 +3015,16 @@ function renderDiagTamanhos(){
       });
       return;
     }
+    /* mappo_os: o aparelho guarda a ordem COM as fotos dentro, mas pra nuvem sobe a versão
+       sem elas (cada foto é um documento próprio desde ced6f69). Medir o tamanho local aqui
+       mostrava "Ordens de serviço 1108 KB · 100%" com o documento do servidor em poucos KB --
+       um alarme falso que fazia o gestor achar que a sincronização tinha parado, justamente
+       quando ela estava funcionando. Mede o que de fato é enviado. */
+    if(k==='mappo_os'){
+      let slim=[];try{slim=_separarFotosOS(_arr(raw)).slim;}catch(e){slim=[];}
+      linhas.push({nome:_nomeAmigavel(k),bytes:_bytesDe(JSON.stringify(slim))});
+      return;
+    }
     linhas.push({nome:_nomeAmigavel(k),bytes:_bytesDe(raw)});
   });
   const visiveis=linhas.filter(x=>x.bytes>1024).sort((a,b)=>b.bytes-a.bytes);
