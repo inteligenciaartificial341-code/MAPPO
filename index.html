@@ -1306,6 +1306,104 @@ const FOTOS_PREFIXO='mappo_fotos_andar__';
 function _docDoAndar(andarId){return FOTOS_PREFIXO+String(andarId).replace(/[^A-Za-z0-9_-]/g,'_');}
 function _ehDocDeFotos(id){return typeof id==='string'&&id.startsWith(FOTOS_PREFIXO);}
 
+/* ── FOTOS DA OS: UM DOCUMENTO POR FOTO (24/09/2026) ──
+   Medido em produção: UMA ordem de serviço, sem nem todas as fotos, já ocupava 1082 KB de um
+   teto de 1 MiB, e o servidor recusava o documento inteiro com
+   "The value of property json is longer than 1048487 bytes" -- ou seja, NADA das ordens
+   subia mais. Dividir "um documento por OS" não resolveria: o problema não é a quantidade de
+   ordens, é a foto morar dentro do registro da ordem.
+   Agora cada foto é um documento próprio (50-150 KB cada, longe do teto) e o registro da OS
+   fica só com texto. Assim cabem dezenas ou centenas de ordens.
+   Mesmo princípio das fotos de obra: o app continua enxergando a foto no lugar de sempre
+   (os.equipamentos[i].fotoEvap, os.checklist[i].foto, os.assinatura) -- nenhuma das ~30
+   telas que leem foto mudou. Quem separa e remonta é só esta camada. */
+const FOTO_OS_PREFIXO='mappo_foto__';
+function _fotoOSDoc(osId,campo){
+  return FOTO_OS_PREFIXO+String(osId).replace(/[^A-Za-z0-9_-]/g,'_')+'__'+String(campo).replace(/[^A-Za-z0-9_-]/g,'_');
+}
+function _ehDocFotoOS(id){return typeof id==='string'&&id.startsWith(FOTO_OS_PREFIXO);}
+
+/* Percorre TODOS os campos de foto de uma OS com um nome estável por campo.
+   Equipamento é por índice (a lista tem tamanho fixo, vem de qtdSplits); item de checklist é
+   pelo id do item, nunca pelo índice -- o checklist pode ser reordenado/editado nas
+   Configurações, e índice trocaria a foto de item. */
+function _camposFotoOS(os,fn){
+  (os.equipamentos||[]).forEach((e,i)=>{
+    fn('eq'+i+'_evap',()=>e.fotoEvap,v=>{e.fotoEvap=v;});
+    fn('eq'+i+'_cond',()=>e.fotoCond,v=>{e.fotoCond=v;});
+  });
+  (os.checklist||[]).forEach(c=>{
+    if(c&&c.id!==undefined)fn('ck_'+c.id,()=>c.foto,v=>{c.foto=v;});
+  });
+  fn('assinatura',()=>os.assinatura,v=>{os.assinatura=v;});
+}
+
+/* Versão "magra" da lista de OS: sem nenhuma foto, e com __f listando quais campos têm foto
+   guardada em documento próprio. É isto que vai pro documento mappo_os. */
+function _separarFotosOS(lista){
+  let slim;try{slim=JSON.parse(JSON.stringify(lista||[]));}catch(e){slim=[];}
+  const fotos=[];
+  slim.forEach(os=>{
+    if(!os||!os.id)return;
+    const marcados=[];
+    _camposFotoOS(os,(campo,get,set)=>{
+      const v=get();
+      if(typeof v==='string'&&v.slice(0,5)==='data:'){
+        fotos.push({id:_fotoOSDoc(os.id,campo),uri:v});
+        marcados.push(campo);
+        set(null);
+      }
+    });
+    if(marcados.length)os.__f=marcados; else delete os.__f;
+  });
+  return {slim,fotos};
+}
+
+/* Devolve as fotos para dentro da lista que veio da nuvem. Primeiro tenta o que já existe
+   NESTE aparelho (nada de rede); só busca o documento da foto quando ela é de fato nova aqui.
+   Resolver ANTES do merge é obrigatório: o merge compara campo a campo, e uma foto ausente no
+   remoto apagaria a foto local de quem não tem alteração pendente naquele campo. */
+async function _resolverFotosOS(remoto,local){
+  const porId={};(local||[]).forEach(o=>{if(o&&o.id)porId[o.id]=o;});
+  const buscar=[];
+  (remoto||[]).forEach(os=>{
+    if(!os||!os.id||!Array.isArray(os.__f))return;
+    const localOS=porId[os.id];
+    const mapaLocal={};
+    if(localOS)_camposFotoOS(localOS,(campo,get)=>{const v=get();if(typeof v==='string'&&v.slice(0,5)==='data:')mapaLocal[campo]=v;});
+    _camposFotoOS(os,(campo,get,set)=>{
+      if(os.__f.indexOf(campo)<0)return;
+      if(mapaLocal[campo]){set(mapaLocal[campo]);return;}     // já está aqui
+      buscar.push({osId:os.id,campo,set});
+    });
+  });
+  if(buscar.length&&fbReady&&WORKSPACE){
+    const col=fbDB.collection('workspaces').doc(WORKSPACE).collection('data');
+    for(const b of buscar){
+      try{
+        const s=await col.doc(_fotoOSDoc(b.osId,b.campo)).get();
+        if(s.exists&&typeof s.data().json==='string')b.set(s.data().json);
+      }catch(e){fbLog('Não consegui baixar uma foto da OS: '+(e.code||e.message),'erro');}
+    }
+  }
+  return remoto;
+}
+
+/* Fotos já confirmadas na nuvem — evita reenviar a mesma foto a cada gravação da OS.
+   Só um cache local de desempenho: perder isto reenvia, nunca perde foto. */
+function _fotosJaEnviadas(){
+  try{return JSON.parse(localStorage.getItem('mappo_fotos_enviadas')||'[]');}catch(e){return [];}
+}
+function _marcarFotoEnviada(id){
+  try{
+    const l=_fotosJaEnviadas();
+    if(l.indexOf(id)>=0)return;
+    l.push(id);
+    while(l.length>4000)l.shift();
+    _quietWrite=true;localStorage.setItem('mappo_fotos_enviadas',JSON.stringify(l));_quietWrite=false;
+  }catch(e){_quietWrite=false;}
+}
+
 /* Monta o resultado do merge para UM andar: parte de `base`, troca a subárvore desse andar
    pela de `fonteAndar`, e reaplica por cima o que foi lançado NESTE aparelho e ainda não
    subiu. É a mesma regra do _mergeLeafs, restrita a um andar — o _mergeLeafs não serve aqui
@@ -2155,9 +2253,74 @@ function _confirmarEnvioAndar(andarId,enviadoStr){
   _saveTouch();
 }
 
+/* Envia as ordens SEM as fotos: cada foto vai no seu próprio documento, e o mappo_os leva só
+   o texto. É o que devolve o app ao ar depois do teto de 1 MiB ter travado tudo. */
+async function _pushOSSemFotos(){
+  if(!fbReady)return;
+  _detectarMudancasNaoVistas('mappo_os');
+  const raw=localStorage.getItem('mappo_os');
+  if(raw===null)return;
+  const {slim,fotos}=_separarFotosOS(_arr(raw));
+  const nice='os';
+  try{
+    // 1) as fotos primeiro: se a ordem subisse antes, outro aparelho poderia ler um registro
+    //    apontando pra foto que ainda não existe.
+    const enviadas=_fotosJaEnviadas();
+    const col=fbDB.collection('workspaces').doc(WORKSPACE).collection('data');
+    for(const f of fotos){
+      if(enviadas.indexOf(f.id)>=0)continue;
+      const bytes=_bytesDe(f.uri);
+      if(bytes>=DOC_LIMITE_BYTES){
+        fbLog('Foto grande demais para o servidor ('+Math.round(bytes/1024)+' KB) — ignorada no envio','erro');
+        continue;                       // uma foto gigante não pode travar as outras
+      }
+      await col.doc(f.id).set({json:f.uri,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+      _marcarFotoEnviada(f.id);
+    }
+    // 2) agora o registro das ordens, já sem foto nenhuma
+    const enviado=JSON.stringify(slim);
+    const bytes=_bytesDe(enviado);
+    if(bytes>=DOC_ALERTA_BYTES){
+      if(_chavesQuaseCheias['mappo_os']===undefined)
+        fbLog('Atenção: ordens em '+Math.round(bytes/DOC_LIMITE_BYTES*100)+'% do limite de 1 MiB','erro');
+      _chavesQuaseCheias['mappo_os']=bytes;_atualizarAlertaSync();
+    }else if(_chavesQuaseCheias['mappo_os']!==undefined){
+      delete _chavesQuaseCheias['mappo_os'];_atualizarAlertaSync();
+    }
+    const ref=col.doc('mappo_os');
+    const mergedStr=await _gravarMesclado(ref,rj=>{
+      if(rj===null)return enviado;
+      const remoto=_arr(rj);
+      if(!remoto.length&&slim.length)return enviado;
+      return JSON.stringify(_mergeItens('mappo_os',remoto,slim));
+    });
+    // devolve as fotos ao que voltou da nuvem antes de aplicar aqui
+    const resolvido=await _resolverFotosOS(_arr(mergedStr),_arr(localStorage.getItem('mappo_os')));
+    const comFotos=JSON.stringify(resolvido);
+    if(comFotos!==localStorage.getItem('mappo_os')){
+      _setLocalQuiet('mappo_os',comFotos);
+      _aplicarNaMemoria('mappo_os',resolvido);
+      fbOnRemoteChange('mappo_os');
+    }
+    /* confirma comparando SLIM com SLIM: o que subiu não tem foto, e comparar contra o local
+       (que tem) deixaria tudo pendente pra sempre, reenviando sem parar. */
+    _confirmarEnvio('mappo_os',JSON.stringify(_separarFotosOS(_arr(localStorage.getItem('mappo_os'))).slim));
+    fbLog('Enviado: '+nice,'push');
+    _snapshot['mappo_os']=localStorage.getItem('mappo_os');
+    if(_falhasEnvio['mappo_os']){delete _falhasEnvio['mappo_os'];_atualizarAlertaSync();}
+  }catch(e){
+    delete _snapshot['mappo_os'];
+    fbLog('Falha ao enviar '+nice+': '+e.message,'erro');
+    if(!_falhasEnvio['mappo_os'])_falhasEnvio['mappo_os']={erro:e.message,hora:new Date().toLocaleTimeString('pt-BR')};
+    else _falhasEnvio['mappo_os'].erro=e.message;
+    _atualizarAlertaSync();
+  }
+}
+
 async function _doPush(key){
   if(!fbReady)return;
   if(key===CHAVE_FOTOS)return _pushFotosPorAndar();  // nunca mais escreve o documento antigo
+  if(key==='mappo_os')return _pushOSSemFotos();      // fotos em documentos próprios
   const nice=key.replace('mappo_','');
   _detectarMudancasNaoVistas(key); // garante que nada local fique de fora do merge
   try{
@@ -2432,11 +2595,45 @@ function _limparPubVazados(){
   if(n)fbLog('Liberados '+Math.round(bytes/1024)+' KB de links públicos que não precisavam estar neste aparelho ('+n+')','ok');
 }
 
+/* Chegaram ordens da nuvem: elas vêm SEM foto (só o texto e a lista __f dizendo quais campos
+   têm foto). Remonta as fotos primeiro -- do próprio aparelho quando já estão aqui, baixando
+   o documento da foto quando são novas -- e só então deixa o merge normal rodar.
+   Resolver antes é o que impede o merge de apagar foto local por achar que a nuvem "não tem". */
+async function _aplicarOSComFotos(jsonStr,remoteMs){
+  let remoto;try{remoto=_arr(jsonStr);}catch(e){return;}
+  const local=_arr(localStorage.getItem('mappo_os'));
+  try{await _resolverFotosOS(remoto,local);}
+  catch(e){fbLog('Falha ao remontar fotos das ordens: '+(e&&e.message),'erro');}
+  _aplicarListaOS(JSON.stringify(remoto),remoteMs);
+}
+
+/* O caminho de merge normal de mappo_os (ITEM_LISTS), separado só para poder ser chamado
+   depois da remontagem das fotos. */
+function _aplicarListaOS(jsonStr,remoteMs){
+  const key='mappo_os';
+  _detectarMudancasNaoVistas(key);
+  const atual=localStorage.getItem(key);
+  if(atual===jsonStr){_snapshot[key]=jsonStr;return;}
+  try{
+    const remoto=_arr(jsonStr),local=_arr(atual);
+    if(!remoto.length&&local.length){setTimeout(()=>{if(fbReady)_doPush(key);},200);return;}
+    const merged=_mergeItens(key,remoto,local);
+    const mergedStr=JSON.stringify(merged);
+    if(mergedStr===atual){_snapshot[key]=mergedStr;return;}
+    _setLocalQuiet(key,mergedStr);
+    _aplicarNaMemoria(key,merged);
+    if(mergedStr!==jsonStr&&_temPend(key))setTimeout(()=>{if(fbReady)_doPush(key);},200);
+    fbLog('Recebido: os','pull');
+    fbOnRemoteChange(key);
+  }catch(e){console.warn('[MAPPO] apply erro (mappo_os):',e.message);}
+}
+
 function fbApply(key,jsonStr,remoteMs){
   if(jsonStr===null||jsonStr===undefined)return;
   if(!_ehChaveDeSync(key))return; // defesa: nunca aplicar pub_* nem documento desconhecido
   if(_ehDocDeFotos(key))return _aplicarShardFotos(jsonStr);   // um andar
   if(key===CHAVE_FOTOS)return _aplicarLegadoFotos(jsonStr);   // documento antigo, só-aditivo
+  if(key==='mappo_os')return _aplicarOSComFotos(jsonStr,remoteMs);
   const nice=key.replace('mappo_','');
   _detectarMudancasNaoVistas(key); // protege o que foi lançado aqui e ainda não subiu
   const atual=localStorage.getItem(key);
@@ -2639,6 +2836,9 @@ async function fbSeedFromLocal(){
   for(const key of SYNC_KEYS){
     // as fotos não têm mais documento único: quem sobe é o _pushFotosPorAndar, logo abaixo
     if(key===CHAVE_FOTOS)continue;
+    /* as ordens também não: mandar o array cru aqui reintroduziria exatamente o estouro de
+       1 MiB que separou as fotos em documentos próprios. Quem sobe é o _pushOSSemFotos. */
+    if(key==='mappo_os')continue;
     const raw=localStorage.getItem(key);
     if(raw!==null){
       try{
@@ -2652,6 +2852,10 @@ async function fbSeedFromLocal(){
      É idempotente — o merge de cada shard parte do que já está na nuvem. */
   try{if(localStorage.getItem(CHAVE_FOTOS)!==null)await _pushFotosPorAndar();}
   catch(e){fbLog('Falha ao dividir as fotos por andar: '+e.message,'erro');}
+  /* Migração das ordens: sobe as fotos em documentos próprios e o registro já sem elas.
+     É o que destrava um workspace cujo mappo_os passou do teto e parou de sincronizar. */
+  try{if(localStorage.getItem('mappo_os')!==null)await _pushOSSemFotos();}
+  catch(e){fbLog('Falha ao separar as fotos das ordens: '+e.message,'erro');}
 }
 
 /* Sincronização inicial com a nuvem: só roda depois que fbInit confirma o login anônimo
