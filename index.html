@@ -1600,6 +1600,59 @@ async function _resolverFotosOS(remoto,local){
   return remoto;
 }
 
+/* Lê UM campo de foto de uma ordem pelo nome do campo ('eq0_evap', 'ck_a', 'assinatura'). */
+function _valorFotoDe(os,campo){
+  let out=null;
+  if(!os)return null;
+  _camposFotoOS(os,(c,get)=>{
+    if(c!==campo)return;
+    const v=get();
+    if(_ehFotoDeVerdade(v)||_ehReferenciaDeFoto(v))out=v;
+  });
+  return out;
+}
+/* NENHUMA FOTO SOME NO MERGE.
+   O merge normal decide CAMPO A CAMPO, e 'checklist' e 'equipamentos' são UM campo cada --
+   cada um misturando texto (status, marca, modelo) e foto. Bastava marcar um item do
+   checklist no notebook para o array local inteiro vencer o da nuvem, e junto vinha a
+   AUSÊNCIA das fotos que só existiam no celular. Era o relato de 25/09/2026: "o texto
+   sincroniza entre os dois aparelhos, a foto fica presa em cada um".
+   Aqui, depois do merge de campo, cada campo de foto é decidido sozinho: o que existir de
+   qualquer um dos lados sobrevive. Uma foto nunca é apagada por um aparelho que só não a
+   tem -- só some quando ninguém mais a tem. */
+function _preservarFotosNoMerge(merged,remoto,local){
+  const indexar=l=>{const m={};(l||[]).forEach(o=>{if(o&&o.id)m[o.id]=o;});return m;};
+  const mr=indexar(remoto), ml=indexar(local);
+  (merged||[]).forEach(os=>{
+    if(!os||!os.id)return;
+    _camposFotoOS(os,(campo,get,set)=>{
+      const atual=get();
+      if(_ehFotoDeVerdade(atual)||_ehReferenciaDeFoto(atual))return;   // o merge já trouxe
+      const daqui=_valorFotoDe(ml[os.id],campo);
+      if(daqui){set(daqui);return;}
+      const dali=_valorFotoDe(mr[os.id],campo);
+      if(dali)set(dali);
+    });
+    /* __f é o ÍNDICE de quais fotos esta ordem tem. Ele também é um campo, então o merge
+       normal deixava o índice VELHO da nuvem vencer o novo: a segunda foto subia para o seu
+       documento, mas a ordem continuava apontando só para a primeira -- e nenhum outro
+       aparelho ficava sabendo que ela existia. Era exatamente o "mandei a foto no celular e
+       não aparece no notebook" de 25/09/2026, com a foto sã e salva no servidor o tempo todo.
+       Índice de foto é UNIÃO, nunca substituição: uma foto conhecida por qualquer lado é
+       conhecida. Ele nunca encolhe por merge. */
+    const indice=new Set();
+    [mr[os.id],ml[os.id],os].forEach(o=>{
+      if(o&&Array.isArray(o.__f))o.__f.forEach(c=>indice.add(c));
+    });
+    _camposFotoOS(os,(campo,get)=>{
+      const v=get();
+      if(_ehFotoDeVerdade(v)||_ehReferenciaDeFoto(v))indice.add(campo);
+    });
+    if(indice.size)os.__f=Array.from(indice); else delete os.__f;
+  });
+  return merged;
+}
+
 /* Leva para o armazém as fotos que já estão guardadas no localStorage e deixa só a
    referência no lugar. Uma de cada vez, e a troca só acontece DEPOIS da gravação
    confirmada -- uma foto que falhe fica exatamente como estava, no formato antigo, e o app
@@ -1637,6 +1690,18 @@ async function migrarFotosParaOArmazem(){
    Só um cache local de desempenho: perder isto reenvia, nunca perde foto. */
 function _fotosJaEnviadas(){
   try{return JSON.parse(localStorage.getItem('mappo_fotos_enviadas')||'[]');}catch(e){return [];}
+}
+/* Trocar a foto de um lugar (a etiqueta saiu tremida, tirou de novo) mantém o MESMO id --
+   ele nomeia o lugar, não o conteúdo. Sem esquecer o envio anterior, o push pulava a foto
+   nova como "já enviada" e a nuvem ficava com a antiga para sempre. */
+function _esquecerEnvio(id){
+  try{
+    const l=_fotosJaEnviadas();
+    const i=l.indexOf(id);
+    if(i<0)return;
+    l.splice(i,1);
+    _quietWrite=true;localStorage.setItem('mappo_fotos_enviadas',JSON.stringify(l));_quietWrite=false;
+  }catch(e){_quietWrite=false;fbLog('Não consegui marcar a foto para reenvio: '+e.message,'erro');}
 }
 function _marcarFotoEnviada(id){
   try{
@@ -2707,7 +2772,10 @@ async function _pushOSSemFotos(){
       if(rj===null)return enviado;
       const remoto=_arr(rj);
       if(!remoto.length&&slim.length)return enviado;
-      return JSON.stringify(_mergeItens('mappo_os',remoto,slim));
+      /* Sem esta preservação o índice __f voltava ao da nuvem: a foto nova subia para o seu
+         documento e a ordem continuava apontando só para as antigas -- nenhum outro aparelho
+         ficava sabendo dela. Era o "mandei no celular e não aparece no notebook". */
+      return JSON.stringify(_preservarFotosNoMerge(_mergeItens('mappo_os',remoto,slim),remoto,slim));
     });
     // devolve as fotos ao que voltou da nuvem antes de aplicar aqui
     const resolvido=await _resolverFotosOS(_arr(mergedStr),_arr(localStorage.getItem('mappo_os')));
@@ -2765,7 +2833,9 @@ async function _doPush(key){
         if(rj===null)return raw;                       // primeira gravação
         const remoto=_arr(rj),local=_arr(raw);
         if(!remoto.length&&local.length)return raw;    // nuvem vazia não apaga o que existe aqui
-        return JSON.stringify(_mergeItens(key,remoto,local));
+        const juntos=_mergeItens(key,remoto,local);
+        // mesma regra na subida: um aparelho que não tem a foto não pode apagá-la de lá
+        return JSON.stringify(key==='mappo_os'?_preservarFotosNoMerge(juntos,remoto,local):juntos);
       }
       if(LEAF_MAPS.includes(key)){
         if(rj===null)return raw;
@@ -3060,7 +3130,7 @@ function _aplicarListaOS(jsonStr,remoteMs){
   try{
     const remoto=_arr(jsonStr),local=_arr(atual);
     if(!remoto.length&&local.length){setTimeout(()=>{if(fbReady)_doPush(key);},200);return;}
-    const merged=_mergeItens(key,remoto,local);
+    const merged=_preservarFotosNoMerge(_mergeItens(key,remoto,local),remoto,local);
     const mergedStr=JSON.stringify(merged);
     if(mergedStr===atual){_snapshot[key]=mergedStr;return;}
     _setLocalQuiet(key,mergedStr);
@@ -9054,8 +9124,11 @@ function onEquipFoto(evt,i,tipo){
        antigo) -- funciona igual, só sem economizar espaço. Nunca perde a foto. */
     const campo=tipo==='evap'?('eq'+i+'_evap'):('eq'+i+'_cond');
     let valor=b64;
-    try{valor=await guardarFotoNoAparelho(_fotoOSDoc(execOS.id,campo),b64);}
-    catch(e){fbLog('Não consegui guardar a foto no aparelho ('+e.message+') — mantida no formato antigo','erro');}
+    try{
+      const idFoto=_fotoOSDoc(execOS.id,campo);
+      valor=await guardarFotoNoAparelho(idFoto,b64);
+      _esquecerEnvio(idFoto);          // foto nova no mesmo lugar: precisa subir de novo
+    }catch(e){fbLog('Não consegui guardar a foto no aparelho ('+e.message+') — mantida no formato antigo','erro');}
     if(tipo==='evap')execOS.equipamentos[i].fotoEvap=valor;
     else execOS.equipamentos[i].fotoCond=valor;
     saveExecOS();switchEquipTab(i);
@@ -9111,8 +9184,11 @@ function onCheckFoto(evt,i){
   vrfComprimirImagem(file,async b64=>{
     let valor=b64;
     const item=execOS.checklist[i];
-    try{valor=await guardarFotoNoAparelho(_fotoOSDoc(execOS.id,'ck_'+item.id),b64);}
-    catch(e){fbLog('Não consegui guardar a foto no aparelho ('+e.message+') — mantida no formato antigo','erro');}
+    try{
+      const idFoto=_fotoOSDoc(execOS.id,'ck_'+item.id);
+      valor=await guardarFotoNoAparelho(idFoto,b64);
+      _esquecerEnvio(idFoto);
+    }catch(e){fbLog('Não consegui guardar a foto no aparelho ('+e.message+') — mantida no formato antigo','erro');}
     item.foto=valor;saveExecOS();renderChecklistExec();verificarConcluir();toast('Foto salva','success');
   });
 }
@@ -9209,8 +9285,11 @@ function verificarConcluir(){
 async function execConcluir(){
   const sig=_assinaturaComprimida(document.getElementById('sigCanvas'));
   let valorSig=sig;
-  try{valorSig=await guardarFotoNoAparelho(_fotoOSDoc(execOS.id,'assinatura'),sig);}
-  catch(e){fbLog('Não consegui guardar a assinatura no aparelho ('+e.message+') — mantida no formato antigo','erro');}
+  try{
+    const idSig=_fotoOSDoc(execOS.id,'assinatura');
+    valorSig=await guardarFotoNoAparelho(idSig,sig);
+    _esquecerEnvio(idSig);
+  }catch(e){fbLog('Não consegui guardar a assinatura no aparelho ('+e.message+') — mantida no formato antigo','erro');}
   execOS.assinatura=valorSig;
   execOS.status='concluida';execOS.motivoRevisao=null;
   execOS.checkoutTime=new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
