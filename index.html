@@ -794,6 +794,7 @@
      o técnico a rolar a tela inteira pra conferir o checklist, e nem abria ao tocar. Vira
      miniatura; o toque abre no tamanho da tela (openLightbox). Só muda a EXIBIÇÃO -- o
      arquivo guardado é o mesmo. */
+  .foto-ausente{background:#fef2f2;border-color:#fca5a5!important;min-height:60px}
   .foto-mini{width:84px;height:84px;object-fit:cover;border-radius:10px;border:2px solid var(--green);cursor:zoom-in;display:block}
   .foto-mini-wrap{display:flex;align-items:center;gap:10px;margin-top:8px}
   .foto-mini-dica{font-size:11.5px;color:var(--gray-400);line-height:1.45}
@@ -1248,6 +1249,108 @@ async function espacoDoAparelho(){
   return {localBytes:local, tetoLocalBytes:5*1024*1024, usadoBytes:usado, cotaBytes:cota};
 }
 
+/* ── A FOTO SAI DO localStorage (etapa 2) ───────────────────────────────────────
+   A partir daqui a ordem de serviço guarda, no aparelho e na memória, apenas a REFERÊNCIA
+   da foto -- a imagem em si mora no IndexedDB e é carregada só quando aparece na tela.
+   É o que o proprietário descreveu em 25/09/2026: "a foto fica ali como algo colado, não
+   algo salvo ocupando memória".
+
+   Duas garantias de segurança, porque este é o ponto onde dá pra perder prova de serviço:
+   1. A referência só substitui a foto DEPOIS que idbGravarFoto() confirma a transação.
+      Nunca "apaga e depois grava".
+   2. Uma referência que chegue a um lugar que eu tenha esquecido de converter vira uma
+      imagem quebrada NA TELA -- visível, e com a foto intacta no armazém. Nunca um
+      apagamento silencioso. */
+function _ehReferenciaDeFoto(v){
+  return typeof v==='string'&&v.slice(0,FOTO_OS_PREFIXO.length)===FOTO_OS_PREFIXO;
+}
+/* Cache pequeno das fotos que estão na tela agora. Só isto fica em memória -- não o acervo
+   inteiro, que é justamente o que enchia o aparelho. */
+const FOTO_CACHE_MAX=24;
+const _fotoCache=new Map();
+function _cachePor(id,uri){
+  if(_fotoCache.has(id))_fotoCache.delete(id);
+  _fotoCache.set(id,uri);
+  while(_fotoCache.size>FOTO_CACHE_MAX)_fotoCache.delete(_fotoCache.keys().next().value);
+  return uri;
+}
+/* Guarda a foto no aparelho e devolve a referência. Só resolve com a gravação confirmada. */
+async function guardarFotoNoAparelho(id,uri){
+  await idbGravarFoto(id,uri);
+  _cachePor(id,uri);
+  return id;
+}
+/* Devolve os bytes de uma foto. Aceita tanto a imagem em si (formato antigo, e o que vem de
+   fora) quanto a referência. Procura, nesta ordem: cache, armazém do aparelho, nuvem. */
+async function fotoBytes(v){
+  if(!v)return null;
+  if(_ehFotoDeVerdade(v))return v;
+  if(!_ehReferenciaDeFoto(v))return null;
+  if(_fotoCache.has(v))return _fotoCache.get(v);
+  try{
+    const u=await idbLerFoto(v);
+    if(typeof u==='string'&&u)return _cachePor(v,u);
+  }catch(e){fbLog('Não consegui ler uma foto do aparelho: '+e.message,'erro');}
+  /* Não está aqui: pode ter sido tirada em outro aparelho. A nuvem tem um documento por
+     foto desde ced6f69, então buscar é barato e não depende de mais nada ter sincronizado. */
+  if(fbReady&&WORKSPACE){
+    try{
+      const s=await fbDB.collection('workspaces').doc(WORKSPACE).collection('data').doc(v).get();
+      if(s.exists&&typeof s.data().json==='string'){
+        const u=s.data().json;
+        try{await idbGravarFoto(v,u);}catch(e){/* cache local falhou; a foto veio, segue */}
+        return _cachePor(v,u);
+      }
+    }catch(e){fbLog('Não consegui baixar uma foto: '+(e.code||e.message),'erro');}
+  }
+  return null;
+}
+/* <img> que aceita foto OU referência. A referência sai como data-foto e o pintor abaixo
+   preenche sozinho -- nenhuma tela precisa saber que a foto mora em outro lugar. */
+function imgFoto(v,atributos){
+  if(!v)return '';
+  const a=atributos||'';
+  return _ehFotoDeVerdade(v)
+    ? '<img src="'+v+'" '+a+'>'
+    : '<img data-foto="'+escapeHtml(v)+'" '+a+'>';
+}
+/* O PINTOR. Um observador único para a página inteira: qualquer <img data-foto> que apareça
+   no documento é preenchido, venha de que tela vier. Foi escolhido no lugar de chamar um
+   "pintar()" em cada render porque render novo é exatamente o tipo de coisa que se esquece
+   -- e esquecer ali significaria foto sumida na tela do técnico. */
+let _pintorLigado=false;
+async function _pintarUma(img){
+  const id=img.getAttribute('data-foto');
+  if(!id)return;
+  img.removeAttribute('data-foto');          // evita repintar a mesma
+  const u=await fotoBytes(id);
+  if(u){img.src=u;return;}
+  img.alt='Foto não encontrada neste aparelho';
+  img.classList.add('foto-ausente');
+  fbLog('Foto não encontrada nem aqui nem na nuvem: '+id,'erro');
+}
+function pintarFotos(raiz){
+  try{
+    (raiz||document).querySelectorAll('img[data-foto]').forEach(_pintarUma);
+  }catch(e){fbLog('Falha ao pintar as fotos: '+e.message,'erro');}
+}
+function ligarPintorDeFotos(){
+  if(_pintorLigado)return;
+  _pintorLigado=true;
+  pintarFotos(document);
+  try{
+    new MutationObserver(muts=>{
+      muts.forEach(m=>{
+        m.addedNodes&&m.addedNodes.forEach(n=>{
+          if(n.nodeType!==1)return;
+          if(n.tagName==='IMG'&&n.hasAttribute('data-foto')){_pintarUma(n);return;}
+          if(n.querySelectorAll)pintarFotos(n);
+        });
+      });
+    }).observe(document.body,{childList:true,subtree:true});
+  }catch(e){fbLog('Não consegui ligar o pintor de fotos: '+e.message,'erro');}
+}
+
 const DOC_LIMITE_BYTES=1048576;   // o teto real do servidor
 const DOC_ALERTA_BYTES=800000;    // ~76% — avisa ANTES de bater, não depois
 function _bytesDe(str){
@@ -1429,10 +1532,14 @@ function _separarFotosOS(lista){
     const marcados=[];
     _camposFotoOS(os,(campo,get,set)=>{
       const v=get();
-      if(typeof v==='string'&&v.slice(0,5)==='data:'){
+      if(_ehFotoDeVerdade(v)){
         fotos.push({id:_fotoOSDoc(os.id,campo),uri:v});
-        marcados.push(campo);
-        set(null);
+        marcados.push(campo);set(null);
+      }else if(_ehReferenciaDeFoto(v)){
+        /* Desde a etapa 2 o campo guarda a REFERÊNCIA; os bytes estão no armazém do
+           aparelho. uri:null diz ao envio "busque no armazém se precisar mandar". */
+        fotos.push({id:v,uri:null});
+        marcados.push(campo);set(null);
       }
     });
     if(marcados.length)os.__f=marcados; else delete os.__f;
@@ -1451,7 +1558,12 @@ async function _resolverFotosOS(remoto,local){
     if(!os||!os.id||!Array.isArray(os.__f))return;
     const localOS=porId[os.id];
     const mapaLocal={};
-    if(localOS)_camposFotoOS(localOS,(campo,get)=>{const v=get();if(typeof v==='string'&&v.slice(0,5)==='data:')mapaLocal[campo]=v;});
+    // vale tanto a foto em si (formato antigo) quanto a referência: os dois significam
+    // "esta foto já está neste aparelho, não precisa baixar nada"
+    if(localOS)_camposFotoOS(localOS,(campo,get)=>{
+      const v=get();
+      if(_ehFotoDeVerdade(v)||_ehReferenciaDeFoto(v))mapaLocal[campo]=v;
+    });
     _camposFotoOS(os,(campo,get,set)=>{
       if(os.__f.indexOf(campo)<0)return;
       if(mapaLocal[campo]){set(mapaLocal[campo]);return;}     // já está aqui
@@ -1461,13 +1573,52 @@ async function _resolverFotosOS(remoto,local){
   if(buscar.length&&fbReady&&WORKSPACE){
     const col=fbDB.collection('workspaces').doc(WORKSPACE).collection('data');
     for(const b of buscar){
+      const id=_fotoOSDoc(b.osId,b.campo);
       try{
-        const s=await col.doc(_fotoOSDoc(b.osId,b.campo)).get();
-        if(s.exists&&typeof s.data().json==='string')b.set(s.data().json);
+        const s=await col.doc(id).get();
+        if(!s.exists||typeof s.data().json!=='string')continue;
+        const uri=s.data().json;
+        /* Guarda no armazém e deixa a REFERÊNCIA no lugar. Se o armazém falhar, fica a
+           foto em si -- o app segue funcionando, só sem economizar espaço. */
+        try{await guardarFotoNoAparelho(id,uri);b.set(id);}
+        catch(e){fbLog('Armazém indisponível ao receber uma foto ('+e.message+') — guardada no formato antigo','erro');b.set(uri);}
       }catch(e){fbLog('Não consegui baixar uma foto da OS: '+(e.code||e.message),'erro');}
     }
   }
   return remoto;
+}
+
+/* Leva para o armazém as fotos que já estão guardadas no localStorage e deixa só a
+   referência no lugar. Uma de cada vez, e a troca só acontece DEPOIS da gravação
+   confirmada -- uma foto que falhe fica exatamente como estava, no formato antigo, e o app
+   segue funcionando com ela. Nenhuma foto é apagada em momento nenhum: o que muda é onde
+   ela passa a ser lida. A marca de "migrado" só é gravada se TODAS passarem, senão a
+   próxima abertura tenta de novo o que faltou. */
+const MIGR_IDB_CHAVE='mappo_fotos_idb';
+async function migrarFotosParaOArmazem(){
+  try{if(localStorage.getItem(MIGR_IDB_CHAVE)==='1')return {pulou:true};}catch(e){return {pulou:true};}
+  let movidas=0,erros=0;
+  for(const os of (osList||[])){
+    if(!os||!os.id)continue;
+    const pendentes=[];
+    _camposFotoOS(os,(campo,get,set)=>{
+      const v=get();
+      if(_ehFotoDeVerdade(v))pendentes.push({id:_fotoOSDoc(os.id,campo),uri:v,set});
+    });
+    for(const p of pendentes){
+      try{await guardarFotoNoAparelho(p.id,p.uri);p.set(p.id);movidas++;}
+      catch(e){erros++;fbLog('Não consegui mover uma foto para o armazém: '+e.message,'erro');}
+    }
+  }
+  if(movidas){
+    try{saveOS();}catch(e){fbLog('Falha ao gravar as ordens após a migração das fotos: '+e.message,'erro');}
+    fbLog(movidas+' foto(s) movidas para o armazém do aparelho','ok');
+  }
+  if(!erros){
+    try{_quietWrite=true;localStorage.setItem(MIGR_IDB_CHAVE,'1');_quietWrite=false;}
+    catch(e){_quietWrite=false;}
+  }
+  return {movidas,erros};
 }
 
 /* Fotos já confirmadas na nuvem — evita reenviar a mesma foto a cada gravação da OS.
@@ -2515,6 +2666,12 @@ async function _pushOSSemFotos(){
     const col=fbDB.collection('workspaces').doc(WORKSPACE).collection('data');
     for(const f of fotos){
       if(enviadas.indexOf(f.id)>=0)continue;
+      /* Campo com referência: os bytes estão no armazém. Sem isto a foto NUNCA subiria,
+         e em silêncio -- o pior modo de falhar que este app já teve. */
+      if(!f.uri){
+        f.uri=await fotoBytes(f.id);
+        if(!f.uri){fbLog('Foto não encontrada no aparelho para enviar: '+f.id,'erro');continue;}
+      }
       const bytes=_bytesDe(f.uri);
       if(bytes>=DOC_LIMITE_BYTES){
         fbLog('Foto grande demais para o servidor ('+Math.round(bytes/1024)+' KB) — ignorada no envio','erro');
@@ -3942,6 +4099,13 @@ function entrarApp(){
   document.getElementById('userRole').textContent=session.role;
   // injeta ícones da sidebar e topbar
   injetarIcones();
+  ligarPintorDeFotos();   // <img data-foto> passa a se preencher sozinho, venha de onde vier
+  /* Migra as fotos que já estavam no aparelho. Em segundo plano de propósito: não segura a
+     abertura do app, e o que ainda não migrou continua aparecendo normalmente (o formato
+     antigo segue sendo entendido em todo lugar). */
+  migrarFotosParaOArmazem()
+    .then(r=>{if(r&&r.movidas)try{renderView(currentView);}catch(e){}})
+    .catch(e=>fbLog('Falha na migração das fotos: '+e.message,'erro'));
   // monta a barra de navegação principal conforme perfil/módulos
   montarNavbar();
   // Sistema VRF só existe pro Ramo Refrigeração/Climatização (Story 9) -- workspace sem
@@ -5884,13 +6048,13 @@ function exportarPDFos(id){
   const os=osList.find(o=>o.id===id);
   if(!os){toast('Ordem não encontrada','warn');return;}
   toast('Gerando PDF...');
-  carregarJsPDF(()=>{
-    try{gerarPDFos(id);}
+  carregarJsPDF(async()=>{
+    try{await gerarPDFos(id);}
     catch(e){fbLog('Erro ao gerar PDF da OS: '+(e&&e.message),'erro');toast('Erro ao gerar PDF: '+e.message,'warn');}
   });
 }
 
-function gerarPDFos(id){
+async function gerarPDFos(id){
   const os=osList.find(o=>o.id===id);if(!os)return;
   const jsPDFLib=window.jspdf.jsPDF;
   const doc=new jsPDFLib({unit:'mm',format:'a4'});
@@ -5954,11 +6118,20 @@ function gerarPDFos(id){
   });
   itens.forEach(c=>{if(c.foto)fotos.push({src:c.foto,label:c.label});});
 
+  /* Resolve as referências ANTES de desenhar: addImage precisa dos bytes, e um PDF sem as
+     fotos é pior do que nenhum PDF -- é um relatório que parece completo e não prova nada. */
+  for(const f of fotos){
+    const b=await fotoBytes(f.src);
+    f.src=b;
+  }
+  const semImagem=fotos.filter(f=>!f.src).length;
+  if(semImagem)fbLog(semImagem+' foto(s) não encontradas ao gerar o PDF','erro');
   if(fotos.length){
     doc.addPage();y=20;
     doc.setTextColor(24,81,102);doc.setFont('helvetica','bold');doc.setFontSize(13);
     doc.text('REGISTRO FOTOGRAFICO',M,y);y+=8;
     fotos.forEach(f=>{
+      if(!f.src)return;
       if(y>230){doc.addPage();y=20;}
       doc.setTextColor(80,80,80);doc.setFont('helvetica','normal');doc.setFontSize(8);
       const ll=doc.splitTextToSize(semAcento(f.label),W-2*M);
@@ -5970,11 +6143,12 @@ function gerarPDFos(id){
   }
 
   // assinatura do cliente
-  if(os.assinatura){
+  const sigBytes=await fotoBytes(os.assinatura);
+  if(sigBytes){
     if(y>210){doc.addPage();y=20;}
     doc.setTextColor(24,81,102);doc.setFont('helvetica','bold');doc.setFontSize(11);
     doc.text('ACEITE DO CLIENTE',M,y);y+=6;
-    try{doc.addImage(os.assinatura,'JPEG',M,y,70,18);}catch(e){}
+    try{doc.addImage(sigBytes,'JPEG',M,y,70,18);}catch(e){}
     y+=22;
     doc.setDrawColor(150,150,150);doc.line(M,y,M+70,y);y+=5;
     doc.setTextColor(90,90,90);doc.setFont('helvetica','normal');doc.setFontSize(8);
@@ -7636,8 +7810,8 @@ function openDetalhe(id){
       <div class="card-pad" style="padding:14px">
         <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--gray-400);margin-bottom:10px">${vrf?'Split':'Item'} ${i+1}${vrf?` ${e.marca?'· '+escapeHtml(e.marca):''} ${escapeHtml(e.modelo||'')}`:''}</div>
         <div class="frow" style="gap:10px">
-          <div><div style="font-size:11px;color:var(--gray-400);margin-bottom:4px">${vrf?'Evaporadora':'Antes'}</div>${e.fotoEvap?`<img src="${e.fotoEvap}" onclick="openLightbox(this.src)" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid var(--green)">`:`<div style="aspect-ratio:4/3;background:var(--gray-100);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px">📷</div>`}</div>
-          <div><div style="font-size:11px;color:var(--gray-400);margin-bottom:4px">${vrf?'Condensadora':'Depois'}</div>${e.fotoCond?`<img src="${e.fotoCond}" onclick="openLightbox(this.src)" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid var(--green)">`:`<div style="aspect-ratio:4/3;background:var(--gray-100);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px">📷</div>`}</div>
+          <div><div style="font-size:11px;color:var(--gray-400);margin-bottom:4px">${vrf?'Evaporadora':'Antes'}</div>${e.fotoEvap?imgFoto(e.fotoEvap,`onclick="openLightbox(this.src)" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid var(--green)"`):`<div style="aspect-ratio:4/3;background:var(--gray-100);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px">📷</div>`}</div>
+          <div><div style="font-size:11px;color:var(--gray-400);margin-bottom:4px">${vrf?'Condensadora':'Depois'}</div>${e.fotoCond?imgFoto(e.fotoCond,`onclick="openLightbox(this.src)" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid var(--green)"`):`<div style="aspect-ratio:4/3;background:var(--gray-100);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px">📷</div>`}</div>
         </div>
       </div>
     </div>`).join('');
@@ -7651,7 +7825,7 @@ function openDetalhe(id){
         <span style="flex:1;font-size:13px">${escapeHtml(c.label)} ${c.critico?'<span style="font-size:10px;background:#fee2e2;color:#991b1b;padding:1px 6px;border-radius:8px;font-weight:600">CRÍTICO</span>':''}</span>
         ${temFoto?`<span class="chk-cam">${svgIco('camera','ico-sm')}</span><span class="chk-arrow" id="chkArrow${ci}">${svgIco('back','ico-sm')}</span>`:'<span style="font-size:11px;color:var(--gray-400)">sem foto</span>'}
       </div>
-      ${temFoto?`<div class="chk-foto" id="chkFoto${ci}"><img src="${c.foto}" onclick="openLightbox(this.src)" style="width:100%;border-radius:10px;cursor:pointer;display:block"></div>`:''}
+      ${temFoto?`<div class="chk-foto" id="chkFoto${ci}">${imgFoto(c.foto,`onclick="openLightbox(this.src)" style="width:100%;border-radius:10px;cursor:pointer;display:block"`)}</div>`:''}
     </div>`;
   }).join('');
 
@@ -7690,7 +7864,7 @@ function openDetalhe(id){
       <div style="margin-top:18px"><label style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--gray-500);display:block;margin-bottom:10px">Equipamentos</label>${equipHTML||'<p style="font-size:13px;color:var(--gray-400)">Nenhum equipamento registrado.</p>'}</div>
       <div style="margin-top:18px"><label style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--gray-500);display:block;margin-bottom:10px">Checklist de execução</label>${checkHTML}</div>
       ${os.checkinTime?`<div style="margin-top:14px;font-size:13px;color:var(--gray-500)">⏱ Check-in: ${os.checkinTime}${os.checkoutTime?' · Check-out: '+os.checkoutTime:''}</div>`:''}
-      ${os.assinatura?`<div style="margin-top:14px"><label style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--gray-500);display:block;margin-bottom:6px">Assinatura do cliente ✅</label><img src="${os.assinatura}" style="width:100%;border-radius:8px;border:1px solid var(--gray-200)"></div>`:''}
+      ${os.assinatura?`<div style="margin-top:14px"><label style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--gray-500);display:block;margin-bottom:6px">Assinatura do cliente ✅</label>${imgFoto(os.assinatura,`style="width:100%;border-radius:8px;border:1px solid var(--gray-200)"`)}</div>`:''}
     </div>
     <div class="modal-foot">
       <button class="btn btn-danger" onclick="excluirOS('${os.id}')">🗑 Excluir</button>
@@ -8849,12 +9023,12 @@ function switchEquipTab(i){
     <div class="fg"><label>📷 ${vrf?'Etiqueta — Evaporadora':'Antes'}</label>
       <button class="btn ${e.fotoEvap?'btn-gold':'btn-ghost'}" style="width:100%" onclick="document.getElementById('fEvap${i}').click()">${e.fotoEvap?'✅ Foto enviada — trocar':'📷 Tirar foto'}</button>
       <input type="file" id="fEvap${i}" accept="image/*" style="display:none" onchange="onEquipFoto(event,${i},'evap')">
-      ${e.fotoEvap?`<div class="foto-mini-wrap"><img src="${e.fotoEvap}" class="foto-mini" onclick="openLightbox(this.src)" alt="Foto da etiqueta da evaporadora"><span class="foto-mini-dica">Toque na foto para ver grande</span></div>`:''}
+      ${e.fotoEvap?`<div class="foto-mini-wrap">${imgFoto(e.fotoEvap,`class="foto-mini" onclick="openLightbox(this.src)" alt="Foto da etiqueta da evaporadora"`)}<span class="foto-mini-dica">Toque na foto para ver grande</span></div>`:''}
     </div>
     <div class="fg"><label>📷 ${vrf?'Etiqueta — Condensadora':'Depois'}</label>
       <button class="btn ${e.fotoCond?'btn-gold':'btn-ghost'}" style="width:100%" onclick="document.getElementById('fCond${i}').click()">${e.fotoCond?'✅ Foto enviada — trocar':'📷 Tirar foto'}</button>
       <input type="file" id="fCond${i}" accept="image/*" style="display:none" onchange="onEquipFoto(event,${i},'cond')">
-      ${e.fotoCond?`<div class="foto-mini-wrap"><img src="${e.fotoCond}" class="foto-mini" onclick="openLightbox(this.src)" alt="Foto da etiqueta da condensadora"><span class="foto-mini-dica">Toque na foto para ver grande</span></div>`:''}
+      ${e.fotoCond?`<div class="foto-mini-wrap">${imgFoto(e.fotoCond,`class="foto-mini" onclick="openLightbox(this.src)" alt="Foto da etiqueta da condensadora"`)}<span class="foto-mini-dica">Toque na foto para ver grande</span></div>`:''}
     </div>`;
 }
 
@@ -8862,9 +9036,16 @@ function updEquip(i,f,v){execOS.equipamentos[i][f]=v;saveExecOS();}
 function onEquipFoto(evt,i,tipo){
   const file=evt.target.files[0];if(!file)return;
   evt.target.value='';
-  vrfComprimirImagem(file,b64=>{
-    if(tipo==='evap')execOS.equipamentos[i].fotoEvap=b64;
-    else execOS.equipamentos[i].fotoCond=b64;
+  vrfComprimirImagem(file,async b64=>{
+    /* Guarda no armazém ANTES de trocar o valor: a referência só substitui a foto depois
+       que a gravação está confirmada. Se falhar, mantém a foto como era antes (formato
+       antigo) -- funciona igual, só sem economizar espaço. Nunca perde a foto. */
+    const campo=tipo==='evap'?('eq'+i+'_evap'):('eq'+i+'_cond');
+    let valor=b64;
+    try{valor=await guardarFotoNoAparelho(_fotoOSDoc(execOS.id,campo),b64);}
+    catch(e){fbLog('Não consegui guardar a foto no aparelho ('+e.message+') — mantida no formato antigo','erro');}
+    if(tipo==='evap')execOS.equipamentos[i].fotoEvap=valor;
+    else execOS.equipamentos[i].fotoCond=valor;
     saveExecOS();switchEquipTab(i);
     /* A aba pode não estar mais na tela (o técnico saiu, ou a view foi repintada). Antes
        isto estourava em undefined.innerHTML e derrubava o resto do callback: o "Foto salva"
@@ -8896,7 +9077,7 @@ function renderChecklistExec(){
         ${showFoto?`<div style="padding:0 14px 14px">
           <button class="btn ${item.foto?'btn-gold':'btn-ghost'} btn-sm" style="width:100%" onclick="document.getElementById('cf${i}').click()">${item.foto?'✅ Foto enviada — trocar':'📷 Foto obrigatória'}</button>
           <input type="file" id="cf${i}" accept="image/*" style="display:none" onchange="onCheckFoto(event,${i})">
-          ${item.foto?`<div class="foto-mini-wrap"><img src="${item.foto}" class="foto-mini" onclick="openLightbox(this.src)" alt="Foto do item do checklist"><span class="foto-mini-dica">Toque na foto para ver grande</span></div>`:''}
+          ${item.foto?`<div class="foto-mini-wrap">${imgFoto(item.foto,`class="foto-mini" onclick="openLightbox(this.src)" alt="Foto do item do checklist"`)}<span class="foto-mini-dica">Toque na foto para ver grande</span></div>`:''}
         </div>`:''}
       </div>`;
     }).join('')}
@@ -8915,7 +9096,13 @@ function toggleCheck(i){
 function onCheckFoto(evt,i){
   const file=evt.target.files[0];if(!file)return;
   evt.target.value='';
-  vrfComprimirImagem(file,b64=>{execOS.checklist[i].foto=b64;saveExecOS();renderChecklistExec();verificarConcluir();toast('Foto salva','success');});
+  vrfComprimirImagem(file,async b64=>{
+    let valor=b64;
+    const item=execOS.checklist[i];
+    try{valor=await guardarFotoNoAparelho(_fotoOSDoc(execOS.id,'ck_'+item.id),b64);}
+    catch(e){fbLog('Não consegui guardar a foto no aparelho ('+e.message+') — mantida no formato antigo','erro');}
+    item.foto=valor;saveExecOS();renderChecklistExec();verificarConcluir();toast('Foto salva','success');
+  });
 }
 
 function execCheckin(){
@@ -9007,8 +9194,12 @@ function verificarConcluir(){
     ${resto>0?`<div class="pend-resto">…e mais ${resto}.</div>`:''}`;
 }
 
-function execConcluir(){
-  execOS.assinatura=_assinaturaComprimida(document.getElementById('sigCanvas'));
+async function execConcluir(){
+  const sig=_assinaturaComprimida(document.getElementById('sigCanvas'));
+  let valorSig=sig;
+  try{valorSig=await guardarFotoNoAparelho(_fotoOSDoc(execOS.id,'assinatura'),sig);}
+  catch(e){fbLog('Não consegui guardar a assinatura no aparelho ('+e.message+') — mantida no formato antigo','erro');}
+  execOS.assinatura=valorSig;
   execOS.status='concluida';execOS.motivoRevisao=null;
   execOS.checkoutTime=new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
   execOS.concluidaEm=new Date().toISOString();
@@ -9138,7 +9329,10 @@ function pubURL(token){return location.origin+location.pathname+'#/ac/'+WORKSPAC
 function _thumbKey(d){return d.length+'|'+d.slice(24,88);}
 
 /* reduz a foto para o tamanho do acompanhamento (leve, cabe na nuvem) */
-function _thumb(dataUrl){
+/* Aceita a foto em si OU a referência do armazém: o link do cliente passa por aqui, e uma
+   referência não convertida viraria um link sem foto nenhuma. */
+async function _thumb(valor){
+  const dataUrl=await fotoBytes(valor);
   return new Promise(res=>{
     if(!dataUrl||typeof dataUrl!=='string'){res(null);return;}
     const k=_thumbKey(dataUrl);
