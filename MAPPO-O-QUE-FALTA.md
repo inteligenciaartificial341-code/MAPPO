@@ -8,7 +8,7 @@
 > `MAPPO-O-QUE-TEM.md` (seção do recurso + linha no histórico). Um item só existe em um
 > dos dois arquivos, nunca nos dois.
 
-**Atualizado em:** 25/09/2026 · publicado até `3eb9663`
+**Atualizado em:** 26/09/2026 · publicado até `9d99f3c`
 
 **Próximo combinado:** fotos de obra e de tarefas no IndexedDB, e depois GPS/localização por
 pessoa (Bloco 2). Os testes anti-regressão no repositório — que eram o item 1 — **foram
@@ -133,6 +133,31 @@ no aparelho e passou a ocupar 0 KB.
 ainda ficam no `localStorage`. A nuvem delas já foi resolvida em `8a21647` (um documento por
 foto), então o que resta é só o lado do aparelho — mesmo mecanismo já construído e testado,
 só apontado para as outras duas coleções.
+---
+
+## Achado em 26/09/2026 — a rede de regras prova o arquivo, não o que está no ar 🟠
+
+A suíte de regras (`9d99f3c`) carrega o `firestore.rules` **do repositório** e prova que ele
+nega o que deve negar. Mas **nada liga esse arquivo às regras que o Firestore está aplicando**
+em produção: não existe passo de publicação em lugar nenhum — nem script, nem CI, nem
+documento. Publicar sempre foi ato manual do proprietário.
+
+Dois jeitos de o verde mentir:
+
+- Editar as regras, a suíte fica verde, commitar — e **esquecer de publicar**. Produção segue
+  com as regras antigas.
+- Alguém colar uma correção direto no Console e o arquivo nunca ser atualizado. Produção
+  diverge do que está testado.
+
+Nos dois casos `npm test` passa e o CI fica verde enquanto produção aplica outra coisa.
+
+**A saída mais barata:** um `npm run regras:publicar` que só publica **depois** da suíte passar,
+mais uma linha no `VERIFICACAO-MANUAL.md` para conferir no Console de tempos em tempos. Não
+elimina erro humano, mas tira o "esqueci de publicar" do caminho.
+
+Levantado pela revisão adversarial de 26/09/2026. É o mesmo vício de "regra sem mecanismo",
+um nível acima — e por isso entra aqui em vez de ficar só no `deferred-work.md`.
+
 ---
 
 ## Combinado em 25/09/2026 — fazer DEPOIS do GPS (Bloco 2)
