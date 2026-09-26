@@ -1,7 +1,11 @@
 # MAPPO — Regras Operacionais
 
 ## Identidade
-App de gestão de OS da Elite AR. `index.html` single-file (~328KB), Firebase (Firestore + Auth anônimo).
+App de gestão de equipes em campo da Elite Ar. `index.html` single-file (~630 KB),
+Firebase (Firestore + Auth por e-mail e senha). Em uso real, com dados de clientes.
+O repositório é **público** — ver "Antes de publicar".
+
+Autenticação anônima existe, mas **só** para o visitante do link de acompanhamento do cliente.
 
 ## Fonte de verdade
 - **Estado do produto (LER SEMPRE ANTES DE COMEÇAR QUALQUER TRABALHO):**
@@ -14,6 +18,56 @@ App de gestão de OS da Elite AR. `index.html` single-file (~328KB), Firebase (F
 - Plano mestre: `project-context.md`
 - Diagnóstico: `_audit/mappo-initial-audit.md`
 - Como rodar e escrever testes: `testes/README.md`
+
+## Antes de corrigir um defeito (obrigatório)
+Escrito em 26/09/2026 a partir do que de fato custou horas nesta semana. Cada item abaixo
+tem um episódio real atrás dele.
+
+1. **Reproduzir antes de corrigir.** Se não reproduzi, não sei qual é o defeito — sei qual
+   é a minha hipótese. O `setTimeout` que estourava o teto de 24,8 dias ficou um mês no ar
+   porque ninguém nunca abriu o link publicado; abrir levou dois minutos.
+
+2. **Evidência do sistema real, não dedução a partir do código.** O "link sempre expirado"
+   teve **quatro** tentativas de correção erradas, todas raciocinando sobre o código. A
+   resposta apareceu ao **ler o documento no servidor**: estava íntegro e válido, então o
+   defeito estava na tela, não no dado. Ler o dado primeiro.
+
+3. **O teste do defeito tem que FALHAR no código anterior.** Se passa nos dois, ele não
+   reproduz nada e a hipótese está errada. Aconteceu: escrevi um teste para o "eco da nuvem",
+   ele passou no código quebrado, e por pouco não entreguei correção para uma causa
+   inexistente. Rodar com `MAPPO_RAIZ` apontando para a versão anterior é a prova.
+
+4. **Sintoma que sobrevive a duas correções: a categoria da hipótese está errada, não a
+   hipótese.** Depois de duas tentativas, parar de variar o detalhe e trocar de família de
+   causa. As quatro tentativas do link foram todas "o dado está errado"; era a tela.
+
+5. **Não pedir ao proprietário que teste de novo a mesma coisa sem evidência nova.** O tempo
+   dele é o recurso mais escasso do projeto. Se não tenho o que mostrar de diferente, ainda
+   não é hora de pedir.
+
+## Regras sobre dado (obrigatório)
+Todas vêm de defeitos que apagaram trabalho de técnico em campo.
+
+- **Ausência não é instrução de apagar.** Dado que existe de um lado e não do outro
+  sobrevive. Um aparelho que simplesmente não tem a foto não pode apagá-la de quem tem, e a
+  nuvem não conhecer uma foto nunca é razão para removê-la. Foi assim que fotos de serviço
+  executado sumiram duas vezes.
+- **Nunca descartar dado que não se entende.** Filtrar por "não é o formato que eu espero"
+  apaga em silêncio todo formato antigo ou futuro. Descartar só o que é comprovadamente
+  próprio e inválido; o desconhecido fica onde está.
+- **Índice de dado é união, nunca substituição.** Um ponteiro que diz "quais fotos existem"
+  não pode encolher por merge — some o ponteiro, some o acesso ao dado, e o dado parece
+  perdido mesmo estando salvo.
+- **Tela de diagnóstico mede o que de fato acontece.** Quando o formato do que é enviado
+  muda, a medição muda junto. Uma tabela medindo a forma antiga acusou "100% do limite" com
+  o servidor quase vazio e mandou o proprietário caçar um problema inexistente por um dia.
+
+## Antes de publicar (obrigatório)
+- **Nunca `git add -A` nem `git add .`** — adicionar por caminho explícito. Um `add -A`
+  varreu 22 documentos de planejamento que descrevem as fraquezas de segurança do app para
+  dentro de um commit; o repositório é público e o app está no ar com dados reais.
+- **Conferir o que entrou antes do push**, não depois. Publicar é irreversível na prática.
+- O repositório é público: tudo que entra fica visível para qualquer pessoa.
 
 ## Testes (obrigatório)
 - **Todo defeito relatado vira teste ANTES de virar correção.** O teste falha primeiro,
@@ -63,8 +117,11 @@ Antes de qualquer edição: apresentar plano com arquivos e linhas afetadas. Agu
 - `index.html` é single-file. Não refatorar para modular sem etapa dedicada e aprovada.
 - Toda alteração em `index.html` deve ser cirúrgica e localizada.
 - `firestore.rules` e `firestore.indexes.json` só mudam após teste no Emulator.
-- Autenticação atual é cosmética: tratar como falha crítica, não como feature existente.
-- Senhas em texto plano: migração exige plano de rollback e backup do Firestore.
+- **Autenticação é real** (e-mail e senha do Firebase Auth) desde as Stories 1–2. A linha
+  anterior dizia "cosmética, tratar como falha crítica" e era falsa desde então — corrigida
+  em 26/09/2026. O mesmo valia para "senhas em texto plano": o app não guarda senha, quem
+  guarda é o Firebase. **Fato desatualizado em arquivo de contexto é mentira ativa:**
+  corrigir no instante em que se descobre, não depois.
 - Nenhuma etapa é aprovada sem definir como será validada. Existe suíte anti-regressão
   desde 25/09/2026 em `testes/` (quantas, em `npm run test:lista`): validar com ela, e
   estendê-la quando o caso novo não estiver coberto.
@@ -73,6 +130,9 @@ Antes de qualquer edição: apresentar plano com arquivos e linhas afetadas. Agu
 - `catch` vazio ou engolir erros.
 - Dependências novas sem aprovação.
 - Refatoração ampla ou renomear funções públicas.
+- Escrever regra sem dizer o que a aplica. Regra sem mecanismo é decoração, e decoração
+  corrói a confiança nas regras que importam — se não há mecanismo, dizer que é disciplina.
+- Afirmar "verificado" com base em relatório de agente, ou em leitura de código sem execução.
 - Entregar correção de defeito sem o teste que o reproduz.
 - Publicar com `npm test` vermelho. **Atenção: isto hoje é disciplina, não mecanismo** —
   leia a seção seguinte antes de confiar nela.
