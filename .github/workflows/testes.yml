@@ -1,7 +1,8 @@
 # Rede anti-regressao do MAPPO.
 #
 # Roda as mesmas suites que `npm test` roda na maquina do proprietario, a cada push
-# e a cada pull request. Se uma suite falhar, o commit fica marcado com o X vermelho.
+# em main, a cada pull request, e a mao pelo botao "Run workflow". Se uma suite
+# falhar, o commit fica marcado com o X vermelho.
 #
 # Custo: zero. Usa apenas runners publicos do GitHub Actions (ubuntu-latest), que sao
 # gratuitos para repositorios publicos. Nao ha runner privado, servico externo nem
@@ -14,17 +15,23 @@
 #     estado da conta do proprietario, e rodam so a mao (`npm run test:producao`).
 #     O runner ja os deixa de fora por padrao -- este CI nao passa nenhuma flag que os
 #     inclua, entao a exclusao vale em duas camadas.
+#
+# O que ele NAO garante: o job roda DEPOIS do commit ja estar em main, e o GitHub Pages
+# publica de main sem consultar este resultado. Para o vermelho de fato impedir a
+# publicacao e preciso ligar protecao de ramo em main exigindo o status check
+# "Suites anti-regressao" -- configuracao que so o proprietario pode fazer.
 
 name: testes
 
 on:
+  # push so em main: um PR de ramo do mesmo repositorio dispararia push E pull_request
+  # para o mesmo commit, rodando tudo duas vezes e gastando o dobro de minutos
   push:
-    branches: ['**']
+    branches: [main]
   pull_request:
     branches: ['**']
+  workflow_dispatch:
 
-# Um push novo cancela a execucao anterior do mesmo ramo: economiza minutos gratuitos
-# e evita fila quando se empurram varios commits seguidos.
 concurrency:
   group: testes-${{ github.ref }}
   cancel-in-progress: true
@@ -48,30 +55,47 @@ jobs:
           node-version: '24'
           cache: npm
 
-      - name: Instalar as dependencias
-        run: npm ci
-
-      # Guarda o Chromium entre execucoes: sem isto, cada execucao baixa ~130 MB.
-      # A chave inclui o package-lock, que e o que fixa a versao do Playwright --
-      # logo a versao do navegador. Trocar o Playwright invalida o cache sozinho.
+      # ANTES do npm ci, de proposito: e o script de pos-instalacao do pacote
+      # "playwright" que baixa o navegador. Restaurar o cache depois do npm ci nao
+      # economizaria nada -- o download ja teria acontecido.
+      # A chave inclui o package-lock, que fixa a versao do Playwright e portanto a do
+      # navegador: trocar de versao invalida o cache sozinho.
       - name: Reaproveitar o Chromium baixado
-        id: cache-navegador
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
-      - name: Instalar o Chromium
-        if: steps.cache-navegador.outputs.cache-hit != 'true'
-        run: npx playwright install --with-deps chromium
+      - name: Instalar as dependencias
+        # escopo de passo, nao do job: impede o pos-instalacao de baixar navegador,
+        # sem afetar o passo seguinte, que e quem deve baixar (e o faz de forma
+        # idempotente, sem rebaixar o que o cache ja trouxe)
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+        run: npm ci
 
-      # Mesmo com o navegador em cache, as bibliotecas de sistema que ele precisa
-      # nao ficam no cache: este passo instala so elas, sem rebaixar o navegador.
-      - name: Instalar as bibliotecas do sistema
-        if: steps.cache-navegador.outputs.cache-hit == 'true'
-        run: npx playwright install-deps chromium
+      # Idempotente: com o cache quente, so instala as bibliotecas de sistema (que nao
+      # ficam no cache); com o cache frio, baixa o navegador tambem.
+      - name: Instalar o Chromium e as bibliotecas do sistema
+        run: npx playwright install --with-deps chromium
 
       # `npm test` == `node testes/executar.js`: em serie, com timeout por suite, e
       # ja sem os tres que batem em producao. Sai com codigo 1 se alguma suite falhar.
       - name: Rodar as suites
         run: npm test
+
+      # Diante do X vermelho, 15 linhas de texto no log nao bastam: as suites geram
+      # capturas de tela e PDFs que morreriam com o runner.
+      - name: Guardar as capturas e PDFs da falha
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: artefatos-da-falha
+          if-no-files-found: ignore
+          retention-days: 7
+          path: |
+            diag-concluir.png
+            linkreal.png
+            etiq-*.png
+            mob-*.png
+            testes/*.pdf

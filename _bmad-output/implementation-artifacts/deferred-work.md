@@ -303,3 +303,19 @@ Rodada de auditoria dedicada, fora do fluxo de story: `firebase-security-rules-a
 - source_spec: none
   summary: "[RESOLVIDO] jsPDF atualizado de 2.5.1 para 4.2.1 (item já reclassificado de manutenção pra segurança em 2026-08-25, na ARCHITECTURE-SPINE.md) -- fecha os CVEs de DoS via addImage com imagem malformada e injeção via addJS/AcroForm, corrigidos só em 4.0.0-4.2.0. Sem breaking change de API entre as versões (changelog checado) -- confirmado com o mesmo fluxo de produção real (gerarPDFandar), não um teste sintético."
   evidence: "Playwright real: jsPDF 4.2.1 carrega (versão confirmada via jsPDFLib.version), gerarPDFandar() roda sem exceção com o mesmo dado/API que a Story VRF já usava, doc.save() dispara um download real de PDF (evento nativo do navegador) com conteúdo (>1KB, não vazio/corrompido). Hash SRI recalculado pra versão nova."
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-rede-anti-regressao.md`
+  summary: `firestore.rules` continua sem nenhuma rede automatizada, sendo a área de maior risco de segurança do projeto — o CLAUDE.md exige teste no Emulator mas o CI não instala o emulador e não existe suíte de regras no repositório.
+  evidence: Levantado pela revisão adversarial de 25/09/2026. Pré-existente, não causado por esta entrega: as 19 verificações de regra que rodaram em `c56d38b` foram feitas à mão com `@firebase/rules-unit-testing` e não ficaram versionadas. É a única parte do app com token de link público e isolamento multi-tenant, e a única sem rede.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-rede-anti-regressao.md`
+  summary: As suítes escrevem capturas e PDFs na raiz do repositório e em `testes/`, obrigando o `.gitignore` a listar nome por nome; a próxima suíte que salvar um arquivo novo vai para o commit sem ninguém notar.
+  evidence: Levantado pela revisão adversarial de 25/09/2026. A saída certa é as suítes gravarem em `testes/_saida/` e o `.gitignore` ignorar o diretório — aí o receio de usar `*.png` (os ícones e telas de abertura são versionados na raiz de propósito) desaparece por construção. Exige tocar em ~6 suítes, não é patch.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-rede-anti-regressao.md`
+  summary: O runner não produz saída legível por máquina (JUnit/JSON), então o GitHub não sabe qual suíte falhou — só o log bruto — e não há como rastrear tempo por suíte nem detectar intermitência ao longo do tempo.
+  evidence: Levantado pela revisão adversarial de 25/09/2026. Só vale a pena quando houver histórico suficiente para procurar intermitência; hoje a lista de falhas no terminal resolve.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-rede-anti-regressao.md`
+  summary: O CI roda só em `ubuntu-latest`, mas o desenvolvimento é em Windows — o ramo `win32` do `matarArvore` nunca é exercitado pelo CI.
+  evidence: Levantado pela revisão adversarial de 25/09/2026. Correção: desde a mesma revisão, `teste-runner.js` (CHECK 8) conduz um processo travado de verdade pelo `taskkill` a cada `npm test` local, então o ramo win32 É exercitado na máquina do proprietário — o que falta é cobertura no CI, que roda só em Linux. Uma matriz com `windows-latest` dobraria o tempo de execução. Revisitar se aparecer defeito específico de Windows.

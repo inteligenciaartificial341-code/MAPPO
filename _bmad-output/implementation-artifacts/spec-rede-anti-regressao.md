@@ -2,7 +2,7 @@
 title: 'Rede anti-regressão: suítes versionadas, um comando e CI'
 type: 'chore'
 created: '2026-09-25'
-status: 'in-progress'
+status: 'in-review'
 review_loop_iteration: 0
 baseline_commit: '5d93539dff3becabb2dc52a4b0162a21c49cb18a'
 context: []
@@ -95,10 +95,22 @@ que todo defeito relatado vira teste antes de virar correção.
 
 ## Design Notes
 
-O runner classifica pela **saída**, não por uma lista fixa de nomes: uma suíte é um arquivo cuja
-execução imprime `TODOS OS CHECKS … PASSARAM`. Assim uma suíte nova entra sozinha, sem ninguém
-lembrar de cadastrá-la — e um arquivo que deixou de imprimir o veredito aparece como falha, que
-é o comportamento certo.
+**Corrigido na revisão adversarial de 25/09/2026.** A regra original era só "classifica pela
+saída: suíte é o arquivo que imprime o veredito". A revisão demonstrou o buraco: apagar essa
+única linha `console.log` reclassificava a suíte como diagnóstico — ela continuava rodando,
+continuava lançando erro, e o runner registrava "não reprova" e saía verde. A defesa prevista
+era o humano olhar a contagem. Rede cuja falha é silenciosa não é rede.
+
+A regra vigente soma as duas coisas: **`teste-*.js` é suíte sempre, pelo nome**, e um
+`teste-*.js` que não imprime o veredito é **erro nomeado**, nunca um diagnóstico silencioso.
+O veredito continua promovendo arquivos de outros nomes. A propriedade que motivou o desenho
+original está intacta — suíte nova entra sozinha, basta chamar `teste-algo.js`, sem cadastro
+em lista nenhuma. Os dois diagnósticos que tinham nome de suíte (`teste-etiqueta`,
+`teste-publeak`) viraram `diag-*`, que é o que eles sempre foram.
+
+Buraco residual, conhecido e documentado: renomear `teste-foo.js` para `foo.js` ainda rebaixa
+em silêncio. Fechar isso exigiria um manifesto, que destrói a propriedade acima. Fica registrado
+em `testes/README.md`.
 
 Execução **em série**. Cada suíte sobe um Chromium e um servidor HTTP; em paralelo, num runner
 gratuito de 2 vCPUs, elas competem por CPU e os `setTimeout` dos próprios testes começam a

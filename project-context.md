@@ -1089,10 +1089,15 @@ O objetivo é transformar o aplicativo em um produto profissional, seguro, escal
 - Fonte de verdade do diagnóstico: `_audit/mappo-initial-audit.md`.
 - Nenhuma etapa pode ser aprovada sem definir como será validada.
 - **Existe suíte anti-regressão desde 25/09/2026** (corrigido: este documento dizia
-  "zero testes hoje"). São 25 suítes Playwright e 9 diagnósticos versionados em `testes/`,
-  rodados com `npm test` em série e executados pelo GitHub Actions a cada push
-  (`.github/workflows/testes.yml`). Três diagnósticos batem em produção e ficam fora do
-  CI: `diag-difer`, `diag-linkreal`, `diag-pubreal`.
+  "zero testes hoje"). São suítes Playwright e diagnósticos versionados em `testes/`,
+  rodados com `npm test` em série e executados pelo GitHub Actions a cada push em `main` e
+  a cada PR (`.github/workflows/testes.yml`). **Quantas são: `npm run test:lista`** — número
+  escrito à mão em documento envelhece na primeira suíte nova. Convenção: `teste-*.js` é
+  suíte e precisa imprimir o veredito (senão o runner reprova nomeando o arquivo);
+  `diag-*.js` e `controle-*.js` só medem. Três diagnósticos batem em produção e ficam fora
+  do CI: `diag-difer`, `diag-linkreal`, `diag-pubreal`.
+- O CI **marca** o commit, não bloqueia publicação: falta proteção de ramo exigindo o status
+  check, que só o proprietário pode ligar (passo a passo no `CLAUDE.md`).
 - Regra vigente: **todo defeito relatado vira teste antes de virar correção** — o teste
   falha primeiro, provando que reproduz. Detalhes em `testes/README.md`; o que navegador
   automatizado não alcança está em `testes/VERIFICACAO-MANUAL.md`.

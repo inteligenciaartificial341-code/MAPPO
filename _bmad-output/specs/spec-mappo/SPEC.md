@@ -106,7 +106,7 @@ MAPPO é hoje uma ferramenta interna real, em uso pela Elite Ar, de gestão de e
 - `index.html` é o app inteiro em arquivo único — toda mudança é cirúrgica; nenhum refactor amplo ou reformatação de arquivo inteiro nesta rodada.
 - O motor de merge existente (`SYNC_KEYS`/`ITEM_LISTS`/`LEAF_MAPS`/`APPEND_LISTS`/`MERGE_MAPS`) mantém assinatura e comportamento idênticos — multi-tenant é só um parâmetro de caminho a mais, não um redesenho.
 - Migração de dado real (ex.: registros existentes de `mappo_tecnicos` da Elite Ar) exige backup do Firestore e plano de rollback definido antes de executar.
-- Nenhum commit direto em `main` sem autorização explícita do proprietário para o commit específico.
+- Commit em `main` é o caminho normal, mas **nenhum commit sem autorização explícita do proprietário para o commit específico** (regra corrigida em 25/09/2026: a versão anterior dizia proibir commit direto em `main`, o que contrariava a prática de todo o histórico).
 - Nenhuma dependência nova sem aprovação — nada além do que já está pinado (Firebase compat SDK 10.12.2, Leaflet 1.9.4, jsPDF 2.5.1).
 - Qualidade do Template de Checklist de um Ramo não é sacrificada por velocidade de lançar mais Ramos — um Ramo malfeito prejudica mais a percepção de "feito sob medida" do que ajuda ter mais opções no catálogo.
 - CAP-12 muito provavelmente toca `firestore.rules` (hoje só gestor escreve em `members/{uid}`; o convite reverso precisa de um mecanismo novo de autorização) — mesmo gate de sempre: Emulator Suite antes de qualquer publicação, autorização explícita separada para a regra e para o commit.

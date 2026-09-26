@@ -2,7 +2,7 @@
    no servidor, e se o servidor recusa. Roda igual no codigo antigo e no novo. */
 const { chromium } = require('playwright');
 const path=require('path'), http=require('http'), fs=require('fs');
-const RAIZ=process.env.MAPPO_RAIZ||'C:/Users/Samsung/Documents/claude/projects/mappo';
+const RAIZ=process.env.MAPPO_RAIZ||path.resolve(__dirname,'..');
 (async()=>{
   const srv=http.createServer((rq,rs)=>{const p=rq.url==='/'?'/index.html':rq.url.split('?')[0];const f=path.join(RAIZ,p);
     if(!fs.existsSync(f)){rs.writeHead(404);rs.end();return;}rs.writeHead(200);rs.end(fs.readFileSync(f));});

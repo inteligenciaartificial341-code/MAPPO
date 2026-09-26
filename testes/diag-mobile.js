@@ -1,7 +1,7 @@
 /* Mede estouro de largura nos modais e telas, num viewport de celular real. */
 const { chromium, devices } = require('playwright');
 const path=require('path'), http=require('http'), fs=require('fs');
-const RAIZ=process.env.MAPPO_RAIZ||'C:/Users/Samsung/Documents/claude/projects/mappo';
+const RAIZ=process.env.MAPPO_RAIZ||path.resolve(__dirname,'..');
 
 (async()=>{
   const srv=http.createServer((rq,rs)=>{const p=rq.url==='/'?'/index.html':rq.url.split('?')[0];const f=path.join(RAIZ,p);

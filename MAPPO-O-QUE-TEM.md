@@ -8,10 +8,7 @@
 > antes do commit + publicação. Ao final de cada publicação: mover o item de
 > `MAPPO-O-QUE-FALTA.md` para cá e registrar no histórico no fim do arquivo.
 
-**Estado:** publicado até o commit `3eb9663` · atualizado em 25/09/2026
-**Pendente de commit:** a seção 9 (rede anti-regressão) está escrita e verificada, mas ainda
-não foi commitada — o hash na primeira linha do histórico está por preencher. É a única
-entrada deste arquivo que ainda não corresponde a um commit.
+**Estado:** publicado até o commit `56db2a0` · atualizado em 25/09/2026
 **Endereço:** https://inteligenciaartificial341-code.github.io/MAPPO/
 
 ---
@@ -189,21 +186,30 @@ Não é funcionalidade para o usuário — é o que impede funcionalidade que j�
 parar de funcionar. Existe porque em 24/09/2026 três defeitos apareceram juntos em coisas
 que já funcionavam e **não havia como perceber** antes do usuário.
 
-- **25 suítes Playwright versionadas** em `testes/`, mais 9 diagnósticos. Antes viviam numa
+- **Suítes Playwright versionadas** em `testes/`, mais os diagnósticos. Antes viviam numa
   pasta temporária do sistema, que já tinha sido apagada **três vezes** — enquanto não
-  estavam versionadas, não existiam
+  estavam versionadas, não existiam. Quantas são hoje: `npm run test:lista` (o número não
+  fica escrito em documento nenhum, para não envelhecer)
 - **Um comando só:** `npm test` roda tudo em série, imprime o resultado de cada arquivo e
-  termina com a contagem (`25/25 suites passaram`). Sai com código diferente de zero se
-  qualquer suíte falhar
-- **Suíte nova entra sozinha:** o runner classifica pelo veredito `TODOS OS CHECKS …
-  PASSARAM`, não por uma lista de nomes. Quem escreve uma suíte nova não precisa
-  cadastrá-la em lugar nenhum — e uma suíte que parou de imprimir o veredito aparece
-  como falha, que é o comportamento certo
+  termina com a contagem. Sai com código diferente de zero se qualquer suíte falhar
+- **Suíte nova entra sozinha:** basta chamar-se `teste-algo.js` — não há lista para
+  cadastrar. E um `teste-*.js` que **não** imprime o veredito `TODOS OS CHECKS … PASSARAM`
+  é tratado como **falha**, nomeada na saída: não existe suíte que pare de reprovar em
+  silêncio
+- **O runner tem a sua própria suíte** (`teste-runner.js`): ele é o único ponto que
+  converte "uma suíte falhou" em "CI vermelho", então está testado com arquivos de mentira
+  numa pasta temporária
 - **Suítes x diagnósticos:** suíte reprova de verdade; diagnóstico só mede e nunca reprova
   a execução, então investigação não vira alarme falso
-- **GitHub Actions a cada push e PR** (`.github/workflows/testes.yml`): roda o mesmo
-  `npm test` e marca o commit. Custo zero — só runner público gratuito. O CI não publica,
-  não faz deploy e não toca em produção
+- **GitHub Actions a cada push em `main` e a cada PR** (`.github/workflows/testes.yml`):
+  roda o mesmo `npm test` e **marca** o commit. Custo zero — só runner público gratuito.
+  O CI não publica, não faz deploy e não toca em produção. **Marcar não é impedir:** o job
+  roda depois do commit já estar em `main`, e o GitHub Pages publica de `main` sem consultar
+  o resultado. Para o vermelho de fato barrar a publicação falta ligar proteção de ramo
+  exigindo o status check — o passo a passo está no `CLAUDE.md` e só o proprietário pode
+  fazer
+- **Artefatos da falha guardados:** quando o CI fica vermelho, as capturas de tela e os PDFs
+  gerados pelas suítes ficam anexados à execução por 7 dias, em vez de morrerem com o runner
 - **Os três que batem em produção ficam fora** do `npm test` e do CI (`diag-difer`,
   `diag-linkreal`, `diag-pubreal`): dependem de rede, do site publicado e do estado da
   conta do proprietário. Rodam só à mão, com `npm run test:producao`
@@ -225,7 +231,7 @@ que já funcionavam e **não havia como perceber** antes do usuário.
 
 | Data | Commit | O que entrou |
 |---|---|---|
-| 25/09/2026 | _a preencher no commit_ | **Rede anti-regressão: suítes versionadas, um comando e CI.** As 25 suítes Playwright e 9 diagnósticos que provaram cada correção da semana viviam numa pasta temporária do sistema, **já apagada três vezes** — enquanto não estavam versionados, não existiam. Agora vivem em `testes/`, com `npm test` rodando tudo em série e terminando na contagem (`25/25 suites passaram`), e o GitHub Actions rodando o mesmo comando a cada push, de graça. O runner classifica pelo veredito `TODOS OS CHECKS … PASSARAM` e não por lista de nomes, então suíte nova entra sozinha e suíte que parou de imprimir o veredito aparece como falha. Os três que batem no site publicado e no Firestore real ficam fora do CI. Junto, a regra escrita em `CLAUDE.md`: **todo defeito relatado vira teste antes de virar correção** |
+| 25/09/2026 | `56db2a0` | **Rede anti-regressão: suítes versionadas, um comando e CI.** As 25 suítes Playwright e 9 diagnósticos que provaram cada correção da semana viviam numa pasta temporária do sistema, **já apagada três vezes** — enquanto não estavam versionados, não existiam. Agora vivem em `testes/`, com `npm test` rodando tudo em série e terminando na contagem (`25/25 suites passaram`), e o GitHub Actions rodando o mesmo comando a cada push, de graça. O runner classifica pelo veredito `TODOS OS CHECKS … PASSARAM` e não por lista de nomes, então suíte nova entra sozinha e suíte que parou de imprimir o veredito aparece como falha. Os três que batem no site publicado e no Firestore real ficam fora do CI. Junto, a regra escrita em `CLAUDE.md`: **todo defeito relatado vira teste antes de virar correção** |
 | 25/09/2026 | `3eb9663` | **A foto ficava presa no aparelho que a tirou.** O texto sincronizava entre celular e notebook, a foto não. As fotos estavam no servidor o tempo todo — faltava o **ponteiro**: o índice de fotos da ordem (`__f`) era decidido pelo merge campo a campo, e o índice velho da nuvem vencia o novo. Junto: marcar um item do checklist num aparelho fazia o array local inteiro vencer, levando junto a ausência das fotos do outro. Agora índice de foto é união e cada foto é decidida sozinha — uma foto só some quando ninguém mais a tem |
 | 25/09/2026 | `82c6317` | **A nuvem apagava a foto recém-tirada ao devolver a ordem.** Salvar a etiqueta da condensadora fazia a da evaporadora sumir, e a OS voltava de concluída para em andamento (sem a foto ela deixa de cumprir os requisitos). O app só preservava as fotos locais que a **nuvem já conhecia** — uma foto tirada agora ainda não está lá, então o valor vazio do remoto a sobrescrevia. Regra agora explícita: a nuvem não conhecer uma foto nunca é razão para apagá-la |
 | 25/09/2026 | `d96a174` | **A foto saiu do `localStorage`.** A ordem guarda só a referência; a imagem mora no IndexedDB e é carregada quando aparece na tela. Medido: uma OS com 4 fotos ocupava 960 KB no aparelho e passou a ocupar 0 KB, com os bytes voltando inteiros. O teto de ~5 MB era o que travava o técnico em campo (~10 a 12 ordens com foto) e o que fazia o iPhone descartar a página na câmera. Uma referência que chegue a um lugar não convertido vira imagem quebrada **na tela**, nunca um apagamento silencioso |

@@ -1,12 +1,36 @@
 # Verificação manual — o que nenhum teste automatizado alcança
 
-As 25 suítes em `testes/` cobrem o que acontece **dentro** da página. Elas não conseguem
-verificar o que sai do app para outro aplicativo, para o sistema operacional ou para o
-hardware do celular: o navegador automatizado ou não tem permissão, ou não tem o
-aplicativo instalado, ou não tem câmera.
+As suítes em `testes/` cobrem o que acontece **dentro** da página (`npm run test:lista` diz
+quantas são hoje). Elas não conseguem verificar o que sai do app para outro aplicativo, para
+o sistema operacional ou para o hardware do celular: o navegador automatizado ou não tem
+permissão, ou não tem o aplicativo instalado, ou não tem câmera.
 
-Esta lista é curta de propósito. São **5 conferências**, feitas à mão, e só valem a pena
-**quando a mudança tocou nessa área** — não a cada publicação.
+São **5 áreas**, com cerca de **25 caixas** no total. Não é uma lista leve: várias caixas
+exigem um **celular físico** — e a área 4 pede especificamente um **iPhone**, porque o
+descarte de página por pressão de memória no iOS foi a origem de vários defeitos reais.
+
+**Não é para rodar inteira toda vez.** Confira só a área que a sua mudança tocou. Cada área
+diz, no fim, quando vale a pena.
+
+## Registro das últimas verificações
+
+Preencha ao conferir. Sem isto não há como saber se uma área já foi verificada nesta versão
+ou se ninguém olha para ela desde que foi escrita.
+
+| Área | Última verificação | Commit/versão | Aparelho | Quem conferiu | Resultado |
+|---|---|---|---|---|---|
+| 1. Google Agenda | — | — | — | — | nunca registrada |
+| 2. Notificação real | — | — | — | — | nunca registrada |
+| 3. WhatsApp | — | — | — | — | nunca registrada |
+| 4. Câmera de celular | — | — | — | — | nunca registrada |
+| 5. Instalação/atualização (PWA) | — | — | — | — | nunca registrada |
+
+Exemplo de linha preenchida:
+
+| 4. Câmera de celular | 26/09/2026 | `56db2a0` | iPhone 13, iOS 18 | Paulo | ok, 6 fotos seguidas sem perda |
+
+Se um item falhar à mão, registre aqui **e** abra a correção — e, pela regra do
+`CLAUDE.md`, escreva primeiro o teste que reproduz a parte que o navegador alcança.
 
 ---
 
@@ -115,9 +139,11 @@ dependem do sistema operacional e do navegador real.
 
 ## Como usar esta lista
 
-Não é para rodar inteira toda vez. O caminho é:
-
 1. `npm test` — se ficar vermelho, para aqui e corrige.
-2. Verde, olhe **qual área** você mexeu e faça só o item correspondente desta lista.
-3. Se um item falhar à mão, **vire teste antes de corrigir** (regra em `CLAUDE.md`) — pelo
+2. Verde, olhe **qual área** você mexeu e faça só as caixas daquela área.
+3. **Preencha a linha da área** na tabela de registro no começo deste arquivo.
+4. Se uma caixa falhar, **vire teste antes de corrigir** (regra em `CLAUDE.md`) — pelo
    menos a parte que o navegador automatizado alcança.
+
+Uma área cuja linha diz "nunca registrada" não significa que está quebrada — significa
+que ninguém sabe. São os primeiros lugares a olhar quando algo escapa.

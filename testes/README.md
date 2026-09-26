@@ -27,12 +27,16 @@ npm test
 ```
 
 Roda em **série** (uma suíte por vez), imprime o resultado de cada arquivo e termina com
-a contagem:
+a contagem — algo como:
 
 ```
-25/25 suites passaram (em 4.6 min)
+26/26 suites passaram (em 4.3 min)
 6 diagnostico(s) executado(s) -- medem, nao reprovam
 ```
+
+(Os números acima são só ilustração de formato. Para saber quantas são **hoje**, rode
+`npm run test:lista` — nenhum documento deste repositório guarda esse número, justamente
+para não envelhecer.)
 
 Sai com **código 0** se todas as suítes passarem e **código 1** se qualquer uma falhar —
 é esse código que o GitHub Actions lê para marcar o commit.
@@ -65,7 +69,23 @@ npm run test:lista
 
 Mostra o que o runner considera **suíte** e o que considera **diagnóstico**, e quais
 ficam fora por baterem em produção. Útil depois de escrever uma suíte nova, para
-confirmar que ela foi reconhecida como suíte.
+confirmar que ela foi reconhecida como suíte. **É também a resposta para "quantas são?"** —
+o número vive aqui, não em documento.
+
+## Todas as flags
+
+| Flag | O que faz |
+|---|---|
+| `--lista` | classifica e não executa nada |
+| `--com-producao` | inclui os que batem no site publicado e no Firestore real |
+| `--mostrar-diagnosticos` | imprime a saída dos diagnósticos (a medição que eles existem para produzir) |
+| `--ajuda` | resumo do uso |
+
+Uma flag que o runner não conhece **não roda nada** e sai com erro nomeando a flag — um
+`--producao` digitado no lugar de `--com-producao` não vai fingir que obedeceu.
+
+Não existe flag para "rodar mesmo sem navegador" nem para "ignorar falha": se não há como
+testar, o comando falha.
 
 ---
 
@@ -73,27 +93,34 @@ confirmar que ela foi reconhecida como suíte.
 
 |  | Suíte | Diagnóstico |
 |---|---|---|
-| Contém `TODOS OS CHECKS … PASSARAM` | sim | não |
+| Nome | `teste-*.js` | `diag-*.js`, `controle-*.js` |
+| Imprime `TODOS OS CHECKS … PASSARAM` | **obrigatório** | não |
 | Reprova a execução | **sim** | **nunca** |
 | Para que serve | provar que o comportamento certo continua certo | medir, investigar, reproduzir |
 
 O runner decide assim:
 
-- **O intento vem do arquivo.** Se o texto do arquivo contém o veredito
-  `TODOS OS CHECKS … PASSARAM`, é uma suíte. Se não contém, é um diagnóstico.
-- **O resultado vem da saída.** Uma suíte só passa se a execução **imprimir** o veredito
+- **O nome declara o papel.** `teste-*.js` é suíte, sempre. Qualquer outro nome é
+  diagnóstico — a não ser que o arquivo contenha o veredito, que promove qualquer arquivo
+  a suíte.
+- **A saída decide o resultado.** Uma suíte só passa se a execução **imprimir** o veredito
   e sair com código 0.
+- **Uma suíte que não imprime o veredito é ERRO**, nomeado na saída: *"não imprimiu o
+  veredito — ou virou diagnóstico por engano, ou quebrou antes do fim"*.
 
-Duas consequências boas: uma suíte nova **entra sozinha**, sem ninguém lembrar de
-cadastrá-la numa lista; e uma suíte que parou de imprimir o veredito aparece como
-**falha**, que é o comportamento certo.
+Consequências: uma suíte nova **entra sozinha** (basta chamar-se `teste-algo.js`), sem
+ninguém lembrar de cadastrá-la numa lista; e não existe rebaixamento silencioso de suíte
+para diagnóstico.
 
-⚠️ **Uma armadilha para saber:** se alguém **apagar** a linha do veredito do código de uma
-suíte, ela deixa de ser suíte e passa a ser contada como diagnóstico — ou seja, para de
-reprovar em silêncio. A defesa é olhar a contagem: `npm test` diz quantas suítes rodaram.
-Se o número cair sem que ninguém tenha apagado um arquivo, foi isso.
+> **Por que a regra do nome existe.** Antes ela era só o veredito, e apagar aquela linha
+> rebaixava a suíte a diagnóstico **em silêncio**: ela continuava rodando, continuava
+> lançando erro, e o runner dizia "não reprova" e saía verde. A defesa era humana — "olhe
+> se a contagem caiu". Agora é mecânica. Foi por isso que `teste-etiqueta.js` e
+> `teste-publeak.js` viraram `diag-etiqueta.js` e `diag-publeak.js`: eram diagnósticos com
+> nome de suíte, e essa exceção é que impedia a regra.
 
-Hoje são **25 suítes** e **9 diagnósticos**.
+**Quantas são hoje:** `npm run test:lista`. Esse comando é a fonte viva; número escrito
+em documento vira mentira na primeira suíte nova.
 
 ## Os três que não rodam sozinhos
 
@@ -104,6 +131,13 @@ proprietário — então não rodam no `npm test` nem no CI. Só à mão, quando
 ```bash
 npm run test:producao
 ```
+
+A exclusão vale em **duas camadas**: o runner os deixa de fora por padrão, e o workflow do
+CI não passa nenhuma flag que os inclua. Não depende de o CI lembrar.
+
+Os três são **diagnósticos**: eles medem, não reprovam. Por isso `test:producao` liga
+`--mostrar-diagnosticos` — sem isso o comando imprimiria só "diagnostico (medido)" e
+descartaria exatamente a medição que você foi buscar.
 
 ---
 
@@ -149,7 +183,7 @@ app mexeria, e afirma o que tem que ser verdade. Copie o esqueleto:
 /* Uma linha dizendo QUAL defeito este teste impede de voltar, e por quê. */
 const { chromium } = require('playwright');
 const path = require('path'), http = require('http'), fs = require('fs');
-const RAIZ = process.env.MAPPO_RAIZ || 'C:/Users/Samsung/Documents/claude/projects/mappo';
+const RAIZ = process.env.MAPPO_RAIZ || path.resolve(__dirname, '..');
 function assert(c, m) { if (!c) throw new Error('FALHOU: ' + m); console.log('  ok - ' + m); }
 
 (async () => {
@@ -183,21 +217,36 @@ function assert(c, m) { if (!c) throw new Error('FALHOU: ' + m); console.log('  
 
 O que não pode faltar:
 
-1. **`MAPPO_RAIZ` com fallback**, exatamente como acima — é o que faz o teste rodar no CI
-   e permite o controle contra a versão anterior.
-2. **`console.log('\nTODOS OS CHECKS PASSARAM.')` no fim.** Sem essa linha o arquivo é um
-   diagnóstico e nunca vai reprovar nada.
-3. **`.catch(...)` com `process.exit(1)`.** Sem ele, uma falha pode terminar com código 0
-   e o runner considera que passou.
-4. **Fechar o navegador e o servidor** (`b.close()`, `srv.close()`), senão o processo não
+1. **O nome `teste-*.js`** — é o que faz o runner tratar o arquivo como suíte.
+2. **`MAPPO_RAIZ` com fallback `path.resolve(__dirname, '..')`**, exatamente como acima. É o
+   que faz o teste rodar em qualquer clone e no CI, e é o gancho do controle contra a versão
+   anterior. **Nunca escreva um caminho absoluto aqui:** 20 dos arquivos originais tinham o
+   caminho da máquina do proprietário embutido e não rodavam em nenhum outro lugar — quando
+   rodavam, serviam uma pasta inexistente e davam 404 em silêncio, com o teste verde.
+3. **`console.log('\nTODOS OS CHECKS PASSARAM.')` no fim.** Um `teste-*.js` que não imprime
+   isso é tratado como falha, com o nome do arquivo na saída.
+4. **`.catch(...)` com `process.exit(1)`.** Sem ele, uma falha pode terminar com código 0.
+   (O runner ainda pegaria pela ausência do veredito, mas a mensagem fica pior.)
+5. **Fechar o navegador e o servidor** (`b.close()`, `srv.close()`), senão o processo não
    termina e a suíte estoura o timeout de 5 minutos.
-5. **Um comentário no topo dizendo qual defeito isso impede de voltar.** Daqui a seis
+6. **Um comentário no topo dizendo qual defeito isso impede de voltar.** Daqui a seis
    meses é a única coisa que explica por que o teste existe.
 
-Nomes: `teste-*.js` para suíte, `diag-*.js` para diagnóstico. O runner não usa o nome para
-classificar — usa o veredito — mas a convenção ajuda quem lê.
+Nomes: `teste-*.js` para suíte, `diag-*.js` (ou `controle-*.js`) para diagnóstico. **Aqui o
+nome é regra, não convenção** — é por ele que o runner decide.
 
 Nada mais é preciso: salve na pasta e `npm test` já a inclui.
+
+## Quem testa o runner
+
+`testes/teste-runner.js` é a suíte que testa o próprio `executar.js` — o único ponto que
+converte "uma suíte falhou" em "CI vermelho". Ela cria arquivos de mentira numa pasta
+temporária e confere que o runner: conta certo, reprova um `teste-*.js` sem veredito,
+reprova quem sai com código 1, mostra a saída de quem falhou, não deixa um filtro vazio
+passar verde, respeita `--com-producao`, imprime a medição com `--mostrar-diagnosticos`,
+e aborta quem trava. Não usa Playwright, então roda em segundos.
+
+Se você mexer em `executar.js`, rode `node testes/teste-runner.js`.
 
 ---
 

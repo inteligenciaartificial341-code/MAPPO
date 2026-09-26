@@ -1,6 +1,6 @@
 const { chromium } = require('playwright');
 const path=require('path'), http=require('http'), fs=require('fs');
-const RAIZ=process.env.MAPPO_RAIZ||'C:/Users/Samsung/Documents/claude/projects/mappo';
+const RAIZ=process.env.MAPPO_RAIZ||path.resolve(__dirname,'..');
 function assert(c,m){ if(!c) throw new Error('FALHOU: '+m); console.log('  ok - '+m); }
 (async()=>{
   const srv=http.createServer((rq,rs)=>{const p=rq.url==='/'?'/index.html':rq.url.split('?')[0];const f=path.join(RAIZ,p);

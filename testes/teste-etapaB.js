@@ -1,6 +1,6 @@
 const { chromium } = require('playwright');
 const path=require('path'), http=require('http'), fs=require('fs');
-const RAIZ=process.env.MAPPO_RAIZ||'C:/Users/Samsung/Documents/claude/projects/mappo';
+const RAIZ=process.env.MAPPO_RAIZ||path.resolve(__dirname,'..');
 function assert(c,m){ if(!c) throw new Error('FALHOU: '+m); console.log('  ok - '+m); }
 
 // Firestore de mentira, fiel ao que _gravarMesclado espera (transacao inclusa)

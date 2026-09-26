@@ -42,7 +42,7 @@ Transformar o MAPPO de ferramenta interna da Elite Ar (autenticação cosmética
 - Registro fotográfico (Antes/Depois pra não-Refrigeração) reaproveita os mesmos campos internos (`fotoEvap`/`fotoCond`) sem migração — só a exibição muda por Ramo.
 - Tutorial guiado (coach-marks) reaproveita um único motor de spotlight/card (sem dependência nova) — mira o elemento real do DOM via seletor CSS, nunca posição fixa; qualquer texto sobre o módulo genérico usa `moduloSplitAtual()` dinamicamente.
 - Migração de dado real (`mappo_tecnicos`) exige backup do Firestore e plano de rollback antes de executar.
-- Nenhuma dependência nova sem aprovação (stack pinada: Firebase compat 10.12.2, Leaflet 1.9.4, jsPDF 4.2.1 — atualizado de 2.5.1 em 2026-09-01, fecha CVEs de DoS/injeção); nenhum commit direto em `main`; mudança em `firestore.rules`/`firestore.indexes.json` só após teste no Emulator Suite e autorização explícita separada da autorização de commit. Todo recurso de CDN pinado por versão carrega com SRI (`integrity`+`crossorigin`) desde 2026-09-01.
+- Nenhuma dependência nova sem aprovação (stack pinada: Firebase compat 10.12.2, Leaflet 1.9.4, jsPDF 4.2.1 — atualizado de 2.5.1 em 2026-09-01, fecha CVEs de DoS/injeção); commit em `main` é o caminho normal, mas nenhum commit sem autorização explícita do proprietário para aquele commit (regra corrigida em 25/09/2026); mudança em `firestore.rules`/`firestore.indexes.json` só após teste no Emulator Suite e autorização explícita separada da autorização de commit. Todo recurso de CDN pinado por versão carrega com SRI (`integrity`+`crossorigin`) desde 2026-09-01.
 
 ## Technical Decisions
 

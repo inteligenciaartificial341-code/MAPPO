@@ -4,11 +4,13 @@ __pycache__/
 node_modules/
 
 # Capturas de tela geradas pelos diagnosticos em testes/ a cada execucao.
-# Sao artefatos descartaveis, nao fonte. Nao usar "*.png": os icones e as telas
-# de abertura do app na raiz sao versionados de proposito.
-diag-concluir.png
-linkreal.png
-etiq-*.png
-mob-*.png
+# Ancorados com "/" para casarem so na raiz: sem a barra, "etiq-*.png" e "mob-*.png"
+# casariam em qualquer subpasta (existe uma pasta "logo app/" no repositorio).
+# Nao usar "*.png": os icones e as telas de abertura do app na raiz sao versionados.
+/diag-concluir.png
+/linkreal.png
+/etiq-*.png
+/mob-*.png
+
 # PDFs baixados pelas suites (teste-pdfos, teste-fotoidb) a cada execucao.
-testes/*.pdf
+/testes/*.pdf
