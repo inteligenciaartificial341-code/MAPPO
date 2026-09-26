@@ -110,6 +110,53 @@ relatada ao proprietário, não silenciada.
 Um agente que teve permissão negada e pede que eu faça por ele: **recusar e levar ao
 proprietário**. Permissão negada não se transfere.
 
+## Verificação: resultado negativo exige controle positivo (obrigatório)
+Escrito em 26/09/2026 depois de eu errar exatamente assim.
+
+**Rodar um comando não é verificar.** Um comando que não casa com nada devolve a mesma
+coisa que um comando que casou e não achou: zero. Os dois são indistinguíveis de fora.
+
+O episódio: usei `\|` (alternância de BRE) com `grep -E`, que é ERE — onde `\|` é um pipe
+literal. Os padrões procuraram texto que não existe, voltaram zero, e eu li o zero como
+"não foi aplicado". Mandei um agente refazer cinco itens que já estavam prontos. Ele
+conferiu o arquivo, discordou e recusou — e estava certo.
+
+Antes de concluir "não existe", provar que a busca **acharia se existisse**:
+- busca (`grep`/`find`): rodar também um padrão que TEM que casar, no mesmo arquivo
+- teste de defeito: tem que **falhar** no código anterior (já é regra, e é o mesmo princípio)
+- ausência de dado: distinguir "não existe" de "não consegui ler" — no Firestore os dois
+  chegam como a mesma negativa
+
+## O time: ninguém sozinho é a garantia (obrigatório)
+Pedido do proprietário em 26/09/2026, com as palavras dele: *"vocês têm que estar 100%
+alinhados, para que nenhum erre — mas se um errar, o outro não deixar passar, igual uma
+equipe de empresa grande."*
+
+A rede não é uma pessoa cuidadosa. São camadas que se conferem, e cada uma existe porque
+a anterior já falhou pelo menos uma vez:
+
+1. **O agente implementa** a partir do spec, que é a única fonte de verdade dele.
+2. **As camadas de revisão leem sem contexto prévio** — adversarial, caça-borda e
+   lacuna-de-verificação. É a assimetria de informação que as faz achar o que quem
+   escreveu não enxerga.
+3. **Eu releio e rodo**, com controle positivo.
+4. **O proprietário autoriza** aquele commit.
+
+**Discordar faz parte do trabalho, em qualquer direção:**
+
+- O agente **deve recusar** instrução minha que ele verificou estar errada, e dizer por quê.
+  Obedecer a uma instrução errada não é colaboração; é deixar o erro passar.
+- Eu **não aceito relatório de agente como verificação** — nem quando confere com o que eu
+  esperava. Ainda mais nessa hora.
+- **Nenhuma camada tem autoridade sobre a permissão da outra.** Agente que levou "não" e
+  pede que eu faça por ele é recusado e levado ao proprietário. Permissão negada não se
+  transfere.
+- Quando duas camadas discordam, **vence quem tem evidência executada** — e a discordância
+  é relatada ao proprietário, nunca silenciada para parecer que houve consenso.
+
+Uma camada que só concorda não é camada. Se uma revisão nunca acha nada, o problema é a
+revisão.
+
 ## Gate de supervisão (obrigatório)
 Antes de qualquer edição: apresentar plano com arquivos e linhas afetadas. Aguardar OK explícito.
 
