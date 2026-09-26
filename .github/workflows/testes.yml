@@ -1,0 +1,77 @@
+# Rede anti-regressao do MAPPO.
+#
+# Roda as mesmas suites que `npm test` roda na maquina do proprietario, a cada push
+# e a cada pull request. Se uma suite falhar, o commit fica marcado com o X vermelho.
+#
+# Custo: zero. Usa apenas runners publicos do GitHub Actions (ubuntu-latest), que sao
+# gratuitos para repositorios publicos. Nao ha runner privado, servico externo nem
+# passo pago aqui -- e isso e restricao dura do projeto.
+#
+# O que este CI NAO faz, de proposito:
+#   - nao publica, nao faz deploy, nao toca em producao;
+#   - nao executa diag-difer, diag-linkreal e diag-pubreal, que batem no site publicado
+#     (github.io) e no Firestore real. Esses tres dependem de rede, de producao e do
+#     estado da conta do proprietario, e rodam so a mao (`npm run test:producao`).
+#     O runner ja os deixa de fora por padrao -- este CI nao passa nenhuma flag que os
+#     inclua, entao a exclusao vale em duas camadas.
+
+name: testes
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: ['**']
+
+# Um push novo cancela a execucao anterior do mesmo ramo: economiza minutos gratuitos
+# e evita fila quando se empurram varios commits seguidos.
+concurrency:
+  group: testes-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  suites:
+    name: Suites anti-regressao
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Baixar o repositorio
+        uses: actions/checkout@v4
+
+      - name: Instalar o Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Instalar as dependencias
+        run: npm ci
+
+      # Guarda o Chromium entre execucoes: sem isto, cada execucao baixa ~130 MB.
+      # A chave inclui o package-lock, que e o que fixa a versao do Playwright --
+      # logo a versao do navegador. Trocar o Playwright invalida o cache sozinho.
+      - name: Reaproveitar o Chromium baixado
+        id: cache-navegador
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Instalar o Chromium
+        if: steps.cache-navegador.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      # Mesmo com o navegador em cache, as bibliotecas de sistema que ele precisa
+      # nao ficam no cache: este passo instala so elas, sem rebaixar o navegador.
+      - name: Instalar as bibliotecas do sistema
+        if: steps.cache-navegador.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      # `npm test` == `node testes/executar.js`: em serie, com timeout por suite, e
+      # ja sem os tres que batem em producao. Sai com codigo 1 se alguma suite falhar.
+      - name: Rodar as suites
+        run: npm test

@@ -10,8 +10,9 @@
 
 **Atualizado em:** 25/09/2026 · publicado até `3eb9663`
 
-**Próximo combinado:** testes anti-regressão no repositório (item 1 no fim deste arquivo).
-Depois: fotos de obra e de tarefas no IndexedDB, e GPS/localização por pessoa (Bloco 2).
+**Próximo combinado:** fotos de obra e de tarefas no IndexedDB, e depois GPS/localização por
+pessoa (Bloco 2). Os testes anti-regressão no repositório — que eram o item 1 — **foram
+entregues em 25/09/2026**: `testes/`, `npm test` e o GitHub Actions a cada push.
 
 ---
 
@@ -101,7 +102,6 @@ online, qualquer coisa que exija servidor. Chave de API em app sem backend fica 
 - Sem domínio próprio (endereço do GitHub Pages)
 - Aprovação de empresa nova é manual, no console do Firebase
 - As 10 fases do VRF são fixas (só as etapas dentro delas são editáveis)
-- Sem testes automatizados no projeto — cada mudança é validada com Playwright pontual
 
 ---
 
@@ -118,33 +118,12 @@ Google** ao concluir a OS — é um link configurável e um botão de WhatsApp, 
 
 ---
 
-## Combinado em 24/09/2026 — os dois próximos, nesta ordem
+## Combinado em 24/09/2026 — o que sobrou
 
-### 1. Testes anti-regressão dentro do repositório 🔴
+> Eram dois. O primeiro — **testes anti-regressão dentro do repositório** — foi entregue em
+> 25/09/2026 e está descrito no [MAPPO-O-QUE-TEM.md](MAPPO-O-QUE-TEM.md).
 
-**Por que existe este item.** Em 24/09/2026 três defeitos apareceram juntos em coisas que já
-funcionavam: layout cortado no celular, link do cliente sempre expirado e OS que o técnico não
-conseguia concluir. Nenhum era novo em si — eram efeitos colaterais de mudanças anteriores que
-ninguém teve como perceber, porque **não havia como perceber**. A causa raiz não é um bug: é a
-ausência de uma rede que pegue o bug antes do usuário.
-
-**O que fazer:**
-
-- Pasta `testes/` no repositório, com as suítes que hoje vivem numa pasta temporária do sistema
-  — que já foi apagada **três vezes**, obrigando a reinstalar o Playwright e reescrever testes
-  do zero. Enquanto os testes não estiverem versionados, eles não existem.
-- **Um comando só** que roda todas (`npm test` ou equivalente), com a contagem de OKs no fim.
-- Regra em `CLAUDE.md`: **todo defeito relatado vira teste antes de virar correção.** O teste
-  falha primeiro (provando que reproduz), depois passa. Sem isso, "corrigido" é opinião.
-- O que não der para testar em navegador automatizado (Google Agenda, notificação real,
-  WhatsApp) vira uma lista curta de verificação manual, entregue ao proprietário.
-
-**Estado em 25/09/2026:** **26 suítes** escritas e passando, mais 5 diagnósticos — todas fora do
-repositório, numa pasta temporária do sistema. Só hoje foram escritas 7 suítes novas, e foram
-elas que provaram cada correção do dia (link expirado, foto sumindo, foto presa no aparelho).
-Migrar é o trabalho, e o risco de perdê-las cresceu junto com o valor delas.
-
-### 2. Fotos no IndexedDB — ✅ feito para as ordens de serviço, falta obra e tarefas
+### Fotos no IndexedDB — ✅ feito para as ordens de serviço, falta obra e tarefas
 
 **Feito em 25/09/2026** (`d79ad5c` + `d96a174`): as fotos das OS saíram do `localStorage` e
 vivem no IndexedDB, carregadas só quando aparecem na tela. Uma OS com 4 fotos ocupava 960 KB
@@ -160,7 +139,8 @@ só apontado para as outras duas coleções.
 
 > Cinco pontos levantados pelo proprietário. Cada um já foi **verificado no código** e tem a
 > decisão técnica fechada — não são ideias soltas, é trabalho pronto para começar.
-> **Ordem acordada:** só depois dos testes anti-regressão e do Bloco 2 (GPS) estarem prontos.
+> **Ordem acordada:** só depois do Bloco 2 (GPS) estar pronto. Os testes anti-regressão, que
+> também vinham antes destes cinco, já foram entregues em 25/09/2026.
 
 ### A. Mapa do gestor: histórico por prestador, não uma lista corrida 🟠
 
