@@ -43,6 +43,39 @@ function assert(c,m){ if(!c) throw new Error('FALHOU: '+m); console.log('  ok - 
   // o que NAO pode e aparecer como 100%, que era o alarme falso
   assert(r.pct<10,'a tabela NAO mostra mais 100% (era o alarme falso): '+r.linha);
 
+  /* O MESMO para TAREFAS e para as FOTOS DE OBRA: as duas passaram a subir uma foto por
+     documento, entao medir o tamanho LOCAL delas repete exatamente o alarme falso. Um
+     aparelho que ainda nao migrou guarda as fotos dentro da chave, e era esse numero que a
+     tabela mostrava. Medicao segue o formato do que e enviado. */
+  console.log('\n=== TAREFAS e FOTOS DE OBRA: mede o que sobe, nao o que fica ===');
+  const r2=await pg.evaluate(()=>{
+    const foto=kb=>'data:image/jpeg;base64,'+'A'.repeat(kb*1024);
+    // uma tarefa cheia, no formato ANTIGO (fotos dentro), como num aparelho nao migrado
+    const fotos=[];for(let i=0;i<20;i++)fotos.push(foto(55)+'#'+i);
+    const tf=[{id:'tf1',nome:'Limpeza de dutos',tecnico:'Paulo',maxFotos:20,temNotas:true,
+      status:'andamento',criada:'2026-09-26T08:00:00.000Z',fotos,nota:'',checkins:[]}];
+    _quietWrite=true;localStorage.setItem('mappo_tarefas',JSON.stringify(tf));_quietWrite=false;
+    // um andar bem fotografado, tambem no formato antigo
+    const andar={a1:{'f1_0':[foto(180),foto(180),foto(180),foto(180),foto(180)]}};
+    _quietWrite=true;localStorage.setItem('mappo_vrf_fotos',JSON.stringify(andar));_quietWrite=false;
+
+    const tarefaLocalKB=Math.round(localStorage.getItem('mappo_tarefas').length/1024);
+    const obraLocalKB=Math.round(localStorage.getItem('mappo_vrf_fotos').length/1024);
+    const div=document.getElementById('diagTamanhos');
+    renderDiagTamanhos();
+    const linhas=[...div.querySelectorAll('.diag-tam')]
+      .map(e=>e.textContent.replace(/\s+/g,' ').trim());
+    const pctDe=(re)=>{const l=linhas.find(x=>re.test(x));
+      return {linha:l||'(sem linha -- ficou abaixo de 1 KB)',
+              pct:l?parseInt((l.match(/·\s*(\d+)%/)||[])[1]||'-1',10):0};};
+    return {tarefaLocalKB,obraLocalKB,tarefa:pctDe(/Tarefas/i),obra:pctDe(/Fotos —/i)};
+  });
+  console.log('  ', JSON.stringify(r2));
+  assert(r2.tarefaLocalKB>1000,'no aparelho a tarefa cheia passa de 1 MB ('+r2.tarefaLocalKB+' KB)');
+  assert(r2.tarefa.pct<10,'mas a tabela NAO grita 100% para Tarefas: '+r2.tarefa.linha);
+  assert(r2.obraLocalKB>800,'no aparelho o andar tem '+r2.obraLocalKB+' KB de fotos');
+  assert(r2.obra.pct<10,'e a tabela NAO grita 100% para as fotos do andar: '+r2.obra.linha);
+
   console.log('\n=== erros de pagina ==='); console.log(erros.length?erros:'(nenhum)');
   assert(erros.length===0,'nenhum erro de pagina');
   await b.close(); srv.close();

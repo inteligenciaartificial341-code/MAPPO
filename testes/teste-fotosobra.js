@@ -36,8 +36,16 @@ function montarFake(){
   window.setFotos=(v)=>{_quietWrite=true;localStorage.setItem(CHAVE_FOTOS,JSON.stringify(v));_quietWrite=false;
     vrfFotos=v;_snapshot[CHAVE_FOTOS]=JSON.stringify(v);};
   window.getFotos=()=>JSON.parse(localStorage.getItem(CHAVE_FOTOS)||'{}');
+  /* Conta FOTO ACESSIVEL, nas duas formas que o app aceita: os bytes (formato antigo) e a
+     referencia do armazem do aparelho. Antes contava so 'data:' -- e desde que a foto de obra
+     mora no IndexedDB, uma foto que chega da nuvem vira REFERENCIA: contar so os bytes diria
+     "zero fotos chegaram" com as 16 salvas e visiveis. A medicao segue o formato, senao ela
+     mede a forma antiga e acusa um problema que nao existe. */
   window.contarFotos=(o)=>{let n=0;Object.keys(o||{}).forEach(g=>Object.keys(o[g]||{}).forEach(k=>{
-    (o[g][k]||[]).forEach(v=>{if(typeof v==='string'&&v.slice(0,5)==='data:')n++;});}));return n;};
+    (o[g][k]||[]).forEach(v=>{if(_ehFotoDeVerdade(v)||_ehReferenciaDeFoto(v))n++;});}));return n;};
+  window.contarBytes=(o)=>{let n=0;Object.keys(o||{}).forEach(g=>Object.keys(o[g]||{}).forEach(k=>{
+    (o[g][k]||[]).forEach(v=>{if(_ehFotoDeVerdade(v))n++;});}));return n;};
+  window.kbFotosLocal=()=>Math.round((localStorage.getItem(CHAVE_FOTOS)||'').length/1024);
   window.docsDeFoto=()=>Object.keys(window.__nuvem).filter(d=>d.indexOf(FOTO_OBRA_PREFIXO)===0).length;
   window.kbDoAndar=(g)=>Math.round((window.__nuvem[_docDoAndar(g)]||'').length/1024);
   window.zerar=()=>{window.__nuvem={};window.__recusas=[];window.__apagados=[];_pend={};
@@ -83,11 +91,20 @@ function montarFake(){
     setFotos({}); _pend={};
     await _aplicarShardFotos(window.__nuvem[_docDoAndar('a1')]);
     const l=getFotos();
-    return {fotos:contarFotos(l), etapas:Object.keys(l.a1||{}).length};
+    /* Os BYTES tem que voltar inteiros pelo armazem -- "chegou a referencia" nao prova nada
+       se a foto nao puder ser lida de volta. */
+    let bytesOk=0;
+    for(const k of Object.keys(l.a1||{}))
+      for(const v of (l.a1[k]||[])){const b=await fotoBytes(v);if(b&&b.length>50*1024)bytesOk++;}
+    return {fotos:contarFotos(l), etapas:Object.keys(l.a1||{}).length,
+            bytesNoLocal:contarBytes(l), bytesOk, localKB:kbFotosLocal()};
   });
   console.log('  ', JSON.stringify(r3));
   assert(r3.fotos===16,'TODAS as 16 fotos chegaram ao segundo aparelho');
   assert(r3.etapas===4,'com as etapas certas');
+  assert(r3.bytesOk===16,'e os bytes das 16 voltam INTEIROS pelo armazem');
+  assert(r3.bytesNoLocal===0,'nenhuma delas ocupa o localStorage -- viraram referencia');
+  assert(r3.localKB<5,'o segundo aparelho ficou com '+r3.localKB+' KB de fotos de obra (era ~960)');
 
   linha();console.log('=== CHECK 4: receber NAO apaga foto local (o risco do merge) ===');
   const r4=await pg.evaluate(async()=>{

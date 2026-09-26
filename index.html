@@ -1261,8 +1261,16 @@ async function espacoDoAparelho(){
    2. Uma referência que chegue a um lugar que eu tenha esquecido de converter vira uma
       imagem quebrada NA TELA -- visível, e com a foto intacta no armazém. Nunca um
       apagamento silencioso. */
+/* Os TRÊS prefixos de referência: ordem de serviço, andar de obra e tarefa adicional.
+   Nenhum é prefixo do outro ('mappo_foto__' vs 'mappo_fotoobra__' vs 'mappo_fototarefa__'
+   divergem no 11º caractere), então reconhecer os três aqui não confunde um com o outro.
+   É esta função que faz fotoBytes/imgFoto/o pintor/_thumb valerem para os três sem que
+   nenhuma tela saiba de onde a foto veio -- o contrário de um terceiro jeito de guardar. */
 function _ehReferenciaDeFoto(v){
-  return typeof v==='string'&&v.slice(0,FOTO_OS_PREFIXO.length)===FOTO_OS_PREFIXO;
+  if(typeof v!=='string')return false;
+  return v.slice(0,FOTO_OS_PREFIXO.length)===FOTO_OS_PREFIXO
+      || v.slice(0,FOTO_OBRA_PREFIXO.length)===FOTO_OBRA_PREFIXO
+      || v.slice(0,FOTO_TAREFA_PREFIXO.length)===FOTO_TAREFA_PREFIXO;
 }
 /* Cache pequeno das fotos que estão na tela agora. Só isto fica em memória -- não o acervo
    inteiro, que é justamente o que enchia o aparelho. */
@@ -1307,12 +1315,16 @@ async function fotoBytes(v){
 }
 /* <img> que aceita foto OU referência. A referência sai como data-foto e o pintor abaixo
    preenche sozinho -- nenhuma tela precisa saber que a foto mora em outro lugar. */
+/* Só manda para o pintor o que é REFERÊNCIA NOSSA. Qualquer outra coisa sai como src= de
+   novo: um 'http(s)://' ou 'blob:' guardado por uma versão antiga aparecia normalmente antes
+   e passou a virar "Foto não encontrada" quando as telas de obra e tarefa entraram aqui --
+   preservar o dado e perder a exibição é meia preservação. Valor que eu não reconheço vai
+   para o navegador resolver, que é o que sempre aconteceu. */
 function imgFoto(v,atributos){
   if(!v)return '';
   const a=atributos||'';
-  return _ehFotoDeVerdade(v)
-    ? '<img src="'+v+'" '+a+'>'
-    : '<img data-foto="'+escapeHtml(v)+'" '+a+'>';
+  if(_ehReferenciaDeFoto(v))return '<img data-foto="'+escapeHtml(v)+'" '+a+'>';
+  return '<img src="'+escapeHtml(v)+'" '+a+'>';
 }
 /* O PINTOR. Um observador único para a página inteira: qualquer <img data-foto> que apareça
    no documento é preenchido, venha de que tela vier. Foi escolhido no lugar de chamar um
@@ -1322,12 +1334,37 @@ let _pintorLigado=false;
 async function _pintarUma(img){
   const id=img.getAttribute('data-foto');
   if(!id)return;
-  img.removeAttribute('data-foto');          // evita repintar a mesma
-  const u=await fotoBytes(id);
-  if(u){img.src=u;return;}
-  img.alt='Foto não encontrada neste aparelho';
+  /* A trava contra repintar é uma marca no próprio elemento, não a remoção do data-foto.
+     Removendo o atributo ANTES do await, uma falha transitória (aparelho sem rede na hora)
+     virava definitiva: o marcador já não existia, nada tentava de novo, e a tela dizia "não
+     encontrada" para uma foto que estava só a um instante de distância. */
+  if(img._pintando)return;
+  img._pintando=true;
+  let u=null;
+  try{u=await fotoBytes(id);}
+  catch(e){fbLog('Falha ao buscar a foto '+id+': '+(e.code||'')+' '+e.message,'erro');}
+  img._pintando=false;
+  if(u){
+    img.src=u;
+    img.removeAttribute('data-foto');        // só agora: pintou, não precisa mais
+    img.classList.remove('foto-ausente');
+    return;
+  }
+  /* "Não existe" e "não consegui ler agora" chegam iguais (os dois são null), então a tela
+     não pode afirmar o primeiro. Sem conexão, diz que ainda não baixou e TENTA DE NOVO. */
+  const semRede=(typeof navigator!=='undefined'&&navigator.onLine===false)||!fbReady;
   img.classList.add('foto-ausente');
-  fbLog('Foto não encontrada nem aqui nem na nuvem: '+id,'erro');
+  if(semRede){
+    img.alt='Foto ainda não baixada — sem conexão agora';
+    const n=(img._tentativas||0)+1;
+    if(n<=3){
+      img._tentativas=n;
+      setTimeout(()=>{if(img.isConnected&&img.hasAttribute('data-foto'))_pintarUma(img);},4000*n);
+    }else fbLog('Desisti de baixar a foto depois de 3 tentativas: '+id,'erro');
+  }else{
+    img.alt='Foto não encontrada neste aparelho';
+    fbLog('Foto não encontrada nem aqui nem na nuvem: '+id,'erro');
+  }
 }
 function pintarFotos(raiz){
   try{
@@ -1676,11 +1713,77 @@ async function migrarFotosParaOArmazem(){
     }
   }
   if(movidas){
-    try{saveOS();}catch(e){fbLog('Falha ao gravar as ordens após a migração das fotos: '+e.message,'erro');}
+    /* erros++ aqui também (defeito anterior a esta entrega, mesma classe do da migração de
+       obra/tarefa): sem ele, uma gravação que falha por cota deixava a marca ser gravada e a
+       migração das OS nunca era retentada. */
+    try{saveOS();}
+    catch(e){erros++;fbLog('Falha ao gravar as ordens após a migração das fotos: '+(e.code||e.name||'')+' '+e.message,'erro');}
     fbLog(movidas+' foto(s) movidas para o armazém do aparelho','ok');
   }
   if(!erros){
     try{_quietWrite=true;localStorage.setItem(MIGR_IDB_CHAVE,'1');_quietWrite=false;}
+    catch(e){_quietWrite=false;}
+  }
+  return {movidas,erros};
+}
+
+/* O MESMO para as fotos de obra e de tarefa -- o que sobrava do teto de ~5 MB do aparelho
+   depois de d96a174 ter tirado as da OS de lá. Mesmas garantias, e nenhuma é decorativa:
+   - uma foto de cada vez, e a referência só substitui a foto DEPOIS da gravação confirmada.
+     Nunca "apaga e depois grava": foto de serviço executado é prova de trabalho.
+   - a foto que falhar fica exatamente como estava, no formato antigo, funcionando.
+   - a marca de migrado só é gravada se TODAS passarem; senão a próxima abertura tenta de
+     novo só o que faltou (rodar de novo é inofensivo: referência já convertida é ignorada).
+   - armazém indisponível (IndexedDB bloqueado) = zero movidas, tudo no formato antigo, o
+     app inteiro segue funcionando, e o motivo fica no log. */
+const MIGR_IDB_OT_CHAVE='mappo_fotos_idb_ot';
+async function migrarFotosObraETarefaParaOArmazem(){
+  try{if(localStorage.getItem(MIGR_IDB_OT_CHAVE)==='1')return {pulou:true};}catch(e){return {pulou:true};}
+  let movidas=0,erros=0,mexeuObra=false,mexeuTarefa=false;
+
+  // ── fotos de obra: vrfFotos[andar][etapa] = [foto, foto]
+  for(const andarId of Object.keys(vrfFotos||{})){
+    const etapas=vrfFotos[andarId]||{};
+    for(const etapa of Object.keys(etapas)){
+      const lista=etapas[etapa];
+      if(!Array.isArray(lista))continue;
+      for(let i=0;i<lista.length;i++){
+        if(!_ehFotoDeVerdade(lista[i]))continue;
+        const id=_idFotoObra(lista[i]);
+        try{await guardarFotoNoAparelho(id,lista[i]);lista[i]=id;movidas++;mexeuObra=true;}
+        catch(e){erros++;fbLog('Não consegui mover uma foto de obra para o armazém: '+e.message,'erro');}
+      }
+    }
+  }
+  /* A GRAVAÇÃO TAMBÉM CONTA COMO FALHA. `saveVrfFotos` é `localStorage.setItem` cru, e
+     QuotaExceededError aqui é o caso MAIS provável de todos -- aparelho cheio é a motivação
+     inteira desta entrega. Sem `erros++`, a memória ficava com as referências, o localStorage
+     com os bytes antigos, e a marca de migrado era gravada: o aparelho nunca mais tentaria, e
+     o espaço nunca seria liberado. A promessa do comentário acima ("só se TODAS passarem") não
+     valia para esta etapa. */
+  if(mexeuObra){
+    try{saveVrfFotos();}
+    catch(e){erros++;fbLog('Falha ao gravar as fotos de obra após a migração: '+(e.code||e.name||'')+' '+e.message,'erro');}
+  }
+
+  // ── fotos de tarefa: tarefa.fotos = [foto, foto]
+  for(const t of (tarefas||[])){
+    if(!t||!Array.isArray(t.fotos))continue;
+    for(let i=0;i<t.fotos.length;i++){
+      if(!_ehFotoDeVerdade(t.fotos[i]))continue;
+      const id=_idFotoTarefa(t.fotos[i]);
+      try{await guardarFotoNoAparelho(id,t.fotos[i]);t.fotos[i]=id;movidas++;mexeuTarefa=true;}
+      catch(e){erros++;fbLog('Não consegui mover uma foto de tarefa para o armazém: '+e.message,'erro');}
+    }
+  }
+  if(mexeuTarefa){
+    try{saveTarefas();}
+    catch(e){erros++;fbLog('Falha ao gravar as tarefas após a migração das fotos: '+(e.code||e.name||'')+' '+e.message,'erro');}
+  }
+
+  if(movidas)fbLog(movidas+' foto(s) de obra/tarefa movidas para o armazém do aparelho','ok');
+  if(!erros){
+    try{_quietWrite=true;localStorage.setItem(MIGR_IDB_OT_CHAVE,'1');_quietWrite=false;}
     catch(e){_quietWrite=false;}
   }
   return {movidas,erros};
@@ -1728,14 +1831,18 @@ const FOTO_OBRA_PREFIXO='mappo_fotoobra__';
    remoção. Por conteúdo, a foto tem sempre o mesmo nome, e duas fotos idênticas ocupam um
    documento só. Dois acumuladores de 32 bits (~64 bits juntos) -- colisão entre as centenas
    de fotos de uma obra é desprezível, e o custo é ~1ms por foto. */
-function _idFotoObra(uri){
+function _idFotoPorConteudo(uri,prefixo){
   let h1=0x811c9dc5,h2=0x01000193;
   for(let i=0;i<uri.length;i++){
     const c=uri.charCodeAt(i);
     h1=((h1^c)*16777619)>>>0;
     h2=(((h2+c)>>>0)*2654435761)>>>0;
   }
-  return FOTO_OBRA_PREFIXO+h1.toString(36)+'_'+h2.toString(36);
+  return prefixo+h1.toString(36)+'_'+h2.toString(36);
+}
+function _idFotoObra(uri){return _idFotoPorConteudo(uri,FOTO_OBRA_PREFIXO);}
+function _ehDocFotoObra(v){
+  return typeof v==='string'&&v.slice(0,FOTO_OBRA_PREFIXO.length)===FOTO_OBRA_PREFIXO;
 }
 function _ehFotoDeVerdade(v){return typeof v==='string'&&v.slice(0,5)==='data:';}
 /* Versão "magra" de um andar: cada foto vira o NOME do documento dela. Devolve também a
@@ -1746,10 +1853,17 @@ function _separarFotosAndar(andarObj){
     const lista=andarObj[etapa];
     if(!Array.isArray(lista)){slim[etapa]=lista;return;}
     slim[etapa]=lista.map(v=>{
-      if(!_ehFotoDeVerdade(v))return v;      // já é um marcador (veio da nuvem assim)
-      const id=_idFotoObra(v);
-      fotos.push({id,uri:v});
-      return id;
+      if(_ehFotoDeVerdade(v)){
+        const id=_idFotoObra(v);
+        fotos.push({id,uri:v});
+        return id;
+      }
+      /* Já é um marcador. Pode ter vindo da nuvem assim (e então já está lá), mas desde que
+         a foto de obra mora no armazém do aparelho ele também é o que sobra de uma foto
+         TIRADA AQUI -- e aí a nuvem ainda não a tem. Entregar uri:null diz ao envio "busque
+         os bytes no armazém". Sem isto a foto nova nunca subia, e em silêncio. */
+      if(_ehDocFotoObra(v)){fotos.push({id:v,uri:null});return v;}
+      return v;                              // valor que eu não reconheço fica onde está
     });
   });
   return {slim,fotos};
@@ -1762,38 +1876,63 @@ async function _resolverFotosAndar(remotoAndar,localAndar){
   const porId={};
   Object.keys(localAndar||{}).forEach(etapa=>{
     const l=localAndar[etapa];
-    if(Array.isArray(l))l.forEach(v=>{if(_ehFotoDeVerdade(v))porId[_idFotoObra(v)]=v;});
+    if(!Array.isArray(l))return;
+    l.forEach(v=>{
+      if(_ehFotoDeVerdade(v)){porId[_idFotoObra(v)]=v;return;}
+      /* Marcador aqui significa "esta foto já está NESTE aparelho, no armazém" -- o mesmo
+         que a foto em si significava antes. Sem esta linha o marcador que volta da nuvem
+         não seria reconhecido, cairia em `faltando`, e o filtro do fim o apagaria: a foto
+         desapareceria da galeria com os bytes intactos no armazém. */
+      if(_ehDocFotoObra(v))porId[v]=v;
+    });
   });
-  const faltando=[];
+  const faltando=[], inline=[];
   Object.keys(remotoAndar||{}).forEach(etapa=>{
     const lista=remotoAndar[etapa];
     if(!Array.isArray(lista))return;
     lista.forEach((v,i)=>{
-      if(_ehFotoDeVerdade(v))return;
-      if(porId[v]){lista[i]=porId[v];return;}
+      /* Bytes inline da nuvem (aparelho com aba antiga, ou o documento legado): vão para o
+         armazém e viram referência, senão voltam a ocupar o localStorage. */
+      if(_ehFotoDeVerdade(v)){inline.push({etapa,i,uri:v});return;}
+      if(porId[v]){
+        const lv=porId[v];
+        // bytes aqui: guarda e fica com a referência, senão nunca saem do localStorage
+        if(_ehFotoDeVerdade(lv))inline.push({etapa,i,uri:lv});
+        else lista[i]=lv;
+        return;
+      }
       faltando.push({etapa,i,id:v});
     });
   });
+  for(const b of inline){
+    remotoAndar[b.etapa][b.i]=b.uri;    // os bytes primeiro: armazém que falha não perde foto
+    const id=_idFotoObra(b.uri);
+    try{await guardarFotoNoAparelho(id,b.uri);remotoAndar[b.etapa][b.i]=id;}
+    catch(e){fbLog('Armazém indisponível ao guardar foto de obra recebida ('+(e.code||'')+' '+e.message+') — mantida no formato antigo','erro');}
+  }
   if(faltando.length&&fbReady&&WORKSPACE){
     const col=fbDB.collection('workspaces').doc(WORKSPACE).collection('data');
     for(const f of faltando){
       try{
         const s=await col.doc(f.id).get();
-        if(s.exists&&typeof s.data().json==='string')remotoAndar[f.etapa][f.i]=s.data().json;
+        if(!s.exists||typeof s.data().json!=='string')continue;
+        const uri=s.data().json;
+        /* Guarda no armazém e deixa a REFERÊNCIA no lugar -- mesma regra da OS, e é o que
+           tira a foto de obra do localStorage também quando ela chega de outro aparelho.
+           Armazém indisponível: fica a foto em si, e o app segue sem economizar espaço. */
+        try{await guardarFotoNoAparelho(f.id,uri);remotoAndar[f.etapa][f.i]=f.id;}
+        catch(e){fbLog('Armazém indisponível ao receber uma foto de obra ('+e.message+') — guardada no formato antigo','erro');remotoAndar[f.etapa][f.i]=uri;}
       }catch(e){fbLog('Não consegui baixar uma foto de obra: '+(e.code||e.message),'erro');}
     }
   }
-  /* Marcador NOSSO que sobrou (a foto não existe mais no servidor) é removido: deixá-lo
-     viraria uma "foto" quebrada na galeria. Só isso -- qualquer outro valor que eu não
-     reconheça fica onde está. Filtrar por "não é data:" apagaria em silêncio qualquer
-     formato antigo ou futuro guardado aí, e apagar dado que não se entende é pior do que
-     mostrar algo estranho. */
-  Object.keys(remotoAndar||{}).forEach(etapa=>{
-    const lista=remotoAndar[etapa];
-    if(!Array.isArray(lista))return;
-    remotoAndar[etapa]=lista.filter(v=>
-      !(typeof v==='string'&&v.slice(0,FOTO_OBRA_PREFIXO.length)===FOTO_OBRA_PREFIXO));
-  });
+  /* O marcador que sobrou NÃO é mais apagado. Antes ele era um valor que nenhuma tela
+     entendia, então deixá-lo viraria uma "foto" quebrada e removê-lo era o menor dos males.
+     Agora ele é uma REFERÊNCIA de primeira classe: fotoBytes procura no cache, no armazém e
+     na nuvem, e o pintor marca na tela quando não acha ('Foto não encontrada neste
+     aparelho') e registra no log. Apagar aqui passaria a ser o pior caso -- descartaria a
+     referência de uma foto que está no armazém deste aparelho, ou que só não pôde ser lida
+     agora (aparelho sem rede, permissão momentânea), e prova de serviço executado não se
+     joga fora por uma leitura que falhou. Ausência não é instrução de apagar. */
   return remotoAndar;
 }
 
@@ -1836,6 +1975,219 @@ function _migracaoFotosPendente(){
 function _marcarMigracaoFotos(){
   try{_quietWrite=true;localStorage.setItem(MIGR_FOTOS_CHAVE,MIGR_FOTOS_VERSAO);_quietWrite=false;}
   catch(e){_quietWrite=false;fbLog('Não consegui marcar a migração das fotos: '+e.message,'erro');}
+}
+
+/* ── FOTOS DE TAREFA: UMA FOTO, UM DOCUMENTO ────────────────────────────────────
+   Este era o último estouro de 1 MiB ainda DE PÉ. `mappo_tarefas` guarda TODAS as tarefas
+   num documento só, com as fotos dentro, e `maxFotos` vai até 20 por tarefa: a ~55 KB por
+   foto, UMA tarefa cheia passa de 1 MB e o servidor recusa o documento inteiro -- nenhuma
+   tarefa mais sincronizaria. É o mesmo teto que já parou as OS (ced6f69) e as obras
+   (8a21647); aqui ninguém percebeu só porque poucas tarefas têm foto.
+   A cura é a já provada duas vezes: cada foto vira um documento próprio, com o seu próprio
+   1 MiB, e o documento das tarefas leva só texto e a lista de quais fotos existem.
+   Por que o molde do ANDAR e não o da OS: `tarefa.fotos` é um ARRAY, como
+   `vrfFotos[andar][etapa]` -- a foto não tem nome de campo fixo, tem posição. Então a
+   identidade vem do CONTEÚDO (`_idFotoPorConteudo`, o mesmo hash da obra), e não da posição:
+   remover a primeira foto não renomeia as seguintes, e a mesma foto ocupa um documento só.
+   Prefixo próprio, e não o da obra, para que apagar um andar (`_apagarAndarNaNuvem` apaga os
+   documentos de foto dele) nunca possa apagar a foto de uma tarefa que por acaso tenha os
+   mesmos bytes. Mesmo mecanismo, espaços de nome separados.
+   O aparelho continua lendo `tarefa.fotos` como sempre: quem desmonta e remonta é só esta
+   camada, e nenhuma das telas de tarefa mudou de forma. */
+const FOTO_TAREFA_PREFIXO='mappo_fototarefa__';
+function _idFotoTarefa(uri){return _idFotoPorConteudo(uri,FOTO_TAREFA_PREFIXO);}
+function _ehDocFotoTarefa(v){
+  return typeof v==='string'&&v.slice(0,FOTO_TAREFA_PREFIXO.length)===FOTO_TAREFA_PREFIXO;
+}
+/* Identidade estável de uma entrada de `fotos`, valha ela os bytes ou a referência. */
+function _chaveFotoTarefa(v){
+  if(_ehFotoDeVerdade(v))return _idFotoTarefa(v);
+  if(_ehDocFotoTarefa(v))return v;
+  return null;
+}
+/* ADICIONAR UMA FOTO DESFAZ A LÁPIDE DELA. Sem isto o mecanismo que existe para impedir
+   apagamento silencioso passa a causar um: o id da foto vem do CONTEÚDO, então o técnico que
+   remove uma foto por engano e TIRA A MESMA FOTO DE NOVO gera o mesmo id, a lápide ainda está
+   lá (`__fx` é união e nunca encolhia), e o merge seguinte descarta a foto nova -- sem toast,
+   sem log, sem nada na tela. Prova de serviço apagada em silêncio.
+   Duas coisas acontecem aqui, e as duas são necessárias:
+   1. tira o id de `__fx` daqui;
+   2. marca `__fx` como PENDENTE desta tarefa, mesmo que não houvesse nada para tirar -- a
+      lápide pode estar só na nuvem (outro aparelho removeu e este nunca viu). Sem o passo 2,
+      o primeiro pull devolveria a lápide e apagaria a foto recém-tirada de novo.
+   O preço é explícito: marcar `__fx` pendente faz a lista de removidas DAQUI vencer a da
+   nuvem para esta tarefa, então uma remoção feita em outro aparelho e ainda não vista aqui
+   pode ser desfeita. É de propósito, e é a direção certa: entre perder uma remoção e perder
+   uma foto de serviço executado, perde-se a remoção. */
+function _readicionarFotoTarefa(t,id){
+  if(!t||!id)return;
+  if(Array.isArray(t.__fx)&&t.__fx.indexOf(id)>=0){
+    t.__fx=t.__fx.filter(x=>x!==id);
+    if(!t.__fx.length)delete t.__fx;
+  }
+  if(t.id===undefined)return;
+  try{
+    const set=_pendDe('mappo_tarefas');
+    const campos=set[t.id]||(set[t.id]={});
+    if(!campos['*'])campos.__fx=1;
+    _saveTouch();
+  }catch(e){fbLog('Não consegui registrar a readição da foto: '+(e.code||'')+' '+e.message,'erro');}
+}
+
+/* Versão "magra" das tarefas: cada foto vira o NOME do documento dela, e é isto que vai
+   para o documento `mappo_tarefas`. Devolve também a lista de fotos a enviar. */
+function _separarFotosTarefa(lista){
+  let slim;try{slim=JSON.parse(JSON.stringify(lista||[]));}catch(e){slim=[];}
+  const fotos=[];
+  slim.forEach(t=>{
+    /* SEM exigir t.id. O id da foto vem do CONTEÚDO, então separar nunca precisou do id da
+       tarefa -- e exigi-lo fazia uma tarefa sem id seguir no documento COM os `data:` dentro:
+       voltava a contar para o teto de 1 MiB e nunca ganhava documento próprio, em silêncio.
+       Uma tarefa sem id é anômala (salvarTarefa sempre gera um), mas "não deveria acontecer"
+       é exatamente do que caminho silencioso se alimenta. */
+    if(!t||!Array.isArray(t.fotos))return;
+    if(t.id===undefined)fbLog('Tarefa sem id encontrada ao separar as fotos — as fotos foram extraídas, mas ela não sincroniza por item','erro');
+    t.fotos=t.fotos.map(v=>{
+      if(_ehFotoDeVerdade(v)){
+        const id=_idFotoTarefa(v);
+        fotos.push({id,uri:v});
+        return id;
+      }
+      /* Referência: os bytes estão no armazém do aparelho. uri:null diz ao envio "busque no
+         armazém se precisar mandar" -- sem isso a foto tirada aqui nunca subiria, calada. */
+      if(_ehDocFotoTarefa(v)){fotos.push({id:v,uri:null});return v;}
+      return v;                     // valor que eu não reconheço fica exatamente onde está
+    });
+  });
+  return {slim,fotos};
+}
+
+/* Devolve as fotos para dentro das tarefas que vieram da nuvem. Primeiro o que já existe
+   NESTE aparelho (nada de rede); só busca o documento da foto que é de fato nova aqui.
+   Resolver ANTES do merge é obrigatório: o merge compara campo a campo, e `fotos` é UM campo
+   -- um marcador no lugar da foto apagaria a foto local de quem não mexeu naquela tarefa. */
+async function _resolverFotosTarefa(remoto,local){
+  const aqui={};
+  (local||[]).forEach(t=>{
+    if(!t||!Array.isArray(t.fotos))return;
+    t.fotos.forEach(v=>{const k=_chaveFotoTarefa(v);if(k)aqui[k]=v;});
+  });
+  const faltando=[], inline=[];
+  (remoto||[]).forEach(t=>{
+    if(!t||!Array.isArray(t.fotos))return;
+    t.fotos.forEach((v,i)=>{
+      /* BYTES INLINE vindos da nuvem (aparelho com aba antiga ainda manda a foto dentro da
+         tarefa). Deixá-los como estão os gravaria no localStorage e reabriria o teto de ~5 MB
+         que esta entrega existe para fechar. Vão para o armazém e viram referência, igual à
+         foto que chega por documento próprio. */
+      if(_ehFotoDeVerdade(v)){inline.push({lista:t.fotos,i,uri:v});return;}
+      if(!_ehDocFotoTarefa(v))return;                // não é nosso: fica onde está
+      if(aqui[v]!==undefined){
+        const lv=aqui[v];
+        /* Está neste aparelho. Se o que temos aqui são os BYTES (aparelho ainda não migrado, ou
+           armazém que falhou antes), aproveita para guardá-los e ficar com a referência: senão
+           eles voltam para o localStorage a cada recebimento e nunca saem de lá -- e, de
+           quebra, o que está no disco deixa de bater com o que foi enviado, o que mantém a
+           chave pendente para sempre, reenviando em laço. */
+        if(_ehFotoDeVerdade(lv))inline.push({lista:t.fotos,i,uri:lv});
+        else t.fotos[i]=lv;
+        return;
+      }
+      faltando.push({lista:t.fotos,i,id:v});
+    });
+  });
+  for(const b of inline){
+    /* Os bytes entram no lugar PRIMEIRO: se o armazém falhar, o que fica é a foto em si (o app
+       segue funcionando, só sem economizar espaço) e nunca uma referência que este aparelho
+       talvez não consiga resolver. */
+    b.lista[b.i]=b.uri;
+    const id=_idFotoTarefa(b.uri);
+    try{await guardarFotoNoAparelho(id,b.uri);b.lista[b.i]=id;}
+    catch(e){fbLog('Armazém indisponível ao guardar foto de tarefa recebida ('+(e.code||'')+' '+e.message+') — mantida no formato antigo','erro');}
+  }
+  if(faltando.length&&fbReady&&WORKSPACE){
+    const col=fbDB.collection('workspaces').doc(WORKSPACE).collection('data');
+    for(const f of faltando){
+      try{
+        const s=await col.doc(f.id).get();
+        if(!s.exists||typeof s.data().json!=='string')continue;
+        const uri=s.data().json;
+        try{await guardarFotoNoAparelho(f.id,uri);f.lista[f.i]=f.id;}
+        catch(e){fbLog('Armazém indisponível ao receber uma foto de tarefa ('+e.message+') — guardada no formato antigo','erro');f.lista[f.i]=uri;}
+      }catch(e){fbLog('Não consegui baixar uma foto de tarefa: '+(e.code||e.message),'erro');}
+    }
+  }
+  /* O marcador que não resolveu FICA. fotoBytes ainda vai procurá-lo (cache, armazém, nuvem)
+     e o pintor marca na tela quando não acha. Nunca apagamento silencioso. */
+  return remoto;
+}
+
+/* NENHUMA FOTO DE TAREFA SOME NO MERGE.
+   `_mergeItens` decide CAMPO A CAMPO, e `fotos` é um campo só. Marcar uma tarefa como
+   concluída no notebook põe `status` em pendência e faz a versão da nuvem valer para
+   `fotos` -- e junto vinha a AUSÊNCIA da foto que só existia no celular. É o defeito de
+   3eb9663 outra vez, agora em tarefas.
+   Aqui, depois do merge, a lista de fotos de cada tarefa é a UNIÃO do que os três lados
+   conhecem: uma foto sobrevive se QUALQUER lado a tem. Um aparelho que só não tem a foto
+   nunca a apaga de quem tem.
+   A única coisa que tira uma foto da união é a remoção EXPLÍCITA pelo ✕ (`__fx`), que é
+   pedido do usuário e não ausência. `__fx` também é união e nunca encolhe -- senão a foto
+   removida num aparelho voltaria pelo outro, e o botão de remover não funcionaria. */
+function _preservarFotosTarefaNoMerge(merged,remoto,local){
+  const indexar=l=>{const m={};(l||[]).forEach(t=>{if(t&&t.id)m[t.id]=t;});return m;};
+  const mr=indexar(remoto), ml=indexar(local);
+  const pend=_pend['mappo_tarefas']||{};
+  (merged||[]).forEach(t=>{
+    if(!t||!t.id)return;
+    const lados=[ml[t.id],mr[t.id],t];
+    /* removidas de propósito. Normalmente é a UNIÃO dos três lados (uma remoção conhecida por
+       qualquer lado vale). MAS se `__fx` está pendente aqui, a lista DAQUI manda sozinha: é o
+       que faz uma foto readicionada sobreviver ao pull seguinte, em vez de a lápide voltar da
+       nuvem e apagá-la calada. Ver _readicionarFotoTarefa. */
+    const p=pend[t.id];
+    const fxDaquiManda=!!(p&&!p['*']&&p.__fx);
+    const removidas=new Set();
+    if(fxDaquiManda){
+      const lf=ml[t.id];
+      if(lf&&Array.isArray(lf.__fx))lf.__fx.forEach(id=>removidas.add(id));
+    }else{
+      /* Sem pendência aqui, a NUVEM manda -- exatamente a regra do _mergeItens para todo
+         outro campo. Não é união: unir deixaria uma lápide velha e já desfeita neste aparelho
+         ressuscitar e apagar de novo, calada, a foto que outro aparelho acabou de readicionar.
+         A lápide local que ainda não subiu está em _pend, e aí cai no ramo de cima. */
+      const rf=mr[t.id];
+      if(rf&&Array.isArray(rf.__fx))rf.__fx.forEach(id=>removidas.add(id));
+    }
+    /* Ordem: primeiro como está aqui (é o que o técnico vê na tela), depois o que só a
+       nuvem tem. Assim receber uma foto de outro aparelho não reembaralha a galeria. */
+    const vistas=new Set(), fotos=[];
+    [t,ml[t.id],mr[t.id]].forEach(o=>{
+      if(!o||!Array.isArray(o.fotos))return;
+      o.fotos.forEach(v=>{
+        const k=_chaveFotoTarefa(v);
+        if(k===null){                       // formato que eu não conheço: preserva uma vez
+          const bruto='?'+JSON.stringify(v);
+          if(vistas.has(bruto))return;
+          vistas.add(bruto);fotos.push(v);return;
+        }
+        if(removidas.has(k)||vistas.has(k))return;
+        vistas.add(k);fotos.push(v);
+      });
+    });
+    if(Array.isArray(t.fotos)||fotos.length)t.fotos=fotos;
+    /* LIMITE CONHECIDO de `__fx`: ele cresce uma entrada (~20 bytes) por foto removida de
+       propósito e nunca encolhe, dentro do mesmo documento que esta entrega desinchou. Não é
+       podado, e não pode ser: descartar uma lápide RESSUSCITA a foto removida, o oposto do
+       que o ✕ pediu. Na prática são ~50 mil remoções para chegar ao teto de 1 MiB, então o
+       documento estoura por outro motivo muito antes -- mas o crescimento é registrado a
+       partir de 200 para que isto não seja descoberto em campo. */
+    if(removidas.size){
+      t.__fx=Array.from(removidas);
+      if(t.__fx.length>=200&&t.__fx.length%100===0)
+        fbLog('A tarefa "'+(t.nome||t.id)+'" já acumulou '+t.__fx.length+' fotos removidas de propósito','erro');
+    }else delete t.__fx;
+  });
+  return merged;
 }
 
 /* Monta o resultado do merge para UM andar: parte de `base`, troca a subárvore desse andar
@@ -2645,6 +2997,11 @@ async function _pushFotosPorAndar(){
   let falhou=false;
   for(const g of andares){
     const nomeDoc=_docDoAndar(g);
+    /* Fotos deste andar que não conseguiram subir -- ver o comentário igual em
+       _pushTarefasSemFotos: estrutura na nuvem apontando para foto que não está lá não pode
+       passar por "enviado", senão o outro aparelho mostra "Foto não encontrada" para sempre e
+       o único sinal é uma linha de log. */
+    const naoSubiram=[];
     try{
       /* As fotos saem primeiro, cada uma no seu documento. Se a estrutura subisse antes,
          outro aparelho poderia ler um andar apontando pra foto que ainda não existe. */
@@ -2655,9 +3012,21 @@ async function _pushFotosPorAndar(){
         const col=fbDB.collection('workspaces').doc(WORKSPACE).collection('data');
         for(const f of fotos){
           if(enviadas.indexOf(f.id)>=0)continue;
+          /* Só a referência em mãos: os bytes estão no armazém. Sem buscar aqui, a foto de
+             obra tirada neste aparelho NUNCA subiria -- e `_bytesDe(null)` mediria 4 bytes
+             ("null"), passaria no teste de tamanho e gravaria `json:null` na nuvem, que é
+             perder a foto em silêncio. O pior modo de falhar que este app já teve. */
+          if(!f.uri){
+            f.uri=await fotoBytes(f.id);
+            if(!f.uri){
+              fbLog('Foto de obra não encontrada no aparelho para enviar: '+f.id,'erro');
+              naoSubiram.push('não encontrada no aparelho');continue;
+            }
+          }
           const bf=_bytesDe(f.uri);
           if(bf>=DOC_LIMITE_BYTES){
             fbLog('Foto de obra grande demais para o servidor ('+Math.round(bf/1024)+' KB) — ignorada no envio','erro');
+            naoSubiram.push(Math.round(bf/1024)+' KB, acima do teto de 1 MiB');
             continue;                     // uma foto gigante não pode travar as outras
           }
           await col.doc(f.id).set({json:f.uri,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
@@ -2699,7 +3068,13 @@ async function _pushFotosPorAndar(){
       // (assíncrono agora -- o que volta vem com marcadores e precisa virar foto de novo)
       await _aplicarShardFotos(mergedStr);
       _confirmarEnvioAndar(g,JSON.stringify({[g]:(local[g]!==undefined?local[g]:undefined)}));
-      if(_falhasEnvio[nomeDoc]){delete _falhasEnvio[nomeDoc];_atualizarAlertaSync();}
+      if(naoSubiram.length){
+        falhou=true;                    // e assim a migração também não se declara pronta
+        _falhasEnvio[nomeDoc]={erro:naoSubiram.length+' foto(s) de obra não subiram ('+naoSubiram[0]+
+          (naoSubiram.length>1?' e outras':'')+')',
+          hora:(_falhasEnvio[nomeDoc]&&_falhasEnvio[nomeDoc].hora)||new Date().toLocaleTimeString('pt-BR')};
+        _atualizarAlertaSync();
+      }else if(_falhasEnvio[nomeDoc]){delete _falhasEnvio[nomeDoc];_atualizarAlertaSync();}
     }catch(e){
       fbLog('Falha ao enviar fotos de um andar: '+e.message,'erro');
       if(!_falhasEnvio[nomeDoc])_falhasEnvio[nomeDoc]={erro:e.message,hora:new Date().toLocaleTimeString('pt-BR')};
@@ -2800,10 +3175,111 @@ async function _pushOSSemFotos(){
   }
 }
 
-async function _doPush(key){
+/* Envia as tarefas SEM as fotos: cada foto no seu próprio documento, e `mappo_tarefas` leva
+   só o texto. É o que tira o estouro de 1 MiB que ainda estava de pé aqui. */
+async function _pushTarefasSemFotos(){
+  if(!fbReady||!WORKSPACE)return;   // sem workspace o caminho da coleção sairia errado
+  const key='mappo_tarefas', nice='tarefas';
+  _detectarMudancasNaoVistas(key);
+  const raw=localStorage.getItem(key);
+  if(raw===null)return;
+  const {slim,fotos}=_separarFotosTarefa(_arr(raw));
+  try{
+    /* 1) as fotos primeiro: se a tarefa subisse antes, outro aparelho poderia ler um
+       registro apontando para foto que ainda não existe. */
+    const enviadas=_fotosJaEnviadas();
+    const col=fbDB.collection('workspaces').doc(WORKSPACE).collection('data');
+    /* Foto que NÃO conseguiu subir. A estrutura sobe de todo jeito (uma foto não pode travar
+       as outras), mas então ela aponta para um documento que não existe na nuvem: o outro
+       aparelho mostra "Foto não encontrada" para sempre. O que não pode acontecer é isso ficar
+       só numa linha de log enquanto a sincronização se diz em dia -- essa é a assinatura exata
+       da classe de defeito que este app já publicou três vezes. Aqui elas são coletadas e, no
+       fim, ACENDEM a faixa e mantêm a chave pendente, para a próxima tentativa reenviar. */
+    const naoSubiram=[];
+    for(const f of fotos){
+      if(enviadas.indexOf(f.id)>=0)continue;
+      if(!f.uri){
+        f.uri=await fotoBytes(f.id);
+        if(!f.uri){
+          fbLog('Foto de tarefa não encontrada no aparelho para enviar: '+f.id,'erro');
+          naoSubiram.push({id:f.id,motivo:'não encontrada no aparelho'});continue;
+        }
+      }
+      const bytes=_bytesDe(f.uri);
+      if(bytes>=DOC_LIMITE_BYTES){
+        fbLog('Foto de tarefa grande demais para o servidor ('+Math.round(bytes/1024)+' KB) — ignorada no envio','erro');
+        naoSubiram.push({id:f.id,motivo:Math.round(bytes/1024)+' KB, acima do teto de 1 MiB'});
+        continue;                       // uma foto gigante não pode travar as outras
+      }
+      await col.doc(f.id).set({json:f.uri,updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+      _marcarFotoEnviada(f.id);
+    }
+    // 2) agora o registro das tarefas, já sem foto nenhuma
+    const enviado=JSON.stringify(slim);
+    const ref=col.doc(key);
+    const mergedStr=await _gravarMesclado(ref,rj=>{
+      if(rj===null)return enviado;
+      const remoto=_arr(rj);
+      if(!remoto.length&&slim.length)return enviado;
+      // mesma regra da subida da OS: um aparelho que não tem a foto não pode apagá-la de lá
+      return JSON.stringify(_preservarFotosTarefaNoMerge(_mergeItens(key,remoto,slim),remoto,slim));
+    });
+    /* Mede o que FOI GRAVADO, não o que este aparelho tinha para mandar. O documento que sobe
+       é o resultado do merge -- união das fotos dos dois lados, mais `__fx` -- e é sempre
+       maior ou igual ao slim local. Medindo o slim, o aviso de 76% nunca dispararia para o
+       único caso que ainda pode estourar: muitos aparelhos somando tarefas e remoções. */
+    const bytes=_bytesDe(mergedStr||enviado);
+    if(bytes>=DOC_ALERTA_BYTES){
+      if(_chavesQuaseCheias[key]===undefined)
+        fbLog('Atenção: tarefas em '+Math.round(bytes/DOC_LIMITE_BYTES*100)+'% do limite de 1 MiB','erro');
+      _chavesQuaseCheias[key]=bytes;_atualizarAlertaSync();
+    }else if(_chavesQuaseCheias[key]!==undefined){
+      delete _chavesQuaseCheias[key];_atualizarAlertaSync();
+    }
+    // devolve as fotos ao que voltou da nuvem antes de aplicar aqui
+    const resolvido=await _resolverFotosTarefa(_arr(mergedStr),_arr(localStorage.getItem(key)));
+    const comFotos=JSON.stringify(resolvido);
+    if(comFotos!==localStorage.getItem(key)){
+      _setLocalQuiet(key,comFotos);
+      _aplicarNaMemoria(key,resolvido);
+      fbOnRemoteChange(key);
+    }
+    /* confirma comparando SLIM com SLIM: o que subiu não tem foto, e comparar contra o local
+       (que tem) deixaria tudo pendente pra sempre, reenviando sem parar. */
+    _confirmarEnvio(key,JSON.stringify(_separarFotosTarefa(_arr(localStorage.getItem(key))).slim));
+    fbLog('Enviado: '+nice,'push');
+    _snapshot[key]=localStorage.getItem(key);
+    /* A ESTRUTURA SUBIU, MAS FALTA FOTO NA NUVEM: não é "enviado". A faixa acende e fica
+       acesa, nomeando quantas e por quê, até um envio conseguir levar todas -- a foto que só
+       não foi encontrada agora pode ser encontrada na próxima. Sem isto, o técnico via
+       sincronização em dia e o gestor via "Foto não encontrada" do outro lado, para sempre. */
+    if(naoSubiram.length){
+      const resumo=naoSubiram.length+' foto(s) de tarefa não subiram ('+naoSubiram[0].motivo+
+        (naoSubiram.length>1?' e outras':'')+')';
+      _falhasEnvio[key]={erro:resumo,hora:(_falhasEnvio[key]&&_falhasEnvio[key].hora)||new Date().toLocaleTimeString('pt-BR')};
+      _atualizarAlertaSync();
+    }else if(_falhasEnvio[key]){delete _falhasEnvio[key];_atualizarAlertaSync();}
+  }catch(e){
+    delete _snapshot[key];
+    fbLog('Falha ao enviar '+nice+': '+e.message,'erro');
+    if(!_falhasEnvio[key])_falhasEnvio[key]={erro:e.message,hora:new Date().toLocaleTimeString('pt-BR')};
+    else _falhasEnvio[key].erro=e.message;
+    _atualizarAlertaSync();
+  }
+}
+
+/* O envio entra na MESMA fila do recebimento: os dois leem e regravam a chave inteira com
+   awaits no meio, então um pull caindo no meio de um push (ou da migração) perdia o que o
+   outro tinha acabado de calcular. Todos os chamadores continuam iguais -- quem quer esperar
+   dá await como antes, e a fila garante que não há dois no mesmo estado ao mesmo tempo. */
+function _doPush(key){
+  return _naFilaSync('enviar '+key,()=>_doPushAgora(key));
+}
+async function _doPushAgora(key){
   if(!fbReady)return;
   if(key===CHAVE_FOTOS)return _pushFotosPorAndar();  // nunca mais escreve o documento antigo
   if(key==='mappo_os')return _pushOSSemFotos();      // fotos em documentos próprios
+  if(key==='mappo_tarefas')return _pushTarefasSemFotos();
   const nice=key.replace('mappo_','');
   _detectarMudancasNaoVistas(key); // garante que nada local fique de fora do merge
   try{
@@ -3108,6 +3584,26 @@ function _limparPubVazados(){
   if(n)fbLog('Liberados '+Math.round(bytes/1024)+' KB de links públicos que não precisavam estar neste aparelho ('+n+')','ok');
 }
 
+/* ── FILA ÚNICA DAS OPERAÇÕES QUE REGRAVAM UMA CHAVE INTEIRA DE FORMA ASSÍNCRONA ──
+   Remontar foto virou assíncrono (get no Firestore + gravação no armazém), e todas estas
+   operações fazem LER o localStorage -> mexer -> GRAVAR o localStorage com awaits no meio.
+   Duas delas ao mesmo tempo liam o mesmo estado antes de qualquer uma gravar, e a última a
+   gravar vencia -- levando embora a união que a outra tinha acabado de calcular. É a foto
+   sumindo porque dois documentos chegaram juntos, ou porque a migração estava rodando quando
+   o primeiro pull caiu.
+   O laço é burro de propósito: uma promessa encadeada, ordem de chegada, nada de prioridade.
+   NÃO se põe na fila nada que seja chamado de DENTRO de quem já está nela (_aplicarShardFotos
+   é chamado pelo _pushFotosPorAndar, e _resolverFotos* por todos) -- isso travaria a fila
+   esperando ela mesma. Só os pontos de ENTRADA: o que vem da nuvem, o envio e a migração. */
+let _filaSync=Promise.resolve();
+function _naFilaSync(rotulo,fn){
+  const proxima=_filaSync.then(fn).catch(e=>{
+    fbLog('Falha em '+rotulo+': '+(e&&(e.code||''))+' '+(e&&e.message),'erro');
+  });
+  _filaSync=proxima;
+  return proxima;
+}
+
 /* Chegaram ordens da nuvem: elas vêm SEM foto (só o texto e a lista __f dizendo quais campos
    têm foto). Remonta as fotos primeiro -- do próprio aparelho quando já estão aqui, baixando
    o documento da foto quando são novas -- e só então deixa o merge normal rodar.
@@ -3141,12 +3637,41 @@ function _aplicarListaOS(jsonStr,remoteMs){
   }catch(e){console.warn('[MAPPO] apply erro (mappo_os):',e.message);}
 }
 
+/* Chegaram tarefas da nuvem: vêm SEM foto, só com a lista de referências. Remonta primeiro
+   -- do próprio aparelho quando já estão aqui, baixando o documento quando são novas -- e só
+   então deixa o merge rodar, com a união que impede a foto de sumir. */
+async function _aplicarTarefasComFotos(jsonStr,remoteMs){
+  const key='mappo_tarefas';
+  let remoto;try{remoto=_arr(jsonStr);}catch(e){return;}
+  const local=_arr(localStorage.getItem(key));
+  try{await _resolverFotosTarefa(remoto,local);}
+  catch(e){fbLog('Falha ao remontar fotos das tarefas: '+(e&&e.message),'erro');}
+  _detectarMudancasNaoVistas(key);
+  const atual=localStorage.getItem(key);
+  try{
+    const agora=_arr(atual);
+    if(!remoto.length&&agora.length){setTimeout(()=>{if(fbReady)_doPush(key);},200);return;}
+    const merged=_preservarFotosTarefaNoMerge(_mergeItens(key,remoto,agora),remoto,agora);
+    const mergedStr=JSON.stringify(merged);
+    if(mergedStr===atual){_snapshot[key]=mergedStr;return;}
+    _setLocalQuiet(key,mergedStr);
+    _aplicarNaMemoria(key,merged);
+    if(mergedStr!==jsonStr&&_temPend(key))setTimeout(()=>{if(fbReady)_doPush(key);},200);
+    fbLog('Recebido: tarefas','pull');
+    fbOnRemoteChange(key);
+  }catch(e){console.warn('[MAPPO] apply erro (mappo_tarefas):',e.message);}
+}
+
 function fbApply(key,jsonStr,remoteMs){
   if(jsonStr===null||jsonStr===undefined)return;
   if(!_ehChaveDeSync(key))return; // defesa: nunca aplicar pub_* nem documento desconhecido
-  if(_ehDocDeFotos(key))return _aplicarShardFotos(jsonStr);   // um andar
-  if(key===CHAVE_FOTOS)return _aplicarLegadoFotos(jsonStr);   // documento antigo, só-aditivo
-  if(key==='mappo_os')return _aplicarOSComFotos(jsonStr,remoteMs);
+  /* Os três caminhos assíncronos entram na FILA. Antes eram disparados e esquecidos, e dois
+     documentos chegando juntos (o caso comum na abertura do app, quando o pull inicial aplica
+     tudo de uma vez) se sobrescreviam. */
+  if(_ehDocDeFotos(key))return _naFilaSync('aplicar fotos de um andar',()=>_aplicarShardFotos(jsonStr));
+  if(key===CHAVE_FOTOS)return _aplicarLegadoFotos(jsonStr);   // documento antigo, só-aditivo (sincrono)
+  if(key==='mappo_os')return _naFilaSync('aplicar ordens',()=>_aplicarOSComFotos(jsonStr,remoteMs));
+  if(key==='mappo_tarefas')return _naFilaSync('aplicar tarefas',()=>_aplicarTarefasComFotos(jsonStr,remoteMs));
   const nice=key.replace('mappo_','');
   _detectarMudancasNaoVistas(key); // protege o que foi lançado aqui e ainda não subiu
   const atual=localStorage.getItem(key);
@@ -3299,7 +3824,10 @@ function fbStartListeners(){
         snap.docChanges().forEach(ch=>{
           if(ch.type==='removed')return;   // apagar shard não apaga foto daqui
           const d=ch.doc.data();
-          if(d&&typeof d.json==='string')_aplicarShardFotos(d.json);
+          /* Na FILA também: vários andares chegam juntos (a consulta pega todos os shards de
+             uma vez), e cada um LÊ e REGRAVA a mesma chave mappo_vrf_fotos com awaits no meio.
+             Soltos, o último a gravar levava embora as fotos que os outros tinham remontado. */
+          if(d&&typeof d.json==='string')_naFilaSync('aplicar fotos de um andar (tempo real)',()=>_aplicarShardFotos(d.json));
         });
       },err=>fbLog('Listener das fotos por andar: '+err.message,'erro'));
     fbUnsubs.push(unsubFotos);
@@ -3487,8 +4015,21 @@ function renderDiagTamanhos(){
     if(k===CHAVE_FOTOS){
       const fotos=_obj(raw);
       Object.keys(fotos).forEach(g=>{
-        linhas.push({nome:'Fotos — '+_nomeDoAndar(g),bytes:_bytesDe(JSON.stringify({[g]:fotos[g]}))});
+        /* A FORMA MAGRA, não a local: o documento do andar que vai pro servidor leva só os
+           marcadores (cada foto é um documento próprio desde 8a21647). Num aparelho que
+           ainda não migrou, a versão local tem as fotos dentro -- medi-la mostraria
+           "Fotos — Térreo 960 KB · 100%" com o documento do servidor em 1 KB. É o mesmo
+           alarme falso que mandou o proprietário caçar um problema inexistente por um dia. */
+        let slim;try{slim=_separarFotosAndar(fotos[g]).slim;}catch(e){slim=fotos[g];}
+        linhas.push({nome:'Fotos — '+_nomeDoAndar(g),bytes:_bytesDe(JSON.stringify({[g]:slim}))});
       });
+      return;
+    }
+    /* mappo_tarefas: mesma coisa desde que a foto de tarefa virou um documento por foto.
+       Uma tarefa cheia (20 fotos) passa de 1 MB no aparelho e sobe em poucos KB. */
+    if(k==='mappo_tarefas'){
+      let slim=[];try{slim=_separarFotosTarefa(_arr(raw)).slim;}catch(e){slim=[];}
+      linhas.push({nome:_nomeAmigavel(k),bytes:_bytesDe(JSON.stringify(slim))});
       return;
     }
     /* mappo_os: o aparelho guarda a ordem COM as fotos dentro, mas pra nuvem sobe a versão
@@ -3533,11 +4074,32 @@ async function renderDiagAparelho(){
     extra='<p style="font-size:11.5px;color:var(--gray-400);margin-top:6px;line-height:1.45">'+
       'O navegador reserva '+kb(e.cotaBytes)+' para este app no total (fotos guardadas fora do '+
       'limite acima usam esse espaço maior). Em uso agora: '+kb(e.usadoBytes)+'.</p>';
+  /* O ARMAZÉM DE FOTOS, medido e nomeado. Ele só CRESCE: nada no app apaga foto dele (de
+     propósito -- apagar foto é apagar prova, e essa decisão é do proprietário, não do código).
+     Mas crescer sem ninguém ver é como o teto de 5 MB pegou o técnico da primeira vez: quando
+     a cota do navegador estourar, toda gravação nova cai no formato antigo e as fotos voltam
+     para o localStorage, desfazendo em silêncio justamente o que esta entrega fez. Então a
+     conta fica na tela, com aviso quando aperta. */
+  let armazem='';
+  try{
+    const chaves=await idbTodasAsChaves();
+    const n=Array.isArray(chaves)?chaves.length:0;
+    const aperto=(e.usadoBytes!==null&&e.cotaBytes)?(e.usadoBytes/e.cotaBytes):0;
+    armazem='<p style="font-size:11.5px;color:var(--gray-400);margin-top:6px;line-height:1.45">'+
+      'Armazém de fotos deste aparelho: <strong>'+n+'</strong> foto(s) guardada(s). '+
+      'Ele nunca é limpo automaticamente — foto de serviço é prova.</p>'+
+      (aperto>=0.8?'<p style="font-size:12px;color:#b45309;margin-top:6px;line-height:1.5">'+
+        'O espaço reservado pelo navegador está em '+Math.round(aperto*100)+'%. Se ele encher, '+
+        'as fotos novas voltam a ocupar a memória menor do aparelho. Avise o responsável.</p>':'');
+  }catch(err){
+    armazem='<p style="font-size:11.5px;color:var(--gray-400);margin-top:6px">'+
+      'Não consegui ler o armazém de fotos deste aparelho ('+escapeHtml(err.name||'erro')+').</p>';
+  }
   alvo.innerHTML='<div class="diag-tam">'+
     '<span class="diag-tam-nome">Dados e fotos no aparelho</span>'+
     '<span class="diag-barra '+estado+'"><i style="width:'+pct+'%"></i></span>'+
     '<span class="diag-tam-kb">'+kb(e.localBytes)+' · '+pct+'%</span>'+
-    '</div>'+extra+
+    '</div>'+extra+armazem+
     (pct>=76?'<p style="font-size:12px;color:#b45309;margin-top:6px;line-height:1.5">'+
       'Perto do limite deste aparelho. Ordens antigas já sincronizadas podem ser excluídas '+
       'com segurança — as fotos delas continuam no servidor.</p>':'');
@@ -4185,9 +4747,21 @@ function entrarApp(){
   /* Migra as fotos que já estavam no aparelho. Em segundo plano de propósito: não segura a
      abertura do app, e o que ainda não migrou continua aparecendo normalmente (o formato
      antigo segue sendo entendido em todo lugar). */
-  migrarFotosParaOArmazem()
-    .then(r=>{if(r&&r.movidas)try{renderView(currentView);}catch(e){}})
-    .catch(e=>fbLog('Falha na migração das fotos: '+e.message,'erro'));
+  /* As duas em SÉRIE, não em paralelo: as duas escrevem no mesmo armazém e as duas
+     regravam chaves do localStorage: rodando juntas, uma sobrescreveria o resultado da
+     outra. Uma falha não impede a outra de rodar. */
+  /* Cada migração entra na FILA de sincronização, não só uma depois da outra. Elas seguram
+     referências aos objetos antigos entre os awaits e só gravam no fim: um pull caindo nessa
+     janela era descartado pela gravação da migração. Na fila, o pull espera a migração
+     terminar (ou o contrário) e nenhum dos dois perde o trabalho do outro. */
+  (async()=>{
+    let movidas=0;
+    const a=await _naFilaSync('migração das fotos das ordens',()=>migrarFotosParaOArmazem());
+    if(a&&a.movidas)movidas+=a.movidas;
+    const b=await _naFilaSync('migração das fotos de obra/tarefa',()=>migrarFotosObraETarefaParaOArmazem());
+    if(b&&b.movidas)movidas+=b.movidas;
+    if(movidas)try{renderView(currentView);}catch(e){fbLog('Falha ao redesenhar após a migração: '+e.message,'erro');}
+  })();
   // monta a barra de navegação principal conforme perfil/módulos
   montarNavbar();
   // Sistema VRF só existe pro Ramo Refrigeração/Climatização (Story 9) -- workspace sem
@@ -4675,7 +5249,21 @@ function escapeHtml(s){
   return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 function hoje(){return new Date().toISOString().split('T')[0];}
-function openLightbox(src){document.getElementById('lightboxImg').src=src;document.getElementById('lightbox').classList.add('open');}
+/* Aceita a <img> clicada, além da src pronta. Uma foto que o pintor ainda não preencheu tem
+   src vazia, e abrir o lightbox em branco parece foto perdida: aqui o clique espera a foto.
+   Chamado como openLightbox(this) em dezenas de telas -- o ramo da string segue igual. */
+async function openLightbox(src){
+  const cx=document.getElementById('lightbox'), im=document.getElementById('lightboxImg');
+  if(!cx||!im)return;
+  let url=src;
+  if(src&&src.nodeType===1){                       // veio o elemento
+    url=src.getAttribute('src')||'';
+    const ref=src.getAttribute('data-foto');
+    if(!url&&ref)url=await fotoBytes(ref)||'';
+  }
+  if(!url){toast('Essa foto ainda está carregando','warn');return;}
+  im.src=url;cx.classList.add('open');
+}
 function toggleChkFoto(ci){
   const f=document.getElementById('chkFoto'+ci),a=document.getElementById('chkArrow'+ci);
   if(!f)return;
@@ -5376,7 +5964,7 @@ function vrfRenderAndarPainel(andar){
         <div class="vrf-step-body">
           <span class="vrf-step-txt" onclick="vrfToggleTec('${andar.id}','${key}',this.closest('.vrf-step'))">${isMis?'<span class="vrf-mdot"></span>':''}${escapeHtml(txt)}</span>
           ${nota?`<div class="vrf-step-note">${svgIco('edit','ico-sm')} ${escapeHtml(nota)}</div>`:''}
-          ${fs.length?`<div class="vrf-step-photos">${fs.map((src,idx)=>`<img src="${src}" onclick="vrfVerFoto('${andar.id}','${key}',${idx},event)">`).join('')}</div>`:''}
+          ${fs.length?`<div class="vrf-step-photos">${fs.map((src,idx)=>imgFoto(src,`onclick="vrfVerFoto('${andar.id}','${key}',${idx},event)"`)).join('')}</div>`:''}
           ${expandHTML}
         </div>
         ${actHTML}
@@ -5512,20 +6100,38 @@ function vrfSetupCamera(){
   if(!inp||inp._wired)return;inp._wired=true;
   inp.addEventListener('change',function(){
     if(!this.files||!this.files[0]||!_vrfFotoTarget)return;
-    vrfComprimirImagem(this.files[0],b64=>{
+    /* Mesmo motivo do handler da tarefa: a trava da compressão já foi liberada quando este
+       callback roda, então um throw depois do await (saveVrfFotos/saveVrfFotosMeta com cota
+       estourada) virava rejeição não tratada e a foto sumia da tela sem aviso nenhum. */
+    vrfComprimirImagem(this.files[0],async b64=>{
+      /* andarId/key saem de _vrfFotoTarget ANTES do await, de propósito: o alvo é global e
+         abrir outra etapa durante a gravação mandaria a foto para o lugar errado. */
       const{andarId,key}=_vrfFotoTarget;
-      if(!vrfFotos[andarId])vrfFotos[andarId]={};
-      if(!vrfFotos[andarId][key])vrfFotos[andarId][key]=[];
-      vrfFotos[andarId][key].push(b64);
-      saveVrfFotos();
-      // registra quem tirou a foto
-      if(!vrfFotosMeta[andarId])vrfFotosMeta[andarId]={};
-      if(!vrfFotosMeta[andarId][key])vrfFotosMeta[andarId][key]=[];
-      vrfFotosMeta[andarId][key].push({prestador:session.nome||'Prestador',data:new Date().toISOString().split('T')[0]});
-      saveVrfFotosMeta();
-      const painel=document.getElementById('vrfPainel');
-      if(vrfFloorTab>0)painel.innerHTML=vrfRenderAndarPainel(vrfObraAtual().andares[vrfFloorTab-1]);
-      toast('Foto adicionada');
+      try{
+        if(!vrfFotos[andarId])vrfFotos[andarId]={};
+        if(!vrfFotos[andarId][key])vrfFotos[andarId][key]=[];
+        /* Guarda no armazém e fica só com a REFERÊNCIA -- a foto não ocupa mais o aparelho.
+           A troca só acontece DEPOIS da gravação confirmada; se o armazém estiver
+           indisponível, guarda a foto em si (formato antigo) e o app segue funcionando. */
+        let valor=b64;
+        try{valor=await guardarFotoNoAparelho(_idFotoObra(b64),b64);}
+        catch(e){fbLog('Armazém indisponível ao guardar a foto de obra ('+(e.code||'')+' '+e.message+') — guardada no formato antigo','erro');}
+        /* A foto e o "quem tirou" entram JUNTOS, sem await entre os dois: vrfFotosMeta é
+           paralelo a vrfFotos por POSIÇÃO, e um await aqui no meio deixaria a autoria de uma
+           foto colada na outra quando dois toques se intercalassem. */
+        vrfFotos[andarId][key].push(valor);
+        if(!vrfFotosMeta[andarId])vrfFotosMeta[andarId]={};
+        if(!vrfFotosMeta[andarId][key])vrfFotosMeta[andarId][key]=[];
+        vrfFotosMeta[andarId][key].push({prestador:session.nome||'Prestador',data:new Date().toISOString().split('T')[0]});
+        saveVrfFotos();
+        saveVrfFotosMeta();
+        const painel=document.getElementById('vrfPainel');
+        if(vrfFloorTab>0&&painel)painel.innerHTML=vrfRenderAndarPainel(vrfObraAtual().andares[vrfFloorTab-1]);
+        toast('Foto adicionada');
+      }catch(e){
+        fbLog('Falha ao adicionar a foto de obra: '+(e.code||'')+' '+e.message,'erro');
+        toast('Não foi possível guardar a foto. Tente de novo.','error');
+      }
     });
   });
 }
@@ -5560,7 +6166,7 @@ function vrfVerFoto(andarId,key,idx,ev){
   const src=fs[idx];if(!src)return;
   showModal(`
     <div class="modal-body" style="text-align:center;padding:0">
-      <img src="${src}" style="width:100%;border-radius:12px 12px 0 0;display:block">
+      ${imgFoto(src,`style="width:100%;border-radius:12px 12px 0 0;display:block"`)}
     </div>
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="closeModal()">Fechar</button>
@@ -5883,7 +6489,7 @@ function renderVRFfotos(){
     <div class="vrf-fotos-grid">
       ${porAndar[andar].map(f=>`
         <div class="vrf-foto-card" onclick="vrfVerFotoDetalhe('${f.andarId}','${f.key}',${f.idx})">
-          <img src="${f.src}" loading="lazy">
+          ${imgFoto(f.src,'loading="lazy"')}
           <div class="vrf-foto-cap">
             ${f.prestador?`<div class="vrf-foto-prest">${svgIco('clientes','ico-sm')} ${escapeHtml(f.prestador)}</div>`:''}
             <div class="vrf-foto-etapa">${escapeHtml(f.etapa||'—')}</div>
@@ -5903,7 +6509,7 @@ function vrfVerFotoDetalhe(andarId,key,idx){
   const prestador=vrfFotoPrestador(andarId,key,idx);
   showModal(`
     <div class="modal-body" style="padding:0">
-      <img src="${src}" style="width:100%;border-radius:12px 12px 0 0;display:block">
+      ${imgFoto(src,`style="width:100%;border-radius:12px 12px 0 0;display:block"`)}
       <div style="padding:16px">
         <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--petrol);margin-bottom:4px">${an?escapeHtml(an.nome):''}</div>
         <div style="font-size:15px;font-weight:600;color:var(--gray-800)">${fase?escapeHtml(fase.etapas[+ei]):''}</div>
@@ -6071,7 +6677,7 @@ function vrfAbrirAndar(andarId){
           ${fs.length?`<span class="vrf-etapa-fotos">${svgIco('camera','ico-sm')} ${fs.length}</span>`:''}
         </div>
         ${nota?`<div class="vrf-etapa-nota">${svgIco('edit','ico-sm')} ${escapeHtml(nota)}</div>`:''}
-        ${fs.length?`<div class="vrf-etapa-gallery">${fs.map(src=>`<img src="${src}" onclick="openLightbox(this.src)">`).join('')}</div>`:''}
+        ${fs.length?`<div class="vrf-etapa-gallery">${fs.map(src=>imgFoto(src,'onclick="openLightbox(this)"')).join('')}</div>`:''}
       </div>`;
     }).join('');
     return `<div class="vrf-fase">
@@ -6251,13 +6857,16 @@ function vrfExportarPDF(andarId){
   const andar=vrfObraAtual().andares.find(a=>a.id===andarId);
   if(!andar){toast('Andar não encontrado','warn');return;}
   toast('Gerando PDF...');
-  carregarJsPDF(()=>{
-    try{gerarPDFandar(andarId);}
-    catch(e){toast('Erro ao gerar PDF: '+e.message,'warn');}
+  /* gerarPDFandar é async agora: sem o await, uma falha ao resolver a foto viraria rejeição
+     não tratada e o técnico não veria erro nenhum -- só um PDF que nunca chega. */
+  carregarJsPDF(async()=>{
+    try{await gerarPDFandar(andarId);}
+    catch(e){toast('Erro ao gerar PDF: '+e.message,'warn');fbLog('Falha ao gerar o PDF do andar: '+(e.code||e.message),'erro');}
   });
 }
 
-function gerarPDFandar(andarId){
+/* async desde que a foto de obra mora no armazém: os bytes vêm de uma leitura assíncrona. */
+async function gerarPDFandar(andarId){
   const jsPDFLib=window.jspdf.jsPDF;
   const andar=vrfObraAtual().andares.find(a=>a.id===andarId);
   const p=vrfProgresso[andarId]||{};
@@ -6329,11 +6938,23 @@ function gerarPDFandar(andarId){
     const label=fase?(fase.nome+' — '+fase.etapas[+ei]):'';
     (fotos[key]||[]).forEach(src=>fotosAndar.push({src,label}));
   });
+  /* Resolve as referências ANTES de desenhar: addImage precisa dos BYTES, e um relatório de
+     obra sem as fotos é pior do que nenhum -- parece completo e não prova nada. */
+  /* Uma foto por vez, cada uma no seu try: uma leitura que falha não pode derrubar o
+     relatório inteiro. O desenho já tratava foto ilegível por foto (addImage em try/catch);
+     faltava a mesma cortesia na resolução. */
+  for(const f of fotosAndar){
+    try{f.src=await fotoBytes(f.src);}
+    catch(e){f.src=null;fbLog('Não consegui resolver uma foto do relatório: '+(e.code||'')+' '+e.message,'erro');}
+  }
+  const semImagemAndar=fotosAndar.filter(f=>!f.src).length;
+  if(semImagemAndar)fbLog(semImagemAndar+' foto(s) de obra não encontradas ao gerar o PDF','erro');
   if(fotosAndar.length){
     doc.addPage();y=20;
     doc.setTextColor(24,81,102);doc.setFont('helvetica','bold');doc.setFontSize(13);
     doc.text('Registro Fotografico — '+semAcento(andar.nome),M,y);y+=8;
     fotosAndar.forEach(foto=>{
+      if(!foto.src)return;
       if(y>230){doc.addPage();y=20;}
       doc.setTextColor(80,80,80);doc.setFont('helvetica','normal');doc.setFontSize(8);
       const ll=doc.splitTextToSize(semAcento(foto.label),W-2*M);
@@ -7892,8 +8513,8 @@ function openDetalhe(id){
       <div class="card-pad" style="padding:14px">
         <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--gray-400);margin-bottom:10px">${vrf?'Split':'Item'} ${i+1}${vrf?` ${e.marca?'· '+escapeHtml(e.marca):''} ${escapeHtml(e.modelo||'')}`:''}</div>
         <div class="frow" style="gap:10px">
-          <div><div style="font-size:11px;color:var(--gray-400);margin-bottom:4px">${vrf?'Evaporadora':'Antes'}</div>${e.fotoEvap?imgFoto(e.fotoEvap,`onclick="openLightbox(this.src)" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid var(--green)"`):`<div style="aspect-ratio:4/3;background:var(--gray-100);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px">📷</div>`}</div>
-          <div><div style="font-size:11px;color:var(--gray-400);margin-bottom:4px">${vrf?'Condensadora':'Depois'}</div>${e.fotoCond?imgFoto(e.fotoCond,`onclick="openLightbox(this.src)" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid var(--green)"`):`<div style="aspect-ratio:4/3;background:var(--gray-100);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px">📷</div>`}</div>
+          <div><div style="font-size:11px;color:var(--gray-400);margin-bottom:4px">${vrf?'Evaporadora':'Antes'}</div>${e.fotoEvap?imgFoto(e.fotoEvap,`onclick="openLightbox(this)" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid var(--green)"`):`<div style="aspect-ratio:4/3;background:var(--gray-100);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px">📷</div>`}</div>
+          <div><div style="font-size:11px;color:var(--gray-400);margin-bottom:4px">${vrf?'Condensadora':'Depois'}</div>${e.fotoCond?imgFoto(e.fotoCond,`onclick="openLightbox(this)" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid var(--green)"`):`<div style="aspect-ratio:4/3;background:var(--gray-100);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:22px">📷</div>`}</div>
         </div>
       </div>
     </div>`).join('');
@@ -7907,7 +8528,7 @@ function openDetalhe(id){
         <span style="flex:1;font-size:13px">${escapeHtml(c.label)} ${c.critico?'<span style="font-size:10px;background:#fee2e2;color:#991b1b;padding:1px 6px;border-radius:8px;font-weight:600">CRÍTICO</span>':''}</span>
         ${temFoto?`<span class="chk-cam">${svgIco('camera','ico-sm')}</span><span class="chk-arrow" id="chkArrow${ci}">${svgIco('back','ico-sm')}</span>`:'<span style="font-size:11px;color:var(--gray-400)">sem foto</span>'}
       </div>
-      ${temFoto?`<div class="chk-foto" id="chkFoto${ci}">${imgFoto(c.foto,`onclick="openLightbox(this.src)" style="width:100%;border-radius:10px;cursor:pointer;display:block"`)}</div>`:''}
+      ${temFoto?`<div class="chk-foto" id="chkFoto${ci}">${imgFoto(c.foto,`onclick="openLightbox(this)" style="width:100%;border-radius:10px;cursor:pointer;display:block"`)}</div>`:''}
     </div>`;
   }).join('');
 
@@ -8806,7 +9427,7 @@ function verTarefaDetalhe(id){
       ${(t.checkins&&t.checkins.length)?`<div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--gray-400);margin-bottom:8px">Presença na obra</div>
       <div class="tf-checkin-hist" style="margin-bottom:14px">${t.checkins.slice().reverse().map(c=>`<div class="tf-checkin-dia">${svgIco('pin','ico-sm')} ${fmtDate(c.data)} — ${c.hora}${c.lat?` · <span style="color:var(--petrol);cursor:pointer" onclick="abrirMapaCoord(${c.lat},${c.lng},'${escapeHtml(t.tecnico||'Técnico')} — ${fmtDate(c.data)}')">ver no mapa</span>`:' <span style="color:var(--gray-400)">(sem GPS)</span>'}</div>`).join('')}</div>`:''}
       <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--gray-400);margin-bottom:8px">Fotos (${nf}/${t.maxFotos})</div>
-      ${nf?`<div class="tf-fotos-grid">${t.fotos.map(f=>`<div class="tf-foto"><img src="${f}" onclick="openLightbox(this.src)"></div>`).join('')}</div>`:'<p style="font-size:13px;color:var(--gray-400)">Nenhuma foto enviada ainda.</p>'}
+      ${nf?`<div class="tf-fotos-grid">${t.fotos.map(f=>`<div class="tf-foto">${imgFoto(f,'onclick="openLightbox(this)"')}</div>`).join('')}</div>`:'<p style="font-size:13px;color:var(--gray-400)">Nenhuma foto enviada ainda.</p>'}
       ${t.temNotas?`<div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--gray-400);margin:14px 0 8px">Notas do prestador</div>
       ${t.nota?`<div style="padding:12px;background:var(--gray-50);border-radius:10px;font-size:13.5px;color:var(--gray-700);line-height:1.55">${escapeHtml(t.nota)}</div>`:'<p style="font-size:13px;color:var(--gray-400)">Nenhuma nota escrita ainda.</p>'}`:''}
     </div>
@@ -8871,7 +9492,7 @@ function renderExecTarefa(t){
   <div class="card" style="margin-bottom:16px"><div class="card-pad">
     <h3 style="font-family:'Inter',sans-serif;letter-spacing:-.02em;font-size:18px;margin-bottom:4px">2. Registro fotográfico</h3>
     <p style="font-size:13px;color:var(--gray-400);margin-bottom:14px">${nf}/${t.maxFotos} foto${t.maxFotos!==1?'s':''} enviada${nf!==1?'s':''}</p>
-    ${nf?`<div class="tf-fotos-grid">${t.fotos.map((f,i)=>`<div class="tf-foto"><img src="${f}" onclick="openLightbox(this.src)"><button class="tf-foto-x" onclick="tarefaRemoverFoto(${i})">✕</button></div>`).join('')}</div>`:''}
+    ${nf?`<div class="tf-fotos-grid">${t.fotos.map((f,i)=>`<div class="tf-foto">${imgFoto(f,'onclick="openLightbox(this)"')}<button class="tf-foto-x" onclick="tarefaRemoverFoto(${i})">✕</button></div>`).join('')}</div>`:''}
     ${podeFoto
       ?`<button class="btn btn-ghost" style="width:100%;margin-top:${nf?'12px':'0'}" onclick="document.getElementById('tarefaCamInput').click()">${svgIco('camera','ico-sm')} Tirar foto</button>`
       :`<p style="font-size:12.5px;color:var(--gray-400);margin-top:10px">Limite de fotos atingido.</p>`}
@@ -8892,14 +9513,35 @@ function setupTarefaCam(){
   inp.addEventListener('change',function(){
     const t=getExecTarefa();
     if(!this.files||!this.files[0]||!t)return;
-    vrfComprimirImagem(this.files[0],b64=>{
-      t.fotos=t.fotos||[];
-      if(t.fotos.length>=t.maxFotos){toast('Limite de fotos atingido','warn');return;}
-      t.fotos.push(b64);
-      if(t.status==='pendente')t.status='andamento';
-      saveTarefas();
-      toast('Foto adicionada','success');
-      rerenderTarefaExec();
+    /* O corpo inteiro num try/catch: `vrfComprimirImagem` libera a trava ANTES de chamar o
+       callback (comentário dele: "o cb pode abrir outra foto"), então isto roda solto. Um
+       throw depois do await -- `saveTarefas` com a cota do aparelho estourada é o candidato
+       óbvio -- virava rejeição não tratada: sem toast, sem log, e a foto recém-tirada
+       desaparecendo da tela sem explicação. */
+    vrfComprimirImagem(this.files[0],async b64=>{
+      try{
+        t.fotos=t.fotos||[];
+        if(t.fotos.length>=t.maxFotos){toast('Limite de fotos atingido','warn');return;}
+        /* Igual à obra e à OS: a referência substitui a foto só DEPOIS da gravação confirmada,
+           e armazém indisponível cai no formato antigo em vez de perder a foto. */
+        const id=_idFotoTarefa(b64);
+        let valor=b64;
+        try{valor=await guardarFotoNoAparelho(id,b64);}
+        catch(e){fbLog('Armazém indisponível ao guardar a foto de tarefa ('+(e.code||'')+' '+e.message+') — guardada no formato antigo','erro');}
+        /* Confere o limite DE NOVO depois do await. A trava da compressão já foi liberada, e
+           dois toques rápidos passavam os dois pelo teste de cima e gravavam além do máximo. */
+        if(t.fotos.length>=t.maxFotos){toast('Limite de fotos atingido','warn');return;}
+        // a mesma foto de volta desfaz a lápide dela -- senão o merge a descartaria calada
+        _readicionarFotoTarefa(t,id);
+        t.fotos.push(valor);
+        if(t.status==='pendente')t.status='andamento';
+        saveTarefas();
+        toast('Foto adicionada','success');
+        rerenderTarefaExec();
+      }catch(e){
+        fbLog('Falha ao adicionar a foto da tarefa: '+(e.code||'')+' '+e.message,'erro');
+        toast('Não foi possível guardar a foto. Tente de novo.','error');
+      }
     });
     this.value='';
   });
@@ -8908,6 +9550,13 @@ function setupTarefaCam(){
 function tarefaRemoverFoto(i){
   const t=getExecTarefa();if(!t)return;
   if(!confirm('Remover esta foto?'))return;
+  /* Remoção EXPLÍCITA, e é preciso registrá-la. A lista de fotos agora é união entre os
+     aparelhos (é o que impede uma foto de sumir só porque um aparelho não a tem), e sem esta
+     marca o outro celular devolveria a foto removida no merge seguinte -- o ✕ pararia de
+     funcionar. `__fx` é união e nunca encolhe, então a remoção vale em todos os aparelhos e
+     não volta atrás. Pedido do usuário não é ausência de dado: só isto tira da união. */
+  const id=_chaveFotoTarefa(t.fotos[i]);
+  if(id){t.__fx=Array.from(new Set((t.__fx||[]).concat([id])));}
   t.fotos.splice(i,1);saveTarefas();rerenderTarefaExec();
 }
 
@@ -9105,12 +9754,12 @@ function switchEquipTab(i){
     <div class="fg"><label>📷 ${vrf?'Etiqueta — Evaporadora':'Antes'}</label>
       <button class="btn ${e.fotoEvap?'btn-gold':'btn-ghost'}" style="width:100%" onclick="document.getElementById('fEvap${i}').click()">${e.fotoEvap?'✅ Foto enviada — trocar':'📷 Tirar foto'}</button>
       <input type="file" id="fEvap${i}" accept="image/*" style="display:none" onchange="onEquipFoto(event,${i},'evap')">
-      ${e.fotoEvap?`<div class="foto-mini-wrap">${imgFoto(e.fotoEvap,`class="foto-mini" onclick="openLightbox(this.src)" alt="Foto da etiqueta da evaporadora"`)}<span class="foto-mini-dica">Toque na foto para ver grande</span></div>`:''}
+      ${e.fotoEvap?`<div class="foto-mini-wrap">${imgFoto(e.fotoEvap,`class="foto-mini" onclick="openLightbox(this)" alt="Foto da etiqueta da evaporadora"`)}<span class="foto-mini-dica">Toque na foto para ver grande</span></div>`:''}
     </div>
     <div class="fg"><label>📷 ${vrf?'Etiqueta — Condensadora':'Depois'}</label>
       <button class="btn ${e.fotoCond?'btn-gold':'btn-ghost'}" style="width:100%" onclick="document.getElementById('fCond${i}').click()">${e.fotoCond?'✅ Foto enviada — trocar':'📷 Tirar foto'}</button>
       <input type="file" id="fCond${i}" accept="image/*" style="display:none" onchange="onEquipFoto(event,${i},'cond')">
-      ${e.fotoCond?`<div class="foto-mini-wrap">${imgFoto(e.fotoCond,`class="foto-mini" onclick="openLightbox(this.src)" alt="Foto da etiqueta da condensadora"`)}<span class="foto-mini-dica">Toque na foto para ver grande</span></div>`:''}
+      ${e.fotoCond?`<div class="foto-mini-wrap">${imgFoto(e.fotoCond,`class="foto-mini" onclick="openLightbox(this)" alt="Foto da etiqueta da condensadora"`)}<span class="foto-mini-dica">Toque na foto para ver grande</span></div>`:''}
     </div>`;
 }
 
@@ -9162,7 +9811,7 @@ function renderChecklistExec(){
         ${showFoto?`<div style="padding:0 14px 14px">
           <button class="btn ${item.foto?'btn-gold':'btn-ghost'} btn-sm" style="width:100%" onclick="document.getElementById('cf${i}').click()">${item.foto?'✅ Foto enviada — trocar':'📷 Foto obrigatória'}</button>
           <input type="file" id="cf${i}" accept="image/*" style="display:none" onchange="onCheckFoto(event,${i})">
-          ${item.foto?`<div class="foto-mini-wrap">${imgFoto(item.foto,`class="foto-mini" onclick="openLightbox(this.src)" alt="Foto do item do checklist"`)}<span class="foto-mini-dica">Toque na foto para ver grande</span></div>`:''}
+          ${item.foto?`<div class="foto-mini-wrap">${imgFoto(item.foto,`class="foto-mini" onclick="openLightbox(this)" alt="Foto do item do checklist"`)}<span class="foto-mini-dica">Toque na foto para ver grande</span></div>`:''}
         </div>`:''}
       </div>`;
     }).join('')}
