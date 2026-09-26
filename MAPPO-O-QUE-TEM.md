@@ -199,6 +199,43 @@ que já funcionavam e **não havia como perceber** antes do usuário.
 - **O runner tem a sua própria suíte** (`teste-runner.js`): ele é o único ponto que
   converte "uma suíte falhou" em "CI vermelho", então está testado com arquivos de mentira
   numa pasta temporária
+- **As regras do Firestore têm rede** (`teste-regras.js`, `npm run test:regras`): sobe o
+  **Firestore Emulator** e exercita o `firestore.rules` do repositório nos **dois sentidos**
+  — quem pode e quem **não** pode. Cobre isolamento entre empresas, link público do cliente
+  (vivo, vencido, sem sessão, e a tentativa de listar a coleção para enumerar todos os
+  tokens), workspace pendente de aprovação, documentos só-gestor, convite de prestador
+  (criar, revogar, consumir, prazo, escalonamento), avaliação write-only, o metadado do
+  workspace e o ponteiro de descoberta. Antes disso as regras eram a **única parte do app
+  sem rede nenhuma** — e defeito de regra não tem sintoma: ninguém reclama, nada quebra na
+  tela, e a empresa A lê os dados da empresa B em silêncio
+- **Gap já aceito pelo proprietário ganha um caso marcado `[GAP ACEITO]`**, com o porquê
+  escrito no próprio teste (técnico escreve `mappo_os` e `pub_*`; gestor cria ponteiro de
+  qualquer uid; convite antigo sem prazo continua valendo; **o mesmo convite serve a duas
+  pessoas** enquanto ninguém o marcar como usado). Não é para reprovar a decisão dele — é
+  para **impedir que ela mude sozinha**, sem ele saber. A contagem final **separa** garantia
+  de gap aceito, porque somar os dois fazia quem lê o verde superestimar a rede
+- **A suíte de regras se defende de encolher em silêncio**, o mesmo buraco que o runner tinha
+  um nível acima: a contagem de casos tem **piso conferido** (apagar um grupo reprova, não
+  fica verde com um terço da cobertura); as listas de `isGestorOnlyDoc` (10 docIds) e
+  `ramoValido` (8 chaves reservadas) são **lidas do próprio `firestore.rules`** e reprovam se
+  divergirem das do teste — acrescentar um item na regra sem acrescentar o caso é falha
+  nomeada; toda leitura permitida **confere o conteúdo** (para um membro a regra permite ler
+  documento inexistente, então "não lançou" não provava nada); e a suíte **coleta todas as
+  falhas** em vez de parar na primeira, porque afrouxar uma regra costuma derrubar dez
+  garantias e ver só uma esconde o tamanho do estrago
+- **A exigência do `CLAUDE.md` passou a ter comando.** "Regras só mudam após teste no
+  Emulator" existia desde sempre sem suíte versionada: as verificações de `c56d38b` (19), da
+  auditoria de 01/09 (50) e do ponteiro de workspace (9) foram rodadas à mão e
+  **descartadas**. Agora é `npm run test:regras`, e entra sozinha no `npm test`
+- **A suíte de regras nunca toca em produção:** projeto `demo-mappo-regras` no emulador
+  local — o prefixo `demo-` é a garantia do próprio Firebase de que nem o SDK nem o emulador
+  falam com um projeto real. Sem credencial, sem `firebase login`, sem rede. Custo zero,
+  igual na máquina do proprietário e no CI (que instala Java 21 e guarda o emulador em cache)
+- **`firebase.json`, `.firebaserc` e `firestore.indexes.json` passaram a ser versionados.**
+  Os três eram arquivos não commitados desde a auditoria inicial — sem eles o emulador não
+  sobe igual em lugar nenhum, e o CI não tinha como rodar a suíte de regras. O `firebase.json`
+  ganhou o bloco `emulators` (porta fixa, interface desligada), e é de lá que a suíte lê a
+  porta, para o número não viver em dois arquivos
 - **Suítes x diagnósticos:** suíte reprova de verdade; diagnóstico só mede e nunca reprova
   a execução, então investigação não vira alarme falso
 - **GitHub Actions a cada push em `main` e a cada PR** (`.github/workflows/testes.yml`):

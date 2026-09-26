@@ -15,6 +15,10 @@
 #     estado da conta do proprietario, e rodam so a mao (`npm run test:producao`).
 #     O runner ja os deixa de fora por padrao -- este CI nao passa nenhuma flag que os
 #     inclua, entao a exclusao vale em duas camadas.
+#   - nao toca no Firestore de producao para testar as regras. A suite testes/teste-regras.js
+#     sobe o Firestore Emulator local no projeto "demo-mappo-regras": o prefixo "demo-" e a
+#     garantia do proprio Firebase de que nem o SDK nem o emulador falam com um projeto real.
+#     Nao ha credencial, secret nem `firebase login` em nenhum passo deste workflow.
 #
 # O que ele NAO garante: o job roda DEPOIS do commit ja estar em main, e o GitHub Pages
 # publica de main sem consultar este resultado. Para o vermelho de fato impedir a
@@ -55,6 +59,15 @@ jobs:
           node-version: '24'
           cache: npm
 
+      # O Firestore Emulator (testes/teste-regras.js) roda em Java. O ubuntu-latest ja
+      # traz um JDK, mas nao ha promessa de qual versao -- fixar aqui e o que faz o CI
+      # subir o mesmo emulador que a maquina do proprietario (Java 21).
+      - name: Instalar o Java (o Firestore Emulator roda nele)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
       # ANTES do npm ci, de proposito: e o script de pos-instalacao do pacote
       # "playwright" que baixa o navegador. Restaurar o cache depois do npm ci nao
       # economizaria nada -- o download ja teria acontecido.
@@ -79,6 +92,20 @@ jobs:
       - name: Instalar o Chromium e as bibliotecas do sistema
         run: npx playwright install --with-deps chromium
 
+      # A chave inclui o package-lock, que fixa a versao do firebase-tools e portanto a
+      # do .jar do emulador: trocar de versao invalida o cache sozinho.
+      - name: Reaproveitar o emulador baixado
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/firebase/emulators
+          key: firebase-emuladores-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      # Passo separado de proposito: a suite de regras subiria o emulador sozinha (e
+      # baixaria o .jar na primeira vez), mas ai um download lento apareceria como
+      # "a suite de regras estourou o tempo" em vez de "o download demorou".
+      - name: Baixar o Firestore Emulator
+        run: npm run emulador:baixar
+
       # `npm test` == `node testes/executar.js`: em serie, com timeout por suite, e
       # ja sem os tres que batem em producao. Sai com codigo 1 se alguma suite falhar.
       - name: Rodar as suites
@@ -99,3 +126,5 @@ jobs:
             etiq-*.png
             mob-*.png
             testes/*.pdf
+            firestore-debug.log
+            firebase-debug.log

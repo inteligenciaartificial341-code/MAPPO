@@ -14,3 +14,9 @@ node_modules/
 
 # PDFs baixados pelas suites (teste-pdfos, teste-fotoidb) a cada execucao.
 /testes/*.pdf
+
+# Logs que o Firestore Emulator escreve na pasta onde roda (testes/teste-regras.js).
+# Ancorados com "/" pelo mesmo motivo das capturas acima: casar so na raiz.
+/firebase-debug.log
+/firestore-debug.log
+/ui-debug.log

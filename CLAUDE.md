@@ -116,7 +116,23 @@ Antes de qualquer edição: apresentar plano com arquivos e linhas afetadas. Agu
 ## Restrições específicas do MAPPO
 - `index.html` é single-file. Não refatorar para modular sem etapa dedicada e aprovada.
 - Toda alteração em `index.html` deve ser cirúrgica e localizada.
-- `firestore.rules` e `firestore.indexes.json` só mudam após teste no Emulator.
+- **`firestore.rules` só muda após teste no Emulator, e o comando que cumpre isso é
+  `npm run test:regras`** (`testes/teste-regras.js` — sobe o Firestore Emulator local no
+  projeto `demo-mappo-regras`, nunca produção). Ele já roda dentro do `npm test` e do CI.
+  Até 26/09/2026 esta linha era regra sem mecanismo: as verificações (19 para `c56d38b`,
+  50 para a auditoria de 01/09, 9 para o ponteiro de workspace) foram rodadas em scripts
+  efêmeros e **descartadas**. Mexer nas regras agora obriga a duas coisas: a suíte verde,
+  e o **caso novo acrescentado a ela** — regra alterada sem caso correspondente é regra
+  sem rede de novo. As listas de `isGestorOnlyDoc()` e `ramoValido()` são lidas do próprio
+  `firestore.rules` pela suíte, então acrescentar um item lá **reprova** até o caso existir.
+- **`firestore.indexes.json` continua SEM rede, e isto é honestidade, não descuido.**
+  Nenhum caso da suíte faz consulta que exija índice composto — hoje o arquivo está vazio
+  (`indexes: []`), então não há o que testar. No dia em que um índice for criado, a
+  exigência de "testar no Emulator" volta a ser disciplina e não mecanismo para este
+  arquivo, e precisa de caso próprio. **Não leia o verde de `npm run test:regras` como
+  cobertura de índice.**
+- Regra e teste que discordam: o teste descreve o que a regra faz **hoje**, e a divergência
+  vai ao proprietário. **Mudar a regra para o teste passar é proibido** (ver Proibido).
 - **Autenticação é real** (e-mail e senha do Firebase Auth) desde as Stories 1–2. A linha
   anterior dizia "cosmética, tratar como falha crítica" e era falsa desde então — corrigida
   em 26/09/2026. O mesmo valia para "senhas em texto plano": o app não guarda senha, quem
@@ -134,6 +150,8 @@ Antes de qualquer edição: apresentar plano com arquivos e linhas afetadas. Agu
   corrói a confiança nas regras que importam — se não há mecanismo, dizer que é disciplina.
 - Afirmar "verificado" com base em relatório de agente, ou em leitura de código sem execução.
 - Entregar correção de defeito sem o teste que o reproduz.
+- Afrouxar `firestore.rules` para fazer um teste de regra passar. A rede de regras
+  (`testes/teste-regras.js`) só vale enquanto ela for a parte que não se move.
 - Publicar com `npm test` vermelho. **Atenção: isto hoje é disciplina, não mecanismo** —
   leia a seção seguinte antes de confiar nela.
 
