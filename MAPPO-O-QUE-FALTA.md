@@ -10,8 +10,8 @@
 
 **Atualizado em:** 25/09/2026 · publicado até `3eb9663`
 
-**Próximo combinado:** testes anti-regressão no repositório, depois fotos no IndexedDB (ver o fim
-deste arquivo). Depois disso: GPS/localização por pessoa (Bloco 2, os três estruturais).
+**Próximo combinado:** testes anti-regressão no repositório (item 1 no fim deste arquivo).
+Depois: fotos de obra e de tarefas no IndexedDB, e GPS/localização por pessoa (Bloco 2).
 
 ---
 
@@ -80,7 +80,6 @@ A Etapa B (fotos por andar) provou que essa divisão funciona neste app — o ca
   Precisa sair da tela ou virar "em breve" — hoje é promessa falsa.
 - `orientation: portrait` no manifesto trava a rotação do app instalado
 - Tutorial sem suporte a teclado (Esc/setas) nem semântica de acessibilidade
-- Modal do link de acompanhamento não mostra a validade nem se já foi revogado
 
 ---
 
@@ -140,8 +139,10 @@ ausência de uma rede que pegue o bug antes do usuário.
 - O que não der para testar em navegador automatizado (Google Agenda, notificação real,
   WhatsApp) vira uma lista curta de verificação manual, entregue ao proprietário.
 
-**Estado hoje:** 19 suítes escritas e passando, mais 5 diagnósticos — todas fora do
-repositório. Migrar é o trabalho.
+**Estado em 25/09/2026:** **26 suítes** escritas e passando, mais 5 diagnósticos — todas fora do
+repositório, numa pasta temporária do sistema. Só hoje foram escritas 7 suítes novas, e foram
+elas que provaram cada correção do dia (link expirado, foto sumindo, foto presa no aparelho).
+Migrar é o trabalho, e o risco de perdê-las cresceu junto com o valor delas.
 
 ### 2. Fotos no IndexedDB — ✅ feito para as ordens de serviço, falta obra e tarefas
 
