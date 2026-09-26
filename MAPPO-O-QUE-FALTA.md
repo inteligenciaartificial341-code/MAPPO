@@ -8,11 +8,10 @@
 > `MAPPO-O-QUE-TEM.md` (seção do recurso + linha no histórico). Um item só existe em um
 > dos dois arquivos, nunca nos dois.
 
-**Atualizado em:** 26/09/2026 · publicado até `9d99f3c`
+**Atualizado em:** 26/09/2026 · publicado até `fc82b6a`
 
-**Próximo combinado:** fotos de obra e de tarefas no IndexedDB, e depois GPS/localização por
-pessoa (Bloco 2). Os testes anti-regressão no repositório — que eram o item 1 — **foram
-entregues em 25/09/2026**: `testes/`, `npm test` e o GitHub Actions a cada push.
+**Próximo combinado:** GPS/localização por pessoa (Bloco 2), depois publicar as regras junto
+com o teste, e então os cinco pontos de 25/09.
 
 ---
 
@@ -123,17 +122,27 @@ Google** ao concluir a OS — é um link configurável e um botão de WhatsApp, 
 > Eram dois. O primeiro — **testes anti-regressão dentro do repositório** — foi entregue em
 > 25/09/2026 e está descrito no [MAPPO-O-QUE-TEM.md](MAPPO-O-QUE-TEM.md).
 
-### Fotos no IndexedDB — ✅ feito para as ordens de serviço, falta obra e tarefas
+### Fotos no IndexedDB — ✅ concluído em 26/09/2026
 
-**Feito em 25/09/2026** (`d79ad5c` + `d96a174`): as fotos das OS saíram do `localStorage` e
-vivem no IndexedDB, carregadas só quando aparecem na tela. Uma OS com 4 fotos ocupava 960 KB
-no aparelho e passou a ocupar 0 KB.
+**Feito:** ordens de serviço em `d79ad5c` + `d96a174`; obra e tarefa em `fc82b6a`. As fotos
+vivem no IndexedDB e são carregadas só quando aparecem na tela.
 
-**O que falta:** aplicar o mesmo às **fotos de obra (VRF)** e às **fotos de tarefas**, que
-ainda ficam no `localStorage`. A nuvem delas já foi resolvida em `8a21647` (um documento por
-foto), então o que resta é só o lado do aparelho — mesmo mecanismo já construído e testado,
-só apontado para as outras duas coleções.
----
+**Correção de registro:** a versão anterior deste item afirmava que a nuvem das tarefas tinha
+sido resolvida em `8a21647`. **Era falso** — `8a21647` cobriu só as obras. As fotos de tarefa
+nunca tinham sido separadas, e isso era um defeito **vivo**: medido, uma tarefa com 20 fotos
+era recusada inteira pelo servidor (`recusas:1`, `nuvemKB:0`). Corrigido em `fc82b6a`.
+
+**O que restou, e é decisão do proprietário:**
+
+- O ✕ e o `excluirTarefa` deixam **documentos de foto órfãos** na nuvem (até ~1,1 MB por
+  tarefa cheia). Não perde nada — acumula. Implementar a exclusão é apagar prova de serviço,
+  e por isso não foi feito sem decisão.
+- O armazém do aparelho **só cresce**: `idbApagarFoto` existe e nunca é chamado. Há
+  visibilidade (contagem e aviso de cota no diagnóstico), não há poda. Quando a cota do
+  IndexedDB estourar, tudo cai no formato antigo e os bytes voltam ao `localStorage`.
+- `_aplicarLegadoFotos` ainda admite bytes no `localStorage`. É a rede de compatibilidade que
+  este arquivo manda não tocar até todos os aparelhos abrirem a versão nova, mas é uma volta
+  real ao teto de ~5 MB.
 
 ## Achado em 26/09/2026 — a rede de regras prova o arquivo, não o que está no ar 🟠
 
