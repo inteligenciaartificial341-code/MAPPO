@@ -8,7 +8,7 @@
 > antes do commit + publicação. Ao final de cada publicação: mover o item de
 > `MAPPO-O-QUE-FALTA.md` para cá e registrar no histórico no fim do arquivo.
 
-**Estado:** publicado até o commit `56db2a0` · atualizado em 25/09/2026
+**Estado:** publicado até o commit `c8b3043` · atualizado em 25/09/2026
 **Endereço:** https://inteligenciaartificial341-code.github.io/MAPPO/
 
 ---
@@ -231,6 +231,7 @@ que já funcionavam e **não havia como perceber** antes do usuário.
 
 | Data | Commit | O que entrou |
 |---|---|---|
+| 26/09/2026 | `c8b3043` | **Correções da revisão adversarial da rede.** Três camadas de revisão acharam 19 defeitos no que tinha acabado de entrar — o mais grave: apagar uma linha `console.log` reclassificava a suíte como diagnóstico e ela **parava de reprovar em silêncio**. Agora `teste-*.js` é suíte sempre, e sem o veredito é erro nomeado. Junto: o runner ganhou a própria suíte (ninguém testava o testador), e o `CLAUDE.md` passou a dizer com honestidade que o CI **avisa e não impede** publicação, com o passo a passo da proteção de ramo que o transformaria em impedimento |
 | 25/09/2026 | `56db2a0` | **Rede anti-regressão: suítes versionadas, um comando e CI.** As 25 suítes Playwright e 9 diagnósticos que provaram cada correção da semana viviam numa pasta temporária do sistema, **já apagada três vezes** — enquanto não estavam versionados, não existiam. Agora vivem em `testes/`, com `npm test` rodando tudo em série e terminando na contagem (`25/25 suites passaram`), e o GitHub Actions rodando o mesmo comando a cada push, de graça. O runner classifica pelo veredito `TODOS OS CHECKS … PASSARAM` e não por lista de nomes, então suíte nova entra sozinha e suíte que parou de imprimir o veredito aparece como falha. Os três que batem no site publicado e no Firestore real ficam fora do CI. Junto, a regra escrita em `CLAUDE.md`: **todo defeito relatado vira teste antes de virar correção** |
 | 25/09/2026 | `3eb9663` | **A foto ficava presa no aparelho que a tirou.** O texto sincronizava entre celular e notebook, a foto não. As fotos estavam no servidor o tempo todo — faltava o **ponteiro**: o índice de fotos da ordem (`__f`) era decidido pelo merge campo a campo, e o índice velho da nuvem vencia o novo. Junto: marcar um item do checklist num aparelho fazia o array local inteiro vencer, levando junto a ausência das fotos do outro. Agora índice de foto é união e cada foto é decidida sozinha — uma foto só some quando ninguém mais a tem |
 | 25/09/2026 | `82c6317` | **A nuvem apagava a foto recém-tirada ao devolver a ordem.** Salvar a etiqueta da condensadora fazia a da evaporadora sumir, e a OS voltava de concluída para em andamento (sem a foto ela deixa de cumprir os requisitos). O app só preservava as fotos locais que a **nuvem já conhecia** — uma foto tirada agora ainda não está lá, então o valor vazio do remoto a sobrescrevia. Regra agora explícita: a nuvem não conhecer uma foto nunca é razão para apagá-la |

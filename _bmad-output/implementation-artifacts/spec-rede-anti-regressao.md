@@ -2,7 +2,7 @@
 title: 'Rede anti-regressão: suítes versionadas, um comando e CI'
 type: 'chore'
 created: '2026-09-25'
-status: 'in-review'
+status: 'done'
 review_loop_iteration: 0
 baseline_commit: '5d93539dff3becabb2dc52a4b0162a21c49cb18a'
 context: []
