@@ -51,16 +51,27 @@ function assert(c,m){ if(!c) throw new Error('FALHOU: '+m); console.log('  ok - 
       {id:'pub_zzz',     data:()=>({json:JSON.stringify({fotos:['z'.repeat(9000)]}),updatedAt:Date.now()})},
       {id:'lixo_qualquer', data:()=>({json:'{"a":1}',updatedAt:Date.now()})}
     ];
-    fbDB={collection:()=>({doc:()=>({collection:()=>({get:async()=>({size:docs.length,forEach:f=>docs.forEach(f)})})})})};
+    /* CIENTE DO CAMINHO: o fake antigo devolvia estes mesmos documentos para QUALQUER colecao,
+       entao _pullPosicoes (que le workspaces/{ws}/live) recebia os docs de data/ como se fossem
+       posicoes e enchia _posicoesPorUid de uid inventado. A colecao 'live' aqui e vazia, que e
+       o estado real de um workspace sem ninguem com GPS. */
+    fbDB={collection:()=>({doc:()=>({collection:(nome)=>({get:async()=>(nome==='data'
+      ?{size:docs.length,forEach:f=>docs.forEach(f)}
+      :{size:0,forEach:()=>{}})})})})};
     await fbPullAll();
+    /* Procura em TODO o log, nao na ultima linha nem numa janela de N: desde 27/09/2026 o
+       fbPullAll baixa tambem as posicoes por pessoa (colecao live/, um documento por uid) e
+       loga depois. O que este check protege e o "1 de 3" EXISTIR -- nao ele ser o ultimo. */
     return {manut:!!localStorage.getItem('mappo_manut'), pub:!!localStorage.getItem('pub_zzz'),
-            lixo:!!localStorage.getItem('lixo_qualquer'), log:_fbLogs[_fbLogs.length-1].msg};
+            lixo:!!localStorage.getItem('lixo_qualquer'),
+            contou:_fbLogs.some(l=>/1 de 3/.test(l.msg)),
+            log:_fbLogs.map(l=>l.msg).join(' | ')};
   });
   console.log('  ', r4.log);
   assert(r4.manut===true,'documento legítimo foi aplicado');
   assert(r4.pub===false,'pub_ foi ignorado no pull');
   assert(r4.lixo===false,'documento desconhecido foi ignorado');
-  assert(/1 de 3/.test(r4.log),'o log mostra quantos de quantos foram aplicados');
+  assert(r4.contou===true,'o log mostra quantos de quantos foram aplicados');
 
   console.log('\n=== erros de pagina ==='); console.log(erros.length?erros:'(nenhum)');
   assert(erros.length===0,'nenhum erro de página');

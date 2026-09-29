@@ -183,6 +183,44 @@ service cloud.firestore {
       allow write: if isMember(wsId) && isAtivo(wsId) && (!isGestorOnlyDoc(docId) || isGestor(wsId));
     }
 
+    /* ── Posição de cada pessoa: um documento por uid (2026-09-27) ──
+       Até aqui a posição de TODO MUNDO vivia em dois blobs compartilhados
+       (data/mappo_locations e data/mappo_live) e a regra de data/{docId} só exige ser
+       membro: qualquer técnico podia gravar a posição de qualquer colega. É a prova de onde
+       a pessoa esteve, e ela era falsificável. Aqui só o dono do uid escreve o documento
+       dele -- request.auth.uid vem do token do Firebase Auth, não de campo enviado.
+
+       O INVARIANTE DO NOME, dito com precisão: o documento SIM carrega um nome -- o campo
+       'by' do envelope, que _gravarMesclado() estampa em toda escrita (index.html). O que
+       segura a correção é o LEITOR: _nomeDoUid() resolve o nome só por mappo_tecnicos
+       (t.uid === docId), que é gestor-only (isGestorOnlyDoc), e IGNORA 'by' por completo.
+       'by' é diagnóstico. Se algum dia alguém renderizar a partir dele, um técnico passa a
+       reivindicar o nome de outro e esta correção vira teatro.
+
+       allow delete: if false -- nem o próprio dono apaga. Nenhum caminho do app apaga, e
+       posição é prova de onde a pessoa esteve: deixar o dono apagar o próprio rastro é o
+       mesmo tipo de buraco que deixar um colega falsificá-lo.
+       isRealAuth() TAMBÉM na leitura: nenhum fluxo legítimo aqui é anônimo -- o link público
+       do cliente lê data/pub_*, nunca este caminho.
+       hasOnly + json is string: sem validar a forma, um membro grava campos arbitrários no
+       próprio uid e todo colega baixa isso a cada boot (_pullPosicoes faz .get() da coleção
+       inteira). Limita a FORMA, não o TAMANHO -- o teto por documento continua sendo só o
+       1 MiB do Firestore, e isso está fixado como caso [GAP ACEITO] em teste-regras.js.
+       Leitura por qualquer membro do workspace ativo: é o mapa da equipe, o mesmo alcance
+       que o blob antigo já tinha. Não-membro e workspace pendente continuam de fora.
+
+       Bloco ADITIVO: nenhuma linha anterior deste arquivo muda. O caminho não existia antes
+       e o arquivo não tem catch-all, então até agora ele negava por omissão -- publicar
+       esta regra ANTES do código novo não altera comportamento nenhum. */
+    match /workspaces/{wsId}/live/{uid} {
+      allow read: if isRealAuth() && isMember(wsId) && isAtivo(wsId);
+      allow create, update: if isRealAuth() && isMember(wsId) && isAtivo(wsId)
+        && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['json','updatedAt','by'])
+        && request.resource.data.json is string;
+      allow delete: if false;
+    }
+
     /* ── Avaliação do app (Story 14, feedback do piloto) ──────
        Coleção raiz, fora de qualquer workspace -- write-only do lado do cliente:
        nenhum perfil (gestor/técnico) lê de volta, nem o próprio autor (Never do

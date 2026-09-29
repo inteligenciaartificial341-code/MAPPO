@@ -10,8 +10,9 @@
 
 **Atualizado em:** 26/09/2026 · publicado até `fc82b6a`
 
-**Próximo combinado:** GPS/localização por pessoa (Bloco 2), depois publicar as regras junto
-com o teste, e então os cinco pontos de 25/09.
+**Próximo combinado:** o GPS/localização por pessoa está **construído e ainda não publicado** —
+a regra vai ao Console **antes** do código (ver as seções do Bloco 2). Depois disso, os cinco
+pontos de 25/09.
 
 ---
 
@@ -63,16 +64,104 @@ manipulando o SDK direto, e as regras já impedem um gestor de apagar o próprio
 workspace são um blob JSON (`{json:"..."}`) e a regra do Firestore **não lê dentro de uma
 string JSON** — ela só sabe dizer "é membro?", nunca "esse técnico pode mexer nisso?".
 
-| Item | O que seria preciso |
-|---|---|
-| Técnico escreve avatar/localização de outro | Um documento por pessoa (`live/{uid}`) + regra `uid == request.auth.uid` |
-| Técnico vê obras não atribuídas | Dividir `mappo_vrf_obras` por obra + regra por atribuição |
-| OS alterável por qualquer membro | Dividir `mappo_os` por OS + campo de dono fora do blob |
+| Item | O que seria preciso | Estado |
+|---|---|---|
+| Localização por pessoa | Um documento por pessoa (`live/{uid}`) + regra `uid == request.auth.uid` | **Construído, não publicado** — ver as seções abaixo |
+| Avatar por pessoa | O mesmo padrão aplicado a `mappo_avatares` | Pendente (ver "Fora do escopo") |
+| Técnico vê obras não atribuídas | Dividir `mappo_vrf_obras` por obra + regra por atribuição | Pendente |
+| OS por dono | Dividir `mappo_os` por OS + campo de dono fora do blob | Pendente |
 
 A Etapa B (fotos por andar) provou que essa divisão funciona neste app — o caminho existe e
-é trabalho conhecido, não pesquisa. **Prioridade entre eles: o GPS/localização**, porque é o
-único onde falsificar tem consequência real (é a prova de onde o técnico esteve).
-**Próximo combinado com o proprietário.**
+é trabalho conhecido, não pesquisa. **A localização era a prioridade** (o único onde falsificar
+tem consequência real: é a prova de onde o técnico esteve) e foi feita primeiro; o avatar, que
+era a outra metade da mesma linha, virou item separado porque a consequência dele é muito menor.
+**Os dois itens de obra/OS seguem sendo próximo combinado com o proprietário.**
+
+### Remover a leitura do blob antigo de posição — é o que encerra o item 🟠
+
+**Ainda pendente**, e é a parte que falta para o item de GPS/localização acima poder ser
+considerado resolvido de verdade. `data/mappo_locations` e `data/mappo_live` continuam em
+O caminho antigo permanece em `SYNC_KEYS` durante a transição e mantém a regra antiga, mais
+frouxa que a nova. Enquanto ele for lido, a garantia da regra nova vale para quem já atualizou,
+não para todos. **O detalhe técnico está no spec local** (`_bmad-output/implementation-artifacts/`,
+fora do repositório de propósito: este repositório é público).
+
+**Por que não sai agora:** um celular ainda na versão antiga só escreve lá, e essa leitura é o
+que mantém essa pessoa visível no mapa. Remover só **depois que todos os aparelhos abrirem a
+versão nova** — e isso é decisão do proprietário, não dedução minha.
+
+**O que já está de pé:** o risco residual está fixado como caso `[GAP ACEITO]` no grupo 11 de
+`testes/teste-regras.js`, esperando por esse dia. E o documento por-uid já **tem precedência** sobre
+o caminho antigo, então quem atualizou passa a contar com a garantia nova desde já; quem ainda não
+atualizou segue visível, sob a garantia antiga.
+
+### Fora do escopo do GPS por pessoa, de propósito
+
+Três pendências que o trabalho de posição por pessoa encostou e **não** resolveu:
+
+- **`mappo_avatares` continua um blob por nome.** Mesma origem, consequência muito menor: é um
+  dos 6 SVGs da raiz, não é prova
+  de nada. O caminho já está aberto — `live/{uid}` mostrou que funciona.
+- **`mappo_localizacao_historico` continua uma lista só-aditiva compartilhada.** É `APPEND_LISTS`
+  e o merge junta tudo: dividir por pessoa é a mesma mudança de estratégia de sincronização
+  descrita no item A de "Combinado em 25/09/2026". Fica junto com aquele trabalho, não com este.
+- **Documento órfão de técnico removido.** Removido o membership, a pessoa não consegue mais
+  gravar (`isMember` falha), mas o `live/{uid}` dela ficaria na nuvem. Não vira marcador (o uid
+  não casa com nenhum `t.uid`, e o app ignora sem apagar), então é lixo silencioso, não
+  vazamento. Apagar exigiria dar a alguém permissão de escrita no documento de outra pessoa — e a
+  regra proíbe até o próprio dono apagar (`allow delete: if false`). Se um dia valer a pena, a
+  limpeza é pelo Console/Admin SDK, não pelo app.
+
+### Achado de brinde, já corrigido: a migração de fotos da OS podia marcar "migrado" sem migrar
+
+Não é pendência — é uma correção que entra junto com esta entrega, e fica registrada aqui até a
+publicação porque nasceu deste trabalho.
+
+`teste-fotoidb.js` passou a falhar ~1 em 10 (medido: **4/43** na árvore com a posição por pessoa,
+**0/33** em `d58536b`). Instrumentando o CHECK 15 — o teste, não o app — a linha do tempo mostrou
+o que estava acontecendo:
+
+```
+os:entrou  marca:null  discoBytes:true  memBytes:true
+os:saiu    {"movidas":1,"erros":0}  marca:"1"  discoBytes:TRUE   <-- moveu, marcou, e o disco ficou
+```
+
+**A causa, no app e anterior a esta entrega:** `migrarFotosParaOArmazem()` captura os *setters* de
+cada campo de foto **antes** do `await guardarFotoNoAparelho(...)`. O `setInterval` de 5 s de
+`startNotifChecker` faz `osList=JSON.parse(localStorage.getItem('mappo_os'))` — troca o array
+**inteiro** por objetos novos (um pull da nuvem faz o mesmo, via `_aplicarNaMemoria`). Caindo
+dentro daquele `await`, os setters passam a mexer num objeto **órfão**: `saveOS()` grava o
+`osList` novo, que ainda tem os bytes, e a marca de migrado é escrita por cima disso. A migração
+**nunca mais é tentada** e as fotos ficam no `localStorage` para sempre — de volta ao teto de
+~5 MB do aparelho, que é exatamente o que essa migração existe para resolver.
+
+O trabalho da posição por pessoa não criou o defeito: aumentou a chance de ele aparecer, porque
+mudou o tempo dentro daquela janela. É o mesmo problema que `_reancorarExecOS` já resolvia para a
+execução aberta, e a correção é a mesma ideia — `_reancorarConversoesOS()` reaplica as conversões
+no `osList` **atual**, por `(id da OS, campo)`, e só quando o campo ainda tem exatamente aqueles
+bytes (foto nova nunca é sobreposta por referência antiga).
+
+**Rede:** `teste-fotoidb.js` ganhou o CHECK 17, que **força** a troca do `osList` no meio da
+migração em vez de esperar pela corrida. Ele falha em `d58536b` (20/20) e passa aqui, e a suíte
+saiu de 4/43 para **0/20**.
+
+**Segundo flake, esse sim pré-existente e provado:** `teste-fototarefa.js` reprovava no CHECK 11
+("a foto fantasma nao subiu") **1/15 na árvore atual e 1/15 em `d58536b`** — mesma taxa, mesmo
+assert, então não é desta entrega. Causa: `zerar()` limpava a nuvem falsa mas **não cancelava os
+envios agendados** por checks anteriores (`fbPush` com debounce de 50 ms), e um deles caía dentro
+do CHECK 11 empurrando o estado velho — 2 documentos de foto aparecendo "do nada" numa nuvem que
+o check exige vazia. Corrigido no próprio `zerar()` (cancela `_pushTimers`), sem enfraquecer
+assert nenhum: **0/20** depois. O mesmo cancelamento entrou no `zerar()` de
+`testes/teste-gpspessoa.js`, que tinha a mesma brecha.
+
+### Teto de TAMANHO do documento de posição — decisão do proprietário
+
+A regra de `live/{uid}` valida a **forma** do documento (`hasOnly(['json','updatedAt','by'])` +
+`json is string`), mas **não o tamanho**: um membro pode estacionar centenas de KB no próprio uid,
+e todo colega baixa isso a cada boot (`_pullPosicoes` lê a coleção inteira). Um teto de bytes na
+regra resolveria, e **não foi acrescentado** — apertar demais faria o GPS legítimo falhar em
+campo, e essa escolha é do proprietário, não minha. Está fixado como `[GAP ACEITO]` no grupo 11
+de `testes/teste-regras.js` para não mudar sozinho.
 
 ## Bloco 3 — coisas que enganam o usuário
 

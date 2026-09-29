@@ -1395,6 +1395,11 @@ function _bytesDe(str){
   catch(e){return (str||'').length;}   // navegador sem Blob: aproximação
 }
 let _falhasEnvio={};        // {chave:{erro,hora}} — enquanto tiver algo aqui, a faixa fica na tela
+/* Falha de LEITURA é outra coisa e tem que ser dita como outra coisa: "algo não está sendo
+   salvo na nuvem" com a leitura falhando é mentira — nada deixou de ser salvo. Estado próprio
+   também para um envio bem-sucedido NÃO apagar a falha de leitura (eram apagadas juntas, e a
+   faixa sumia enquanto o mapa da equipe continuava sem carregar). */
+let _falhasLeitura={};      // {chave:{erro,hora}}
 let _chavesQuaseCheias={};  // {chave:bytes} — passou do limiar, ainda não estourou
 /* Versão nova publicada com esta aba aberta. O Service Worker assume o controle na hora, mas
    o JavaScript DESTA página continua o antigo até recarregar — e aí ações que dependem de
@@ -1412,6 +1417,13 @@ const NOMES_DOC={
   mappo_preco_config:'Tabela de preço', mappo_financeiro_notas:'Notas de adiantamento',
   mappo_checklist_config:'Checklist', mappo_settings:'Configurações',
   mappo_avatares:'Avatares', mappo_vrf_fases_config:'Fases do VRF',
+  /* Não é chave de localStorage: é o rótulo das falhas da coleção live/ (um documento por
+     pessoa), que precisa de nome próprio na faixa de sincronização -- "GPS ao vivo" nomearia
+     o blob antigo e mandaria o gestor olhar o lugar errado. */
+  /* UM nome para o recurso, nas duas direções: a mesma causa-raiz (regra de live/{uid} não
+     publicada) mostrava "GPS ao vivo" quando falhava escrevendo e "Posições da equipe" quando
+     falhava lendo, e quem lê a faixa não tinha como saber que era o mesmo problema. */
+  mappo_posicoes:'Posições da equipe',
   mappo_modulo_config:'Nome do módulo', mappo_vrf_fotos_meta:'Dados das fotos'
 };
 function _nomeAmigavel(k){
@@ -1453,7 +1465,8 @@ function _atualizarAlertaSync(){
   const el=document.getElementById('syncAlerta');
   if(!el)return;
   const falhas=Object.keys(_falhasEnvio), cheias=Object.keys(_chavesQuaseCheias);
-  if(!_semNuvem()&&!_versaoNovaDisponivel&&!falhas.length&&!cheias.length){el.hidden=true;el.className='sync-alerta';el.innerHTML='';el.onclick=()=>nav('config');return;}
+  const leituras=Object.keys(_falhasLeitura);
+  if(!_semNuvem()&&!_versaoNovaDisponivel&&!falhas.length&&!leituras.length&&!cheias.length){el.hidden=true;el.className='sync-alerta';el.innerHTML='';el.onclick=()=>nav('config');return;}
   el.hidden=false;
   /* SEM CONEXÃO tem a prioridade máxima: é a mensagem de maior consequência ("nada está
      sendo salvo fora daqui"), e a ação que resolve — recarregar — é a mesma do aviso de
@@ -1493,6 +1506,19 @@ function _atualizarAlertaSync(){
         ? escapeHtml(String(falhas.length))+' tipos de dado não estão'
         : '"'+escapeHtml(_nomeAmigavel(k))+'" não está'} chegando ao servidor desde ${escapeHtml(f.hora)}.
       O trabalho continua neste aparelho, mas as outras pessoas não estão vendo.</span>
+      <span class="sync-alerta-acao">Ver detalhes</span>`;
+  }else if(leituras.length){
+    /* LEITURA, não escrita: o trabalho daqui está subindo normalmente; o que não chega é o
+       dado dos outros. Dizer "não está sendo salvo" aqui manda o gestor caçar o problema
+       errado — e o problema real (regra não publicada) fica invisível. */
+    const k=leituras[0], f=_falhasLeitura[k];
+    el.className='sync-alerta erro';
+    el.innerHTML=`<span class="sync-alerta-ico">📡</span>
+      <span class="sync-alerta-txt"><b>Não estou conseguindo ler um dado da nuvem.</b>
+      ${leituras.length>1
+        ? escapeHtml(String(leituras.length))+' tipos de dado não estão'
+        : '"'+escapeHtml(_nomeAmigavel(k))+'" não está'} chegando aqui desde ${escapeHtml(f.hora)}.
+      O que você lançar continua sendo salvo — o que falta é o que vem dos outros.</span>
       <span class="sync-alerta-acao">Ver detalhes</span>`;
   }else{
     const k=cheias[0], pct=Math.round(_chavesQuaseCheias[k]/DOC_LIMITE_BYTES*100);
@@ -1697,22 +1723,65 @@ function _preservarFotosNoMerge(merged,remoto,local){
    ela passa a ser lida. A marca de "migrado" só é gravada se TODAS passarem, senão a
    próxima abertura tenta de novo o que faltou. */
 const MIGR_IDB_CHAVE='mappo_fotos_idb';
+/* Reancora as conversões no osList ATUAL, antes de gravar.
+   POR QUE ISTO EXISTE (defeito achado em 28/09/2026, instrumentando o CHECK 15 de
+   teste-fotoidb.js, que falhava ~1 em 10): os setters de _camposFotoOS são capturados ANTES do
+   `await guardarFotoNoAparelho(...)`, e o setInterval de 5 s de startNotifChecker troca o
+   `osList` INTEIRO por objetos novos (`osList=JSON.parse(localStorage...)`) -- um pull da nuvem
+   faz o mesmo, via _aplicarNaMemoria. Caindo dentro daquele await, os setters passam a mexer
+   num objeto ÓRFÃO: saveOS() grava o osList novo, que ainda tem os BYTES, e a marca de migrado
+   é escrita por cima disso. Silencioso e permanente: a migração nunca mais é tentada (a marca
+   está lá) e as fotos ficam no localStorage para sempre -- de volta ao teto de ~5 MB do
+   aparelho, que é justamente o que esta migração existe para resolver.
+   É o mesmo problema que _reancorarExecOS resolve para a execução aberta, e a mesma solução:
+   identificar por id, nunca por referência de objeto.
+   Só troca o campo que ainda tem EXATAMENTE aqueles bytes -- se uma foto nova entrou nesse meio
+   tempo, ela fica: referência antiga nunca sobrepõe foto nova. */
+function _reancorarConversoesOS(feitas){
+  if(!feitas||!feitas.length)return 0;
+  const porId={};
+  (osList||[]).forEach(o=>{if(o&&o.id!==undefined)porId[String(o.id)]=o;});
+  let reancoradas=0;
+  feitas.forEach(f=>{
+    const os=porId[String(f.osId)];
+    if(!os)return;                      // a OS saiu da lista: nada a reaplicar
+    _camposFotoOS(os,(campo,get,set)=>{
+      if(campo!==f.campo)return;
+      if(get()!==f.uri)return;          // já é a referência, ou já é outra foto
+      set(f.ref);reancoradas++;
+    });
+  });
+  if(reancoradas)
+    fbLog(reancoradas+' conversão(ões) de foto reancoradas: a lista de ordens foi trocada durante a migração','info');
+  return reancoradas;
+}
+
 async function migrarFotosParaOArmazem(){
   try{if(localStorage.getItem(MIGR_IDB_CHAVE)==='1')return {pulou:true};}catch(e){return {pulou:true};}
   let movidas=0,erros=0;
+  /* Cada conversão feita, identificada por (id da OS, campo) -- nunca pela referência ao
+     objeto, que pode ser trocada por baixo durante os awaits. Ver _reancorarConversoesOS. */
+  const feitas=[];
   for(const os of (osList||[])){
     if(!os||!os.id)continue;
     const pendentes=[];
     _camposFotoOS(os,(campo,get,set)=>{
       const v=get();
-      if(_ehFotoDeVerdade(v))pendentes.push({id:_fotoOSDoc(os.id,campo),uri:v,set});
+      if(_ehFotoDeVerdade(v))pendentes.push({id:_fotoOSDoc(os.id,campo),campo,uri:v,set});
     });
     for(const p of pendentes){
-      try{await guardarFotoNoAparelho(p.id,p.uri);p.set(p.id);movidas++;}
+      try{
+        await guardarFotoNoAparelho(p.id,p.uri);
+        p.set(p.id);
+        feitas.push({osId:os.id,campo:p.campo,ref:p.id,uri:p.uri});
+        movidas++;
+      }
       catch(e){erros++;fbLog('Não consegui mover uma foto para o armazém: '+e.message,'erro');}
     }
   }
   if(movidas){
+    // o osList pode ter sido trocado durante os awaits acima -- reaplica por id, não por objeto
+    _reancorarConversoesOS(feitas);
     /* erros++ aqui também (defeito anterior a esta entrega, mesma classe do da migração de
        obra/tarefa): sem ele, uma gravação que falha por cota deixava a marca ser gravada e a
        migração das OS nunca era retentada. */
@@ -2429,6 +2498,7 @@ function _startPolling(){
         fbPush(key); // sobrou pendência de um envio que falhou: tenta de novo
       }
     });
+    _retentarLeituraPosicoes();   // leitura de posição que falhou também tem retry
   },3000);
 }
 
@@ -2973,6 +3043,342 @@ async function _gravarMesclado(ref,mesclar){
   return out;
 }
 
+/* ══════════════════════════════════════════════════════════════════════
+   POSIÇÃO POR PESSOA: UM DOCUMENTO POR UID (27/09/2026)
+   A posição de todo mundo vivia em dois blobs compartilhados — data/mappo_locations e
+   data/mappo_live — e a regra de data/{docId} só exige ser membro do workspace. Qualquer
+   técnico podia gravar a posição de qualquer colega, e é a prova de onde a pessoa esteve:
+   ela era falsificável. Agora cada um grava só workspaces/{ws}/live/{uid}, e o
+   firestore.rules exige request.auth.uid == uid.
+
+   O localStorage NÃO muda de forma: continua mappo_locations[nome] e mappo_live[nome], que é
+   o que as ~10 leituras do app esperam (renderMapa, getTecnicoLoc, atualizarMarcadores, o
+   mapa do VRF, o painel do mapa). Quem reparte na subida e remonta na descida é esta camada
+   — o mesmo padrão "local unificado, nuvem repartida" já provado nas fotos de OS, de andar e
+   de tarefa. Nada de um quarto jeito de sincronizar: a transação de merge é a mesma
+   (_gravarMesclado) e o critério de quem vence é o mesmo (_mergeMapa).
+
+   O INVARIANTE DO NOME, dito com precisão (corrigido em 28/09/2026 — a versão anterior deste
+   comentário dizia "o nome não sai daqui", e era falsa): o documento CARREGA um nome, o campo
+   'by' que _gravarMesclado() estampa em toda escrita. O que segura a correção é o LEITOR:
+   _nomeDoUid() resolve o nome só por mappo_tecnicos (t.uid === docId), que é gestor-only na
+   regra, e IGNORA 'by' por completo. 'by' é diagnóstico. No dia em que alguém renderizar a
+   partir dele, o técnico volta a poder reivindicar o nome de outro e isto vira teatro.
+
+   TRANSIÇÃO: escreve SÓ por uid e LÊ os dois (por uid e o blob antigo, que continua em
+   SYNC_KEYS). Um celular ainda na versão antiga segue aparecendo no mapa — mas a junção NÃO
+   é por data: ver _supremaciaPorUid, que é o que impede o blob falsificável de vencer.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/* Posições como vieram da nuvem, por uid. Guardar o cru é o que permite remontar quando a
+   lista de técnicos muda: um uid que só agora foi cadastrado, ou um técnico renomeado, volta
+   a ter nome sem esperar o próximo ping de GPS. */
+const _posicoesPorUid={};
+
+/* uid → nome, só pela lista de técnicos. Sem correspondência devolve null e o documento é
+   IGNORADO na remontagem — nunca apagado, nunca alterado. */
+const _nomesAmbiguosAvisados={};
+function _nomeDoUid(uid){
+  if(!uid)return null;
+  let lista;
+  try{lista=tecnicos||[];}
+  catch(e){return null;} // boot: a declaração de tecnicos ainda não rodou (mesmo caso de _execucaoAberta)
+  /* ativo!==false: técnico desativado não volta ao mapa por uma posição antiga. nomesTecnicos()
+     já filtra na renderização, mas remontar aqui reescreveria a entrada dele no localStorage a
+     cada snapshot — dado de alguém que o gestor desligou. */
+  const casam=lista.filter(x=>x&&x.uid===uid&&x.ativo!==false);
+  const nome=casam.length?casam[0].nome:null;
+  if(!nome)return null;
+  /* Nome AMBÍGUO não vira marcador. O localStorage é chaveado por nome: dois técnicos ativos
+     com o mesmo nome fariam a posição de um sobrepor a do outro, e o mapa mostraria um só
+     ponto trocando de lugar. Ignorar é a única opção que não inventa dado — e não é silencioso. */
+  if(lista.filter(x=>x&&x.nome===nome&&x.ativo!==false).length>1){
+    if(!_nomesAmbiguosAvisados[nome]){
+      _nomesAmbiguosAvisados[nome]=true;
+      fbLog('Dois técnicos ativos chamados "'+nome+'": a posição deles fica fora do mapa até os nomes serem diferentes','erro');
+    }
+    return null;
+  }
+  return nome;
+}
+
+/* Guarda o documento de uma pessoa como ele veio. Nada é descartado por "não é o formato que
+   eu espero": json que não parseia vira {} e simplesmente não contribui com nada — não
+   remove o que já está aqui. */
+function _guardarPosicaoDeUid(uid,jsonStr){
+  if(!uid||typeof jsonStr!=='string')return;
+  _posicoesPorUid[uid]=_obj(jsonStr);
+}
+
+/* Tira as chaves vazias: um campo ausente nunca pode virar "apague isto". */
+function _semVazios(o){
+  const out={};
+  Object.keys(o||{}).forEach(k=>{if(o[k]!==undefined&&o[k]!==null)out[k]=o[k];});
+  return out;
+}
+
+/* O que ESTE aparelho tem da MINHA posição, na forma do documento por uid. */
+function _meuCorpoPosicao(){
+  const nome=(session&&session.nome)||null;
+  if(!nome)return {};
+  return _semVazios({
+    pos:_obj(localStorage.getItem('mappo_locations'))[nome],
+    live:_obj(localStorage.getItem('mappo_live'))[nome],
+  });
+}
+
+/* ═══════════ A SUPREMACIA DO DOCUMENTO POR UID (28/09/2026) ═══════════
+   Na transição o blob compartilhado continua em SYNC_KEYS e a regra dele continua a de
+   sempre: QUALQUER membro escreve nele. Se a junção fosse por data — o critério de
+   _mergeMapa — um colega gravaria locs['Jorge'] com ts de agora e a posição FALSA venceria a
+   legítima do documento de Jorge no mapa de TODO MUNDO. O caminho novo rodaria ao lado do
+   falsificável e o falsificável ganharia: segurança de fachada, que é exatamente o que esta
+   entrega existe para não ser. Então, para as OUTRAS pessoas, o documento por uid GANHA
+   SEMPRE, sem comparar data.
+
+   Exceção: o MEU próprio uid. salvarPosicao() grava locs[session.nome] AQUI antes de subir,
+   então para o meu nome o local precisa poder vencer — senão meu ping mais novo seria
+   revertido pelo meu próprio documento mais velho a cada snapshot, e o GPS pararia de andar.
+   Quem decide o meu é _remontarPosicoes, por data (_mergeMapa), como sempre foi.
+
+   Ausência não apaga: uid sem o campo, ou uid que não casa com técnico nenhum, não mexe em
+   nada. E chave que não é posição (mappo_avatares) passa intacta. */
+function _supremaciaPorUid(key,mapa){
+  const campo=key==='mappo_locations'?'pos':(key==='mappo_live'?'live':null);
+  if(!campo)return mapa;
+  const meuUid=(session&&session.uid)||null;
+  Object.keys(_posicoesPorUid).forEach(uid=>{
+    if(meuUid&&uid===meuUid)return;       // o meu é resolvido por data, não por supremacia
+    const nome=_nomeDoUid(uid);
+    if(!nome)return;                      // uid desconhecido: ignorado, nada apagado
+    const v=(_posicoesPorUid[uid]||{})[campo];
+    if(v===undefined||v===null)return;    // ausência não apaga
+    mapa[nome]=v;
+  });
+  return mapa;
+}
+
+/* Remonta mappo_locations/mappo_live a partir do que veio por uid. UNIÃO, nunca
+   substituição: entrada que existe aqui e não na nuvem sobrevive, e documento de uid
+   desconhecido é ignorado sem apagar nada de ninguém. */
+function _remontarPosicoes(){
+  /* Protege o que foi lançado aqui e ainda não subiu — mesma primeira linha do ramo
+     MERGE_MAPS de fbApply. Sem isto, um ping gravado entre duas rondas do monitor de 3 s
+     poderia ser sobreposto pelo que veio da nuvem sem nunca ter sido marcado como nosso. */
+  _detectarMudancasNaoVistas('mappo_locations');
+  _detectarMudancasNaoVistas('mappo_live');
+  const antesLocs=localStorage.getItem('mappo_locations');
+  const antesLives=localStorage.getItem('mappo_live');
+  const locs=_supremaciaPorUid('mappo_locations',_obj(antesLocs));
+  const lives=_supremaciaPorUid('mappo_live',_obj(antesLives));
+  /* O MEU documento é o único em que a nuvem não manda sozinha (ver _supremaciaPorUid):
+     aqui vale o critério de sempre — a entrada mais recente vence, e no empate fica a local. */
+  const meuUid=(session&&session.uid)||null;
+  const meuNome=(session&&session.nome)||null;
+  if(meuUid&&meuNome&&_posicoesPorUid[meuUid]){
+    const d=_posicoesPorUid[meuUid]||{};
+    const un=_mergeMapa(_semVazios({pos:d.pos,live:d.live}),
+                        _semVazios({pos:locs[meuNome],live:lives[meuNome]}));
+    if(un.pos!==undefined)locs[meuNome]=un.pos;
+    if(un.live!==undefined)lives[meuNome]=un.live;
+  }
+  const novoLocs=JSON.stringify(locs), novoLives=JSON.stringify(lives);
+  const mudouLocs=(antesLocs===null||novoLocs!==antesLocs)&&novoLocs!=='{}';
+  const mudouLives=(antesLives===null||novoLives!==antesLives)&&novoLives!=='{}';
+  if(mudouLocs){_setLocalQuiet('mappo_locations',novoLocs);_aplicarNaMemoria('mappo_locations',locs);}
+  if(mudouLives){_setLocalQuiet('mappo_live',novoLives);_aplicarNaMemoria('mappo_live',lives);}
+  // sem log: posição atualiza o tempo todo (mesma escolha do ramo MERGE_MAPS de fbApply)
+  if(mudouLocs)fbOnRemoteChange('mappo_locations');
+  if(mudouLives)fbOnRemoteChange('mappo_live');
+  /* Reenvio: é o ÚNICO retry de um ping local que não subiu. A repescagem da vigilância
+     contínua não cobre isto — _setLocalQuiet atualiza _snapshot[key], então depois de uma
+     remontagem localStorage e _snapshot ficam iguais e ela nunca vê diferença. Sem este bloco,
+     o último estado do pararLive (ativo:false) ficaria só no celular. */
+  _agendarEnvioDaMinhaPosicao();
+  return mudouLocs||mudouLives;
+}
+
+/* Agenda o envio SÓ quando a MINHA entrada aqui difere do MEU documento na nuvem — a condição
+   honesta de "tenho algo que a nuvem não tem".
+   POR QUE ISTO EXISTE (defeito criado pela supremacia, 28/09/2026): o ramo MERGE_MAPS de
+   fbApply agendava por `mergedStr!==jsonStr`. Desde a supremacia, o mapa local SEMPRE carrega
+   as posições por-uid dos colegas, que NUNCA estão no blob — então a condição virou
+   permanentemente verdadeira, e cada escrita de blob de um aparelho na versão antiga agendava
+   uma transação no meu documento, a cada 5-8 s, sem nunca convergir. Queima de cota silenciosa.
+   `_bootDone`: antes do boot terminar quem sobe a minha posição é o fbSeedFromLocal,
+   explicitamente; agendar aqui também só disputaria a _naFilaSync com pull, seed e as duas
+   migrações de foto. */
+function _agendarEnvioDaMinhaPosicao(){
+  const meuUid=(session&&session.uid)||null;
+  if(!meuUid||!fbReady||!_bootDone)return false;
+  const meu=_meuCorpoPosicao();
+  if(!Object.keys(meu).length)return false;
+  const d=_posicoesPorUid[meuUid]||{};
+  const noDoc=_semVazios({pos:d.pos,live:d.live});
+  if(JSON.stringify(meu)===JSON.stringify(noDoc))return false;
+  setTimeout(()=>{if(fbReady)_doPush('mappo_live');},400);
+  return true;
+}
+
+/* Chegou (ou mudou) o documento de UMA pessoa. */
+function _aplicarPosicaoDeUid(uid,jsonStr){
+  _guardarPosicaoDeUid(uid,jsonStr);
+  return _remontarPosicoes();
+}
+
+/* O login seguinte acontece na MESMA página, sem reload: sem limpar aqui, a primeira
+   remontagem do novo usuário reaplicaria no localStorage as posições da equipe ANTERIOR —
+   possivelmente de outro workspace. Os avisos "uma vez" e as falhas também são do usuário que
+   saiu: mantê-las faz a faixa acusar um problema que não é mais dele. */
+function _limparEstadoDePosicao(){
+  Object.keys(_posicoesPorUid).forEach(u=>{delete _posicoesPorUid[u];});
+  Object.keys(_falhasEnvio).forEach(k=>{delete _falhasEnvio[k];});
+  Object.keys(_falhasLeitura).forEach(k=>{delete _falhasLeitura[k];});
+  Object.keys(_chavesQuaseCheias).forEach(k=>{delete _chavesQuaseCheias[k];});
+  Object.keys(_nomesAmbiguosAvisados).forEach(k=>{delete _nomesAmbiguosAvisados[k];});
+  _avisouPosicaoSemUid=false;
+  _avisouSemPosicaoLocal=false;
+  _proximaTentativaLeitura=0;
+  _atualizarAlertaSync();
+}
+
+/* Falha de posição — de LEITURA ou de ESCRITA — num lugar só. A ordem de publicação é O
+   risco desta entrega (regra no Console antes do código), e regra não publicada tem que
+   aparecer na TELA pelos dois lados, não só no log, que ninguém abre. */
+function _registrarFalhaPosicao(e,acao,chave){
+  const cod=(e&&e.code)||'?';
+  const negada=cod==='permission-denied'
+    ||/PERMISSION_DENIED|insufficient permissions|Missing or insufficient/i.test(String(e&&e.message));
+  fbLog('Falha ao '+acao+' a posição por pessoa: '+cod+' — '+(e&&e.message)
+    +(negada?' — a regra de workspaces/{ws}/live/{uid} parece não estar publicada no servidor':''),'erro');
+  const msg=negada
+    ?'o servidor está negando '+acao+' a posição — a regra de live/{uid} pode não ter sido publicada'
+    :cod+' — '+(e&&e.message);
+  const k=chave||'mappo_posicoes';
+  /* Estados separados de propósito: a faixa de leitura diz outra coisa, e um envio que dá certo
+     não pode apagar uma leitura que continua falhando. Mesmo nome de recurso nos dois, porque a
+     causa-raiz é uma só. */
+  const onde=(acao==='ler')?_falhasLeitura:_falhasEnvio;
+  if(!onde[k])onde[k]={erro:msg,hora:new Date().toLocaleTimeString('pt-BR')};
+  else onde[k].erro=msg;
+  _atualizarAlertaSync();
+}
+
+/* Avisos que rodam num laço de 5-8 s: repetir a mesma linha a cada volta enche o log de 60
+   entradas e esconde o que importa. Cada um fala uma vez e só volta a falar se o estado mudar. */
+let _avisouPosicaoSemUid=false;
+let _avisouSemPosicaoLocal=false;
+
+/* Envia SÓ a minha posição, no meu documento. Nunca escreve o de outra pessoa — nem
+   conseguiria: a regra nega. `key` é só quem disparou (mappo_locations ou mappo_live), para a
+   faixa nomear o recurso certo. */
+async function _pushMinhaPosicao(key){
+  if(!fbReady)return;
+  /* UMA chave para o recurso, venha de mappo_locations ou de mappo_live: as duas compõem o
+     MESMO documento (live/{uid}), e nomear uma delas fazia a mesma causa-raiz aparecer com
+     dois nomes diferentes na faixa. `key` segue servindo só para o snapshot/pendência. */
+  const chaveFalha='mappo_posicoes';
+  if(!session||!session.uid||!session.nome){
+    /* Sem uid não existe documento possível: a regra é request.auth.uid == uid. Acende na
+       tela, porque calado isto é GPS que simplesmente não sai do aparelho. */
+    if(!_avisouPosicaoSemUid){
+      _avisouPosicaoSemUid=true;
+      fbLog('Não enviei a posição: sessão sem uid — só o dono do uid pode gravar live/{uid}','erro');
+    }
+    if(!_falhasEnvio[chaveFalha])
+      _falhasEnvio[chaveFalha]={erro:'sessão sem uid — a posição não pode ser gravada no servidor',hora:new Date().toLocaleTimeString('pt-BR')};
+    _atualizarAlertaSync();
+    return;
+  }
+  _avisouPosicaoSemUid=false;
+  _detectarMudancasNaoVistas('mappo_locations');
+  _detectarMudancasNaoVistas('mappo_live');
+  const meu=_meuCorpoPosicao();
+  if(!Object.keys(meu).length){
+    /* Nada meu neste aparelho (GPS nunca ligado aqui). Não escreve — ausência nunca apaga o
+       que está lá — e DIZ isso, senão é indistinguível de uma falha silenciosa. */
+    if(!_avisouSemPosicaoLocal){
+      _avisouSemPosicaoLocal=true;
+      fbLog('Nenhuma posição minha neste aparelho ainda — nada a enviar (o documento que já existe não é tocado)','info');
+    }
+    return;
+  }
+  _avisouSemPosicaoLocal=false;
+  try{
+    const ref=fbDB.collection('workspaces').doc(WORKSPACE).collection('live').doc(session.uid);
+    // a mesma transação de merge do resto do app: dois aparelhos MEUS não se sobrescrevem
+    const mergedStr=await _gravarMesclado(ref,rj=>JSON.stringify(_mergeMapa(rj?_obj(rj):{},meu)));
+    /* A nuvem pode ter trazido coisa do MEU outro aparelho junto: aplica aqui também, como
+       todos os outros pushers fazem (ver _doPushAgora). Sem isto, no boot o rastro velho deste
+       aparelho persistiria — a ordem é fbPullAll → fbSeedFromLocal → fbStartListeners, então
+       nesse momento não existe listener nenhum para trazer o resultado de volta. */
+    /* Aviso PREVENTIVO de tamanho medindo o que o servidor de fato GUARDOU (mergedStr), não o
+       corpo pré-merge: o documento na nuvem é a união com o que já estava lá (outro aparelho
+       meu), então medir o que saí daqui subestimaria justamente no caso que importa. Mesma
+       regra que fez a tabela de espaço medir a forma enviada, não a local. */
+    if(typeof mergedStr==='string'){
+      const bytes=_bytesDe(mergedStr);
+      if(bytes>=DOC_ALERTA_BYTES){
+        if(_chavesQuaseCheias['mappo_posicoes']===undefined)
+          fbLog('Atenção: a minha posição em '+Math.round(bytes/DOC_LIMITE_BYTES*100)+'% do limite de 1 MiB do servidor','erro');
+        _chavesQuaseCheias['mappo_posicoes']=bytes;
+      }else if(_chavesQuaseCheias['mappo_posicoes']!==undefined){
+        delete _chavesQuaseCheias['mappo_posicoes'];
+      }
+      _guardarPosicaoDeUid(session.uid,mergedStr);
+      _remontarPosicoes();
+    }
+    ['mappo_locations','mappo_live'].forEach(k=>{
+      delete _localTouch[k];
+      _snapshot[k]=localStorage.getItem(k);
+      if(_falhasEnvio[k])delete _falhasEnvio[k];   // resíduo de versão anterior desta entrega
+    });
+    /* Só a falha de ESCRITA é apagada aqui. Apagar a de LEITURA junto (era o que acontecia)
+       escondia a faixa enquanto o mapa da equipe continuava sem carregar — quem limpa a de
+       leitura é uma leitura que deu certo, em _pullPosicoes. */
+    if(_falhasEnvio['mappo_posicoes'])delete _falhasEnvio['mappo_posicoes'];
+    _saveTouch();
+    _atualizarAlertaSync();
+    fbLog('Enviado: minha posição','push');
+  }catch(e){
+    /* Escrita negada aqui é o sinal de que a regra de live/{uid} ainda NÃO foi publicada no
+       Console: o caminho é novo e o firestore.rules não tem catch-all, então o servidor
+       antigo nega por omissão. */
+    delete _snapshot['mappo_locations'];delete _snapshot['mappo_live']; // a vigilância tenta de novo
+    _registrarFalhaPosicao(e,'enviar',chaveFalha);
+  }
+}
+
+/* Baixa as posições que já estão na nuvem (uma por pessoa). Roda no pull inicial, DEPOIS da
+   coleção data — o nome só se resolve com mappo_tecnicos já carregado. */
+async function _pullPosicoes(){
+  if(!fbReady)return;
+  try{
+    const col=await fbDB.collection('workspaces').doc(WORKSPACE).collection('live').get();
+    col.forEach(d=>{const v=d.data();if(v&&typeof v.json==='string')_guardarPosicaoDeUid(d.id,v.json);});
+    _remontarPosicoes();
+    // leitura que deu certo é a única coisa que apaga a faixa de leitura
+    if(_falhasLeitura['mappo_posicoes']){delete _falhasLeitura['mappo_posicoes'];_atualizarAlertaSync();}
+    _proximaTentativaLeitura=0;
+    fbLog('Posições por pessoa carregadas ('+col.size+')','ok');
+  }catch(e){
+    // leitura negada acende a faixa igual à escrita: é o MESMO sinal de regra não publicada
+    _registrarFalhaPosicao(e,'ler',null);
+    _proximaTentativaLeitura=Date.now()+30000;   // a vigilância contínua tenta de novo
+  }
+}
+
+/* Sem isto, uma negativa transitória de leitura (rede caindo, ou a regra publicada um minuto
+   depois) mantinha a faixa acesa até alguém recarregar o app: _pullPosicoes só rodava no boot.
+   Espaça em 30 s de propósito -- é um .get() de coleção, não cabe na ronda de 3 s. */
+let _proximaTentativaLeitura=0;
+function _retentarLeituraPosicoes(){
+  if(!fbReady||!_falhasLeitura['mappo_posicoes'])return;
+  if(Date.now()<_proximaTentativaLeitura)return;
+  _proximaTentativaLeitura=Date.now()+30000;
+  _pullPosicoes();
+}
+
 /* Envia as fotos de obra: um documento por andar, e só os andares que mudaram aqui.
    O _pend já sabe quais mudaram (as chaves são 'andar<SEP>etapa'). Sem pendência nenhuma
    (primeiro envio deste aparelho, ou migração do documento antigo) sobe todos. */
@@ -3280,6 +3686,10 @@ async function _doPushAgora(key){
   if(key===CHAVE_FOTOS)return _pushFotosPorAndar();  // nunca mais escreve o documento antigo
   if(key==='mappo_os')return _pushOSSemFotos();      // fotos em documentos próprios
   if(key==='mappo_tarefas')return _pushTarefasSemFotos();
+  /* Posição: nunca mais um blob compartilhado. Cada pessoa grava só o próprio
+     workspaces/{ws}/live/{uid} — é o que a regra nova passa a exigir. O debounce de fbPush
+     (8 s para mappo_locations, 5 s para mappo_live) continua exatamente o mesmo. */
+  if(key==='mappo_locations'||key==='mappo_live')return _pushMinhaPosicao(key);
   const nice=key.replace('mappo_','');
   _detectarMudancasNaoVistas(key); // garante que nada local fique de fora do merge
   try{
@@ -3695,12 +4105,22 @@ function fbApply(key,jsonStr,remoteMs){
     if(MERGE_MAPS.includes(key)){
       let remoto={};try{remoto=JSON.parse(jsonStr);}catch(e){}
       let local={};try{local=JSON.parse(atual||'{}');}catch(e){}
-      const merged=_mergeMapa(remoto,local);
+      /* A SUPREMACIA vale aqui também, e é aqui que ela mais importa: este é o caminho por
+         onde o blob compartilhado (escrevível por qualquer membro) chega em tempo real. Sem
+         esta linha, um blob falsificado com ts fresco sobrepõe a posição legítima do
+         documento por uid — o buraco continuaria aberto com o caminho novo no ar. */
+      const merged=_supremaciaPorUid(key,_mergeMapa(remoto,local));
       const mergedStr=JSON.stringify(merged);
       const mudouLocal=(mergedStr!==(atual||''));
       _setLocalQuiet(key,mergedStr);
       _aplicarNaMemoria(key,merged);
-      if(mergedStr!==jsonStr){setTimeout(()=>{if(fbReady)_doPush(key);},400);}
+      /* Posição: a condição genérica `mergedStr!==jsonStr` é permanentemente VERDADEIRA desde
+         a supremacia (o mapa local tem as posições por-uid dos colegas, que nunca estão no
+         blob), e usá-la aqui agendava uma transação no meu documento a cada blob que chegasse,
+         para sempre. Quem decide para estas duas chaves é a divergência do MEU documento.
+         mappo_avatares (a outra MERGE_MAPS) segue exatamente como era. */
+      if(key==='mappo_locations'||key==='mappo_live')_agendarEnvioDaMinhaPosicao();
+      else if(mergedStr!==jsonStr){setTimeout(()=>{if(fbReady)_doPush(key);},400);}
       if(mudouLocal)fbOnRemoteChange(key); // sem log: localização atualiza o tempo todo
       return;
     }
@@ -3743,6 +4163,19 @@ function fbApply(key,jsonStr,remoteMs){
 
 /* Reage a mudanças remotas: re-renderiza a tela atual quando faz sentido */
 function fbOnRemoteChange(key){
+  /* A lista de técnicos mudou (nome novo, ou um uid que só agora foi cadastrado): remonta as
+     posições por uid ANTES de qualquer re-render. Sem isto, a posição de quem foi renomeado —
+     ou de um documento que estava sendo ignorado por uid desconhecido — só voltaria a
+     aparecer no próximo ping de GPS. Fica ANTES da guarda de sessão de propósito: o dado tem
+     que ser remontado mesmo quando não há tela para repintar. */
+  /* try/catch pelo MESMO motivo de _nomeDoUid e _execucaoAberta: esta linha roda antes da
+     guarda de sessão, e a remontagem chega a _aplicarNaMemoria, que atribui a `liveTracks` —
+     um `let` declarado bem depois neste arquivo. Alcançada durante o boot, seria
+     ReferenceError de TDZ derrubando fbOnRemoteChange inteiro. Logado, nunca engolido. */
+  if(key==='mappo_tecnicos'){
+    try{_remontarPosicoes();}
+    catch(e){console.error('[posicao] remontagem por mappo_tecnicos falhou:',(e&&e.code)||'?',e&&e.message);}
+  }
   if(typeof currentView==='undefined'||!session)return;
   // gestor renomeou o módulo em outro aparelho: reaplica antes de decidir o que re-renderizar
   // (VIEW_META.splits precisa estar atualizado ANTES do re-render abaixo usar 'topo da tela')
@@ -3832,8 +4265,25 @@ function fbStartListeners(){
       },err=>fbLog('Listener das fotos por andar: '+err.message,'erro'));
     fbUnsubs.push(unsubFotos);
   }catch(e){fbLog('Não consegui escutar as fotos por andar: '+e.message,'erro');}
+  /* A posição de cada pessoa é um documento por uid, e uids aparecem a qualquer momento —
+     então é a COLEÇÃO inteira que se escuta, no mesmo molde dos shards de foto por andar.
+     Na fila também: cada documento lê e regrava as mesmas duas chaves do localStorage, e
+     vários chegam juntos no primeiro snapshot. */
+  try{
+    const unsubLive=fbDB.collection('workspaces').doc(WORKSPACE).collection('live')
+      .onSnapshot(snap=>{
+        snap.docChanges().forEach(ch=>{
+          // ausência não apaga: o documento sumir da nuvem não remove a posição que está aqui
+          if(ch.type==='removed')return;
+          const d=ch.doc.data();
+          if(d&&typeof d.json==='string')
+            _naFilaSync('aplicar a posição de uma pessoa',()=>_aplicarPosicaoDeUid(ch.doc.id,d.json));
+        });
+      },err=>fbLog('Listener das posições por pessoa: '+((err&&err.code)||'?')+' — '+(err&&err.message),'erro'));
+    fbUnsubs.push(unsubLive);
+  }catch(e){fbLog('Não consegui escutar as posições por pessoa: '+((e&&e.code)||'?')+' — '+(e&&e.message),'erro');}
   _vigiarMembership();
-  fbLog('Escutando '+SYNC_KEYS.length+' coleções + fotos por andar em tempo real','ok');
+  fbLog('Escutando '+SYNC_KEYS.length+' coleções + fotos por andar + posições por pessoa em tempo real','ok');
 }
 /* Um técnico removido da equipe continuava lendo dados até fechar a aba: a regra do
    Firestore só é avaliada quando o listener ABRE, então os que já estavam abertos seguiam
@@ -3877,6 +4327,10 @@ async function fbPullAll(){
     });
     fbLog('Dados da nuvem carregados ('+aplicados+' de '+col.size+' documentos)','ok');
   }catch(e){fbLog('Pull inicial falhou: '+e.message,'erro');}
+  /* DEPOIS da coleção data, sempre: o nome de cada posição é resolvido por mappo_tecnicos,
+     que acabou de ser aplicado no laço acima. Fora do try de cima de propósito — falhar o
+     pull do blob não pode cancelar o das posições, nem o contrário. */
+  await _pullPosicoes();
 }
 
 /* Faz o primeiro envio de tudo que já existe localmente pra nuvem (seed) */
@@ -3888,6 +4342,10 @@ async function fbSeedFromLocal(){
     /* as ordens também não: mandar o array cru aqui reintroduziria exatamente o estouro de
        1 MiB que separou as fotos em documentos próprios. Quem sobe é o _pushOSSemFotos. */
     if(key==='mappo_os')continue;
+    /* posição não tem mais documento compartilhado: semear o blob aqui gravaria a posição de
+       TODA a equipe num documento que a regra nova nem governa. Quem sobe é _pushMinhaPosicao,
+       no fim desta função, e só a minha. */
+    if(key==='mappo_locations'||key==='mappo_live')continue;
     const raw=localStorage.getItem(key);
     if(raw!==null){
       try{
@@ -3905,6 +4363,9 @@ async function fbSeedFromLocal(){
      É o que destrava um workspace cujo mappo_os passou do teto e parou de sincronizar. */
   try{if(localStorage.getItem('mappo_os')!==null)await _pushOSSemFotos();}
   catch(e){fbLog('Falha ao separar as fotos das ordens: '+e.message,'erro');}
+  /* Minha posição, se já existir neste aparelho, no documento por uid. _pushMinhaPosicao já
+     trata o próprio erro (e acende a faixa quando a regra não está publicada). */
+  await _pushMinhaPosicao('mappo_live');
 }
 
 /* Sincronização inicial com a nuvem: só roda depois que fbInit confirma o login anônimo
@@ -4006,7 +4467,30 @@ function renderDiagTamanhos(){
   const alvo=document.getElementById('diagTamanhos');
   if(!alvo)return;
   const linhas=[];
+  let posicaoMedida=false;
   SYNC_KEYS.forEach(k=>{
+    /* Posição: desde 27/09/2026 o que vai pro servidor é UM DOCUMENTO POR PESSOA
+       (workspaces/{ws}/live/{uid}), não o mapa inteiro que fica no aparelho. Medir o blob
+       local mediria a soma da equipe contra um teto que não é o dele — com equipe grande
+       viraria "GPS ao vivo 100%" com cada documento do servidor em ~29 KB, o mesmo alarme
+       falso que já mandou o proprietário caçar um problema inexistente por um dia. Uma linha
+       por pessoa é o que de fato é medido contra o teto de 1 MiB.
+       Fica ANTES da checagem de raw===null porque as duas chaves compõem um documento só:
+       uma delas ausente não pode cancelar a medição da outra. */
+    if(k==='mappo_locations'||k==='mappo_live'){
+      if(posicaoMedida)return;                 // as duas chaves compõem UM documento
+      posicaoMedida=true;
+      /* UMA linha, a MINHA — e só ela. O documento que ESTE aparelho envia é
+         workspaces/{ws}/live/{meuUid}. As entradas das outras pessoas no localStorage são
+         cópia PARCIAL do documento delas (o que chegou até aqui): medi-las e mostrar % contra
+         1 MiB seria inventar uma medição que este aparelho não tem como fazer — a mesma
+         classe de leitura falsa que já mandou o proprietário caçar um problema inexistente
+         por um dia, e que esta tabela foi corrigida justamente para não dar. */
+      const meuCorpo=_meuCorpoPosicao();
+      if(Object.keys(meuCorpo).length)
+        linhas.push({nome:'Minha posição no servidor',bytes:_bytesDe(JSON.stringify(meuCorpo))});
+      return;
+    }
     const raw=localStorage.getItem(k);
     if(raw===null)return;
     /* As fotos vão pra nuvem divididas por andar (um documento cada), então mostrar o total
@@ -5001,6 +5485,7 @@ function _encerrarPorAcessoRemovido(){
   }catch(e){}
   fbStopListeners();
   fbReady=false;
+  _limparEstadoDePosicao();   // mesmo motivo do logout
   session=null;
   try{localStorage.removeItem('mappo_session');}catch(e){}
   document.body.classList.remove('has-rail');
@@ -5017,6 +5502,7 @@ function logout(){
   if(session&&session.perfil==='tecnico'&&typeof liveAtivo==='function'&&liveAtivo())pararLive(null); // encerra o GPS ao vivo ao sair
   fbStopListeners();
   fbReady=false;
+  _limparEstadoDePosicao();   // o próximo login é na mesma página: nada da equipe anterior fica
   session=null;localStorage.removeItem('mappo_session');
   document.body.classList.remove('has-rail');
   document.getElementById('app').classList.remove('active');
@@ -7507,13 +7993,21 @@ async function _reconciliarEquipe(){
         }else{
           // mesma cascata do rename manual (osList/manutencoes/mappo_locations) -- sem isso,
           // OS já atribuídas à vaga ficam órfãs do nome novo que o prestador digitou.
-          _renomearTecnicoEmDados(t.nome,d.nome);
+          /* ORDEM, corrigida em 28/09/2026: o nome novo entra em tecnicos[] ANTES da cascata.
+             A cascata remonta as posições por uid, e _nomeDoUid resolve pela lista -- com
+             t.nome ainda antigo, a posição voltava sob o nome que está sendo descartado.
+             salvarTecnico() já fazia nesta ordem; só este site estava invertido. */
+          const nomeAntigo=t.nome;
           t.nome=d.nome;mudou=true;
+          _renomearTecnicoEmDados(nomeAntigo,d.nome);
         }
       }
       if(t.conviteCodigo){delete t.conviteCodigo;mudou=true;} // convite já foi consumido
     });
-    if(mudou){saveTecnicos();renderView('config');}
+    /* _remontarPosicoes por causa do t.uid=doc.id acima: vincular o uid faz a posição que já
+       foi baixada passar a casar com um técnico. Sem isto, o gestor vê o vínculo acontecer e a
+       posição da pessoa só aparece no próximo ping (ou nunca, se ela não estiver ao vivo). */
+    if(mudou){saveTecnicos();_remontarPosicoes();renderView('config');}
   }catch(e){
     fbLog('Falha ao reconciliar equipe: '+(e.code||'')+' — '+(e.message||''),'erro');
   }finally{
@@ -7818,6 +8312,10 @@ function _renomearTecnicoEmDados(nomeAntigo,nome){
     delete avataresTecnicos[nomeAntigo];
     localStorage.setItem('mappo_avatares',JSON.stringify(avataresTecnicos));
   }
+  /* A chave do dado na nuvem é o uid, não o nome: remontar aqui traz a posição (e o rastro do
+     GPS ao vivo, que a linha de mappo_locations acima não cobre) de volta sob o nome novo,
+     sem depender do próximo ping. */
+  _remontarPosicoes();
 }
 
 async function salvarTecnico(id){
@@ -7876,7 +8374,11 @@ async function salvarTecnico(id){
     tecnicos.push({id:'tec_'+Date.now(),nome,uid:uid||null,modulos:mods,ativo:true,criadoEm:new Date().toISOString()});
     toast(uid?'Técnico adicionado — já pode fazer login':'Técnico adicionado — cole o código de acesso dele depois para liberar o login','success');
   }
-  saveTecnicos();closeModal();renderView('config');
+  /* Depois de gravar: vincular um uid (t.uid=uidFinal acima, ou um técnico novo já com uid)
+     faz uma posição JÁ baixada passar a casar com um técnico. Sem remontar aqui, o gestor cola
+     o código de acesso e a posição da pessoa continua invisível até o próximo ping. A cascata
+     de rename já remonta, mas ela só roda quando o NOME muda. */
+  saveTecnicos();_remontarPosicoes();closeModal();renderView('config');
 }
 
 async function removerTecnico(id){

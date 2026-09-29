@@ -76,8 +76,8 @@ const ESPERA_EMULADOR_MS = Number(process.env.MAPPO_EMU_ESPERA_MS) > 0
  * Apagar um `grupo(...)` inteiro derruba a contagem e fica vermelho, em vez de passar
  * verde cobrindo um terco do que dizia cobrir. Ao acrescentar casos, suba o piso no
  * mesmo commit -- e essa a parte deliberada. */
-const PISO_CASOS = 160;
-const PISO_GRUPOS = 11;
+const PISO_CASOS = 183;
+const PISO_GRUPOS = 12;
 
 const FUTURO = Date.now() + 7 * 24 * 60 * 60 * 1000;
 const PASSADO = Date.now() - 60 * 1000;
@@ -387,6 +387,11 @@ async function principal() {
       tecB: env.authenticatedContext('tecB'),
       gestorP: env.authenticatedContext('gestorP'),
       estranho: env.authenticatedContext('estranho'),
+      /* Membro de verdade de wsA, mas autenticado ANONIMAMENTE. Existe so para exercitar o
+       * isRealAuth() de live/{uid}: sem membership o caso seria negado por isMember e a
+       * checagem de provider nem seria avaliada. NAO reaproveita o contexto `anonimo`, que
+       * varios casos usam justamente por NAO ser membro (o cliente do link publico). */
+      anonMembro: env.authenticatedContext('anonMembro', { firebase: { sign_in_provider: 'anonymous' } }),
       prestador: env.authenticatedContext('prestador'),
       prestador2: env.authenticatedContext('prestador2'),
       prestador3: env.authenticatedContext('prestador3'),
@@ -414,6 +419,7 @@ async function principal() {
         await setDoc(doc(d, 'workspaces/wsA/members/gestorA'), { role: 'gestor' });
         await setDoc(doc(d, 'workspaces/wsA/members/tecA'), { role: 'tecnico' });
         await setDoc(doc(d, 'workspaces/wsA/members/sobra'), { role: 'tecnico' });
+        await setDoc(doc(d, 'workspaces/wsA/members/anonMembro'), { role: 'tecnico' });
         await setDoc(doc(d, 'workspaces/wsB/members/gestorB'), { role: 'gestor' });
         await setDoc(doc(d, 'workspaces/wsB/members/tecB'), { role: 'tecnico' });
         await setDoc(doc(d, 'workspaces/wsP/members/gestorP'), { role: 'gestor' });
@@ -448,6 +454,18 @@ async function principal() {
 
         await setDoc(doc(d, 'userWorkspaces/tecA'), { workspaceId: 'wsA' });
         await setDoc(doc(d, 'userWorkspaces/tecB'), { workspaceId: 'wsB' });
+
+        /* Posicao por pessoa (27/09/2026): um documento por uid, em colecao PROPRIA --
+         * fora de data/, que e onde vivia o blob compartilhado que qualquer tecnico
+         * escrevia. O nome da pessoa NAO esta aqui de proposito: quem resolve uid -> nome e
+         * mappo_tecnicos, que e gestor-only. */
+        const posDe = (uid) => ({
+          json: JSON.stringify({ pos: { lat: -16.68, lng: -49.25, acc: 8, ts: 1 } }),
+          updatedAt: 1,
+          by: uid,
+        });
+        await setDoc(doc(d, 'workspaces/wsA/live/tecA'), posDe('tecA'));
+        await setDoc(doc(d, 'workspaces/wsA/live/sobra'), posDe('sobra'));
 
         await setDoc(doc(d, 'feedback/f1'), { workspaceId: 'wsA', nota: 5, uid: 'tecA' });
       });
@@ -540,6 +558,7 @@ async function principal() {
     const R_CONVITES = 'match /convites/{codigo}';
     const R_FEEDBACK = 'match /feedback/{id}';
     const R_PONTEIRO = 'match /userWorkspaces/{uid}';
+    const R_LIVE = 'match /workspaces/{wsId}/live/{uid}';
 
     /* ════════════════════════════════════════════════════════════════════
        0. As listas da regra e as do teste nao podem divergir
@@ -1176,6 +1195,141 @@ async function principal() {
         'gestor de wsA apaga o ponteiro de tecA -- sem isso um tecnico removido nunca '
         + 'mais conseguia ser convidado, em NENHUMA empresa',
         () => deleteDoc(doc(db.gestorA, 'userWorkspaces/tecA')));
+    });
+
+    /* ════════════════════════════════════════════════════════════════════
+       11. Posicao de cada pessoa: um documento por uid (live/{uid})
+       ════════════════════════════════════════════════════════════════════
+       QUAL DEFEITO ISSO IMPEDE DE VOLTAR: ate 27/09/2026 a posicao de todo mundo vivia em
+       dois blobs em data/ (mappo_locations e mappo_live), e allow write de data/{docId} so
+       exige isMember -- QUALQUER tecnico podia gravar a posicao de QUALQUER colega. E a
+       prova de onde a pessoa esteve, e ela era falsificavel. O caso 'tecA grava a posicao de
+       sobra' e PERMITIDO na regra anterior e NEGADO nesta: e ele que mede a correcao.
+       O nome nao esta dentro do documento de proposito -- ver o comentario da regra. */
+    await grupo('11. Posicao por pessoa (live/{uid})', async () => {
+      await negado(R_LIVE + ' -- allow create, update: request.auth.uid == uid',
+        'tecA tenta GRAVAR a posicao de sobra -- falsificar onde o colega esteve (no blob '
+        + 'compartilhado de data/ isto era PERMITIDO)',
+        () => setDoc(doc(db.tecA, 'workspaces/wsA/live/sobra'), { json: '{"pos":{"lat":0,"lng":0,"ts":9}}' }));
+
+      await negado(R_LIVE + ' -- allow create, update: request.auth.uid == uid',
+        'tecA tenta ATUALIZAR (update, nao set) a posicao de sobra',
+        () => updateDoc(doc(db.tecA, 'workspaces/wsA/live/sobra'), { json: '{"pos":{"lat":0,"lng":0,"ts":9}}' }));
+
+      await negado(R_LIVE + ' -- allow delete: if false (ninguem apaga, nem o dono)',
+        'tecA tenta APAGAR a posicao de sobra',
+        () => deleteDoc(doc(db.tecA, 'workspaces/wsA/live/sobra')));
+
+      await negado(R_LIVE + ' -- allow create, update: request.auth.uid == uid',
+        'GESTOR tenta gravar a posicao de tecA -- nem o gestor escreve a prova de onde o '
+        + 'tecnico esteve; a regra nao abre excecao por papel',
+        () => setDoc(doc(db.gestorA, 'workspaces/wsA/live/tecA'), { json: '{"pos":{"lat":0,"lng":0,"ts":9}}' }));
+
+      await negado(R_LIVE + ' -- allow create, update: isMember(wsId)',
+        'tecA tenta gravar a PROPRIA posicao dentro do workspace de OUTRA empresa (wsB)',
+        () => setDoc(doc(db.tecA, 'workspaces/wsB/live/tecA'), { json: '{"pos":{"lat":0,"lng":0,"ts":9}}' }));
+
+      await negado(R_LIVE + ' -- allow create, update: isRealAuth()',
+        'ANONIMO que E membro de wsA tenta gravar a propria posicao -- o cliente do link '
+        + 'publico nunca escreve posicao nenhuma',
+        () => setDoc(doc(db.anonMembro, 'workspaces/wsA/live/anonMembro'), { json: '{"pos":{"lat":0,"lng":0,"ts":9}}' }));
+
+      await negado(R_LIVE + ' -- allow create, update: isAtivo(wsId)',
+        'gestor de workspace PENDENTE tenta gravar a propria posicao',
+        () => setDoc(doc(db.gestorP, 'workspaces/wsP/live/gestorP'), { json: '{"pos":{"lat":0,"lng":0,"ts":9}}' }));
+
+      await negado(R_LIVE + ' -- allow read: isMember(wsId)',
+        'membro do workspace B tenta LER a posicao de tecA em wsA',
+        () => getDoc(doc(db.tecB, 'workspaces/wsA/live/tecA')));
+
+      await negado(R_LIVE + ' -- allow read: isMember(wsId)',
+        'autenticado real SEM membership nenhuma tenta LER a posicao de tecA',
+        () => getDoc(doc(db.estranho, 'workspaces/wsA/live/tecA')));
+
+      await negado(R_LIVE + ' -- allow read: isMember(wsId)',
+        'SEM SESSAO tenta LER a posicao de tecA',
+        () => getDoc(doc(db.semSessao, 'workspaces/wsA/live/tecA')));
+
+      await negado(R_LIVE + ' -- allow read: isMember(wsId)',
+        'cliente anonimo do link publico tenta LER a posicao de tecA -- o carve-out de '
+        + 'pub_* vale so dentro de data/, nao aqui',
+        () => getDoc(doc(db.anonimo, 'workspaces/wsA/live/tecA')));
+
+      await negado(R_LIVE + ' -- allow read: isRealAuth()',
+        'ANONIMO que E membro de wsA tenta LER a posicao de tecA -- sem isRealAuth() na '
+        + 'leitura, uma sessao anonima com membership veria onde a equipe esteve',
+        () => getDoc(doc(db.anonMembro, 'workspaces/wsA/live/tecA')));
+
+      await negado(R_LIVE + ' -- allow read (list): isMember(wsId)',
+        'membro do workspace B tenta LISTAR a colecao workspaces/wsA/live (onde esteve a '
+        + 'equipe da outra empresa, de uma vez)',
+        () => getDocs(collection(db.tecB, 'workspaces/wsA/live')));
+
+      await negado(R_LIVE + ' -- allow read: isAtivo(wsId)',
+        'gestor de workspace PENDENTE tenta LER posicao -- workspace nao aprovado nao le dado',
+        () => getDoc(doc(db.gestorP, 'workspaces/wsP/live/gestorP')));
+
+      /* Forma do documento. Sem hasOnly, um membro grava campos arbitrarios no proprio uid e
+       * todo colega baixa isso a cada boot -- _pullPosicoes faz .get() da colecao inteira. */
+      await negado(R_LIVE + " -- allow create,update: keys().hasOnly(['json','updatedAt','by'])",
+        'tecA grava a PROPRIA posicao com um campo EXTRA (nome) fora do envelope',
+        () => setDoc(doc(db.tecA, 'workspaces/wsA/live/tecA'),
+          { json: '{}', updatedAt: 1, by: 'tecA', nome: 'Paulo' }));
+
+      await negado(R_LIVE + ' -- allow create,update: json is string',
+        'tecA grava a PROPRIA posicao com json que NAO e string (objeto cru)',
+        () => setDoc(doc(db.tecA, 'workspaces/wsA/live/tecA'),
+          { json: { pos: { lat: 0 } }, updatedAt: 1, by: 'tecA' }));
+
+      // o outro sentido
+      await permitido(R_LIVE + ' -- allow create, update: uid == proprio, membro de ws ativo',
+        'tecA grava a PROPRIA posicao',
+        () => setDoc(doc(db.tecA, 'workspaces/wsA/live/tecA'),
+          { json: '{"pos":{"lat":-16.68,"lng":-49.25,"acc":8,"ts":2}}', updatedAt: 2, by: 'tecA' }));
+
+      await leu(R_LIVE + ' -- allow read: isMember(wsId)',
+        'gestor LE a posicao de tecA -- e o mapa da equipe; sem esta leitura a entrega nao '
+        + 'serve pra nada',
+        () => getDoc(doc(db.gestorA, 'workspaces/wsA/live/tecA')));
+
+      await leu(R_LIVE + ' -- allow read: isMember(wsId)',
+        'tecA LE a posicao de um colega -- mesmo alcance de leitura que o blob antigo ja '
+        + 'tinha; o que muda nesta entrega e a ESCRITA',
+        () => getDoc(doc(db.tecA, 'workspaces/wsA/live/sobra')));
+
+      await leu(R_LIVE + ' -- allow read (list): isMember(wsId)',
+        'gestor LISTA workspaces/wsA/live -- e exatamente o que o listener de colecao do app '
+        + 'faz; negar list deixaria o mapa vazio com a regra "verde"',
+        () => getDocs(collection(db.gestorA, 'workspaces/wsA/live')), temItens);
+
+      /* A honestidade da entrega: o buraco NAO esta fechado por completo enquanto o blob
+       * antigo continuar sendo lido. Este caso fixa o risco residual para que ele nao seja
+       * esquecido -- e para que remover a leitura do blob (passo separado, registrado em
+       * MAPPO-O-QUE-FALTA.md) tenha um caso aqui esperando por ele. */
+      await permitido(R_DATA + ' -- allow write: isMember(wsId) && !isGestorOnlyDoc(docId)',
+        '[GAP ACEITO] tecA ainda ESCREVE o blob antigo data/mappo_live com a posicao de OUTRA '
+        + 'pessoa -- na transicao o app continua LENDO esse documento (celular na versao '
+        + 'antiga ainda escreve nele), entao a falsificacao so fecha de vez quando essa '
+        + 'leitura sair; e passo separado, registrado em MAPPO-O-QUE-FALTA.md',
+        () => setDoc(doc(db.tecA, 'workspaces/wsA/data/mappo_live'),
+          { json: '{"Jorge":{"atual":{"lat":0,"lng":0,"ts":9}}}' }));
+
+      /* Antes desta iteracao a regra era um `allow write` unico, e write COBRE delete: o
+       * tecnico podia apagar o proprio rastro. Posicao e prova de onde a pessoa esteve --
+       * deixar o dono apagar e o mesmo tipo de buraco que deixar o colega falsificar. */
+      await negado(R_LIVE + ' -- allow delete: if false',
+        'tecA tenta apagar a PROPRIA posicao -- nem o dono apaga o proprio rastro',
+        () => deleteDoc(doc(db.tecA, 'workspaces/wsA/live/tecA')));
+
+      /* O que hasOnly NAO faz: limitar tamanho. A justificativa escrita na regra ("um membro
+       * estaciona 1 MiB no proprio uid") so e resolvida por um teto de bytes, que NAO foi
+       * acrescentado -- o proprietario decide. Fica fixado aqui para nao mudar sozinho. */
+      await permitido(R_LIVE + " -- allow create,update: hasOnly limita a FORMA, nao o TAMANHO",
+        '[GAP ACEITO] tecA grava 300 KB de json no PROPRIO uid -- a regra aceita, e todo colega '
+        + 'baixa isso a cada boot (_pullPosicoes le a colecao inteira). O teto real continua '
+        + 'sendo so o 1 MiB do Firestore',
+        () => setDoc(doc(db.tecA, 'workspaces/wsA/live/tecA'),
+          { json: 'x'.repeat(300000), updatedAt: 3, by: 'tecA' }));
     });
 
     /* ─────────────────── veredito ─────────────────── */

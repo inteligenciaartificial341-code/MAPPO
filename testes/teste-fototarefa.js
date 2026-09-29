@@ -51,6 +51,12 @@ function montarFake(){
   window.contarFotos=(t)=>((t&&t.fotos)||[]).filter(v=>_ehFotoDeVerdade(v)||_ehReferenciaDeFoto(v)).length;
   window.contarBytes=(t)=>((t&&t.fotos)||[]).filter(v=>_ehFotoDeVerdade(v)).length;
   window.zerar=()=>{window.__nuvem={};window.__recusas=[];_pend={};
+    /* CANCELA os envios AGENDADOS de checks anteriores. Sem isto, um fbPush com debounce de
+       50 ms disparado por um check antigo caia DENTRO do check seguinte, empurrando para a
+       nuvem falsa o estado velho -- e o CHECK 11 (que exige nuvem sem foto nenhuma) via 2
+       documentos de foto aparecidos do nada. Medido: 1/15 de reprovacao, identico em d58536b,
+       ou seja isolamento de teste, nao defeito do app. */
+    Object.keys(_pushTimers).forEach(k=>{clearTimeout(_pushTimers[k]);delete _pushTimers[k];});
     try{localStorage.removeItem('mappo_fotos_enviadas');}catch(e){}};
 
   /* ── disparar o HANDLER REAL da camera ──

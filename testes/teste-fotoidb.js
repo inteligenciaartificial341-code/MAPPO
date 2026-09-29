@@ -462,6 +462,55 @@ function montarFake(){
   assert(r16.tarefaTemBytes===true&&r16.tarefaFicouReferencia===false,
     'tarefa: idem -- a foto continua acessivel neste aparelho');
 
+  linha();console.log('=== CHECK 17: osList TROCADO no meio da migracao nao pode marcar "migrado" ===');
+  /* O DEFEITO, achado em 28/09/2026 instrumentando o CHECK 15 (que falhava ~1 em 10):
+     migrarFotosParaOArmazem() captura os setters de cada campo de foto ANTES do
+     `await guardarFotoNoAparelho(...)`. startNotifChecker tem um setInterval de 5s que faz
+     `osList=JSON.parse(localStorage.getItem('mappo_os'))` -- troca o array INTEIRO por objetos
+     novos. Se ele cair dentro daquele await, os setters passam a mexer num objeto ORFAO:
+     saveOS() grava o osList novo, que ainda tem os BYTES, e a marca de migrado e escrita por
+     cima disso. Resultado silencioso: as fotos ficam no localStorage PARA SEMPRE (a migracao
+     nunca e retentada, porque a marca esta gravada) -- de volta ao teto de ~5 MB do aparelho.
+     A linha do tempo instrumentada mostrava exatamente isto: movidas:1, erros:0, marca:'1',
+     e o disco AINDA com data:image.
+     Aqui a corrida e forcada, em vez de esperada: determinismo em lugar de 1 em 10. */
+  const r17=await pg.evaluate(async()=>{
+    zerarMigracao();
+    const foto=fotoReal(900);
+    osList=[{id:'os1',cliente:'Jessika',endereco:'rua C-28',data:'2026-09-25',hora:'08:00',qtdSplits:1,
+      tipo:'Instalação',tecnico:'Paulo',status:'andamento',
+      equipamentos:[{idx:0,marca:'LG',modelo:'X',fotoEvap:foto,fotoCond:null}],checklist:[],assinatura:null}];
+    _quietWrite=true;localStorage.setItem('mappo_os',JSON.stringify(osList));_quietWrite=false;
+    const antesKB=kbDe('mappo_os');
+    /* Simula EXATAMENTE o que o setInterval de 5s faz, no pior instante possivel: durante o
+       await da gravacao da foto no armazem. */
+    const orig=guardarFotoNoAparelho;
+    let trocou=false;
+    guardarFotoNoAparelho=async(id,uri)=>{
+      const r=await orig(id,uri);
+      if(!trocou){trocou=true;osList=JSON.parse(localStorage.getItem('mappo_os')||'[]');}
+      return r;
+    };
+    let res;
+    try{res=await migrarFotosParaOArmazem();}
+    finally{guardarFotoNoAparelho=orig;}
+    const bytesNoDisco=/data:image/.test(localStorage.getItem('mappo_os')||'');
+    const campo=(((osList||[])[0]||{}).equipamentos||[{}])[0].fotoEvap;
+    return {antesKB, trocou, res:JSON.stringify(res), bytesNoDisco,
+            marcou:localStorage.getItem('mappo_fotos_idb')==='1',
+            campoEhReferencia:_ehReferenciaDeFoto(campo),
+            depoisKB:kbDe('mappo_os'),
+            bytesAcessiveis:!!(await fotoBytes(campo))};
+  });
+  console.log('  ', JSON.stringify(r17));
+  assert(r17.antesKB>100,'antes: a OS com a foto dentro ocupa o aparelho');
+  assert(r17.trocou===true,'a troca do osList foi de fato forcada no meio da migracao');
+  assert(r17.bytesNoDisco===false,'DEPOIS DA MIGRACAO o localStorage NAO tem mais bytes de foto');
+  assert(r17.depoisKB<5,'e a chave encolheu ('+r17.depoisKB+' KB)');
+  assert(r17.campoEhReferencia===true,'o campo ficou com a referencia do armazem');
+  assert(r17.bytesAcessiveis===true,'e os bytes continuam acessiveis (nada de prova perdida)');
+  assert(r17.marcou===true,'a marca de migrado foi gravada -- agora ela conta a verdade');
+
   linha();console.log('=== erros de pagina ==='); console.log(erros.length?erros:'(nenhum)');
   assert(erros.length===0,'nenhum erro de pagina');
   await b.close(); srv.close();
