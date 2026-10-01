@@ -3,7 +3,22 @@
    só pros ícones (estáticos). O app está em publicação ativa -- cache-first pro shell
    prenderia usuários numa versão antiga. Cache só cobre o cenário "sem rede". */
 
-const CACHE_VERSION = 'mappo-shell-v1';
+/* CACHE_VERSION É A IMPRESSÃO DIGITAL DA CASCA, e muda a CADA publicação.
+   Não é enfeite: o navegador só instala um Service Worker novo quando os BYTES deste
+   arquivo mudam, e é essa instalação que avisa as abas abertas que saiu versão nova. Depois
+   do commit 5792366 (24/08/2026), que criou este arquivo, o index.html mudou 41 vezes e este
+   arquivo nenhuma -- então o aviso nunca chegou numa publicação real (medido em
+   testes/diag-atualizacao.js).
+   O valor é 'mappo-shell-' + 12 hex do sha256 do conteúdo de TODOS os arquivos de SHELL_URLS
+   (ordenados; texto normalizado CRLF→LF). A casca inteira, não só o index.html, porque os
+   ícones são servidos CACHE-FIRST aqui embaixo: trocar um ícone sem mexer no index deixaria o
+   ícone antigo vivo para sempre em quem já tem o app instalado.
+   A lista é lida DESTE arquivo pela suíte testes/teste-atualizacao.js -- acrescentar um
+   arquivo em SHELL_URLS passa a exigir versão nova sozinho, sem ninguém lembrar de cadastrar
+   nada. O manifest.json fica fora porque não está na casca: ele é rede-primeiro.
+   Mudar a casca sem trocar esta linha deixa o npm test VERMELHO, com a linha exata para
+   colar. Depender de lembrar não funcionou em nenhuma das 41 vezes. */
+const CACHE_VERSION = 'mappo-shell-a57eb4d0a1fd';
 const SHELL_URLS = [
   './',
   './index.html',

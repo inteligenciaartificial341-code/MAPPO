@@ -127,10 +127,10 @@ para diagnóstico.
 **Quantas são hoje:** `npm run test:lista`. Esse comando é a fonte viva; número escrito
 em documento vira mentira na primeira suíte nova.
 
-## Os três que não rodam sozinhos
+## Os que não rodam sozinhos
 
-`diag-difer`, `diag-linkreal` e `diag-pubreal` batem no **site publicado** (`github.io`)
-e no **Firestore real**. Dependem de rede, de produção e do estado da conta do
+`diag-difer`, `diag-linkreal`, `diag-pubreal` e `diag-swcache` batem no **site publicado**
+(`github.io`) e no **Firestore real**. Dependem de rede, de produção e do estado da conta do
 proprietário — então não rodam no `npm test` nem no CI. Só à mão, quando o dono pedir:
 
 ```bash
@@ -140,7 +140,7 @@ npm run test:producao
 A exclusão vale em **duas camadas**: o runner os deixa de fora por padrão, e o workflow do
 CI não passa nenhuma flag que os inclua. Não depende de o CI lembrar.
 
-Os três são **diagnósticos**: eles medem, não reprovam. Por isso `test:producao` liga
+Todos eles são **diagnósticos**: medem, não reprovam. Por isso `test:producao` liga
 `--mostrar-diagnosticos` — sem isso o comando imprimiria só "diagnostico (medido)" e
 descartaria exatamente a medição que você foi buscar.
 

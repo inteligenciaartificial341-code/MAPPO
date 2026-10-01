@@ -10,8 +10,8 @@
 #
 # O que este CI NAO faz, de proposito:
 #   - nao publica, nao faz deploy, nao toca em producao;
-#   - nao executa diag-difer, diag-linkreal e diag-pubreal, que batem no site publicado
-#     (github.io) e no Firestore real. Esses tres dependem de rede, de producao e do
+#   - nao executa diag-difer, diag-linkreal, diag-pubreal e diag-swcache, que batem no site
+#     publicado (github.io) e no Firestore real. Esses dependem de rede, de producao e do
 #     estado da conta do proprietario, e rodam so a mao (`npm run test:producao`).
 #     O runner ja os deixa de fora por padrao -- este CI nao passa nenhuma flag que os
 #     inclua, entao a exclusao vale em duas camadas.
@@ -107,7 +107,8 @@ jobs:
         run: npm run emulador:baixar
 
       # `npm test` == `node testes/executar.js`: em serie, com timeout por suite, e
-      # ja sem os tres que batem em producao. Sai com codigo 1 se alguma suite falhar.
+      # ja sem os que batem em producao (a lista FORA_DO_CI do runner). Sai com codigo 1
+      # se alguma suite falhar.
       - name: Rodar as suites
         run: npm test
 

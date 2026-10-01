@@ -8,7 +8,7 @@
 > antes do commit + publicação. Ao final de cada publicação: mover o item de
 > `MAPPO-O-QUE-FALTA.md` para cá e registrar no histórico no fim do arquivo.
 
-**Estado:** publicado até o commit `fc82b6a` · atualizado em 25/09/2026
+**Estado:** publicado até o commit `bd4bfd6` · atualizado em 01/10/2026
 **Endereço:** https://inteligenciaartificial341-code.github.io/MAPPO/
 
 ---
@@ -247,8 +247,8 @@ que já funcionavam e **não havia como perceber** antes do usuário.
   fazer
 - **Artefatos da falha guardados:** quando o CI fica vermelho, as capturas de tela e os PDFs
   gerados pelas suítes ficam anexados à execução por 7 dias, em vez de morrerem com o runner
-- **Os três que batem em produção ficam fora** do `npm test` e do CI (`diag-difer`,
-  `diag-linkreal`, `diag-pubreal`): dependem de rede, do site publicado e do estado da
+- **Os que batem em produção ficam fora** do `npm test` e do CI (`diag-difer`,
+  `diag-linkreal`, `diag-pubreal`, `diag-swcache` — quantos são, em `npm run test:lista`): dependem de rede, do site publicado e do estado da
   conta do proprietário. Rodam só à mão, com `npm run test:producao`
 - **Timeout de 5 minutos por suíte:** suíte travada é abortada, contada como falha e
   nomeada — nunca deixa o CI pendurado
@@ -268,6 +268,7 @@ que já funcionavam e **não havia como perceber** antes do usuário.
 
 | Data | Commit | O que entrou |
 |---|---|---|
+| 01/10/2026 | `bd4bfd6` | **A posição de cada pessoa passou a ser um documento só dela.** Antes a posição de todo mundo vivia em dois blobs compartilhados cuja regra só exigia ser membro do workspace — qualquer técnico podia gravar a posição de qualquer colega, e é a prova de onde a pessoa esteve. Agora cada pessoa tem o próprio documento em `live/{uid}` e a regra só deixa o dono escrever ali; o nome exibido no mapa é resolvido por `mappo_tecnicos`, que é gestor-only, nunca por campo dentro do documento. A regra também fechou dois pontos que ninguém tinha pedido: ninguém apaga posição (nem o dono) e a leitura exige autenticação real. **Confirmado funcionando em campo pelo proprietário em 01/10/2026.** Duas rodadas de revisão de três camadas: a primeira descobriu que a entrega **não fechava o buraco** (o caminho antigo vencia o novo por ser mais recente), a segunda achou um defeito criado pela correção da primeira. Fora do escopo, a instrumentação achou um defeito anterior: a migração de fotos das OS podia se marcar como concluída **deixando as fotos no aparelho**, em silêncio e para sempre |
 | 26/09/2026 | `fc82b6a` | **Fotos de obra e de tarefa saem do aparelho, e as de tarefa ganham documento próprio.** As fotos de tarefa **nunca** tinham sido separadas na nuvem: todas as tarefas viviam num documento só e `maxFotos` vai até 20 — medido, uma tarefa com 20 fotos era **recusada inteira** pelo servidor (`recusas:1`, `nuvemKB:0`). Era o mesmo teto de 1 MiB que já parou as OS e as obras, de pé no último lugar onde cabia. A revisão de três camadas achou 21 defeitos, entre eles uma "lápide" que **apagava em silêncio** a foto readicionada, e testes que **não tocavam o código de produção** — desfazer a entrega inteira deixava a suíte verde. Os dois corrigidos e travados com teste |
 | 26/09/2026 | `c8b3043` | **Correções da revisão adversarial da rede.** Três camadas de revisão acharam 19 defeitos no que tinha acabado de entrar — o mais grave: apagar uma linha `console.log` reclassificava a suíte como diagnóstico e ela **parava de reprovar em silêncio**. Agora `teste-*.js` é suíte sempre, e sem o veredito é erro nomeado. Junto: o runner ganhou a própria suíte (ninguém testava o testador), e o `CLAUDE.md` passou a dizer com honestidade que o CI **avisa e não impede** publicação, com o passo a passo da proteção de ramo que o transformaria em impedimento |
 | 25/09/2026 | `56db2a0` | **Rede anti-regressão: suítes versionadas, um comando e CI.** As 25 suítes Playwright e 9 diagnósticos que provaram cada correção da semana viviam numa pasta temporária do sistema, **já apagada três vezes** — enquanto não estavam versionados, não existiam. Agora vivem em `testes/`, com `npm test` rodando tudo em série e terminando na contagem (`25/25 suites passaram`), e o GitHub Actions rodando o mesmo comando a cada push, de graça. O runner classifica pelo veredito `TODOS OS CHECKS … PASSARAM` e não por lista de nomes, então suíte nova entra sozinha e suíte que parou de imprimir o veredito aparece como falha. Os três que batem no site publicado e no Firestore real ficam fora do CI. Junto, a regra escrita em `CLAUDE.md`: **todo defeito relatado vira teste antes de virar correção** |

@@ -1282,11 +1282,64 @@ function _cachePor(id,uri){
   while(_fotoCache.size>FOTO_CACHE_MAX)_fotoCache.delete(_fotoCache.keys().next().value);
   return uri;
 }
-/* Guarda a foto no aparelho e devolve a referência. Só resolve com a gravação confirmada. */
+/* ── OPERAÇÃO EM VOO ──────────────────────────────────────────────────────────
+   O que não pode ser cortado no meio por uma recarga automática: foto comprimindo,
+   gravação no armazém do aparelho, envio pendente. Quem lê isto é
+   _porQueNaoRecarregarAgora() (bloco "VERSÃO NOVA", no fim do arquivo).
+
+   POR QUE ISTO EXISTE, e é a linha vermelha do projeto: onEquipFoto faz
+   evt.target.value='' na hora e só DEPOIS comprime e grava, de forma assíncrona.
+   Nessa janela não há modal aberto nem campo em foco — e voltar da câmera nativa
+   dispara visibilitychange, que é justamente o gatilho que procura versão nova. Uma
+   recarga ali apagaria a foto que o técnico acabou de tirar, sem recuperação possível,
+   porque o input já foi limpo. Foto de serviço executado é prova de trabalho.
+
+   Não serve a trava _fotoEmProcessamento que já existia: ela é liberada ANTES do
+   callback de propósito (o callback pode abrir outra foto), então ela cobre a
+   compressão e deixa a GRAVAÇÃO descoberta -- que é exatamente a janela do defeito.
+
+   Se um contador ficar preso (uma operação que nunca termina), o efeito é a recarga
+   automática nunca acontecer: a faixa fica na tela e a pessoa recarrega no toque. O
+   erro cai para o lado seguro de propósito. */
+const _opsEmVoo=new Map();            // nome da operação -> quantas em voo
+function _opsEmVooTotal(){let n=0;_opsEmVoo.forEach(v=>{n+=v;});return n;}
+function _opEmVooNome(){return _opsEmVoo.size?_opsEmVoo.keys().next().value:'';}
+function _abrirOp(nome){_opsEmVoo.set(nome,(_opsEmVoo.get(nome)||0)+1);}
+function _fecharOp(nome){
+  const n=(_opsEmVoo.get(nome)||0)-1;
+  if(n>0)_opsEmVoo.set(nome,n);else _opsEmVoo.delete(nome);
+}
+/* Envolve uma operação em voo. Aceita função síncrona ou assíncrona: fecha quando a
+   promessa assenta. A rejeição é LOGADA e não propagada -- antes ela virava rejeição
+   não tratada (que não aparece em lugar nenhum); engolir sem log é proibido. */
+function _emVoo(nome,fn){
+  _abrirOp(nome);
+  let r;
+  try{r=fn();}
+  catch(e){_fecharOp(nome);throw e;}
+  if(r&&typeof r.then==='function'){
+    return r.then(
+      (v)=>{_fecharOp(nome);return v;},
+      (e)=>{_fecharOp(nome);fbLog('Operação em voo falhou ('+nome+'): '+(e&&e.code)+' — '+(e&&e.message||e),'erro');}
+    );
+  }
+  _fecharOp(nome);
+  return r;
+}
+
+/* Guarda a foto no aparelho e devolve a referência. Só resolve com a gravação confirmada.
+   É o ponto único por onde passa TODA foto que vai para o armazém -- de OS, de checklist,
+   de obra, de tarefa, de assinatura e das migrações -- então é aqui que a gravação é
+   declarada "em voo". */
 async function guardarFotoNoAparelho(id,uri){
-  await idbGravarFoto(id,uri);
-  _cachePor(id,uri);
-  return id;
+  _abrirOp('gravando foto no aparelho');
+  try{
+    await idbGravarFoto(id,uri);
+    _cachePor(id,uri);
+    return id;
+  }finally{
+    _fecharOp('gravando foto no aparelho');
+  }
 }
 /* Devolve os bytes de uma foto. Aceita tanto a imagem em si (formato antigo, e o que vem de
    fora) quanto a referência. Procura, nesta ordem: cache, armazém do aparelho, nuvem. */
@@ -3679,7 +3732,11 @@ async function _pushTarefasSemFotos(){
    outro tinha acabado de calcular. Todos os chamadores continuam iguais -- quem quer esperar
    dá await como antes, e a fila garante que não há dois no mesmo estado ao mesmo tempo. */
 function _doPush(key){
-  return _naFilaSync('enviar '+key,()=>_doPushAgora(key));
+  /* Envio é operação em voo (ver _opsEmVoo, perto de guardarFotoNoAparelho): é o ponto
+     único por onde todo envio passa, inclusive os de foto. Recarregar no meio de um envio
+     não perde dado — ele fica no localStorage e a vigilância contínua tenta de novo —, mas
+     esperar custa frações de segundo e tira a dúvida. */
+  return _emVoo('enviando '+key,()=>_naFilaSync('enviar '+key,()=>_doPushAgora(key)));
 }
 async function _doPushAgora(key){
   if(!fbReady)return;
@@ -6538,6 +6595,12 @@ function vrfComprimirImagem(file,cb){
     return;
   }
   _fotoEmProcessamento=true;
+  /* A compressão também é operação em voo: recarregar aqui perde a foto, porque o input
+     que a trouxe já foi limpo pelo chamador. _fotoEmProcessamento não serve para isso --
+     ele é liberado antes do callback (ver abaixo), e a gravação fica descoberta. */
+  _abrirOp('comprimindo foto');
+  let _opComprAberta=true;
+  const fecharCompr=()=>{if(_opComprAberta){_opComprAberta=false;_fecharOp('comprimindo foto');}};
   /* Rede de segurança: se alguma etapa da compressão nunca terminar (arquivo corrompido,
      formato que o navegador não decodifica, aba suspensa pelo sistema no meio), a trava
      ficaria presa e o técnico não conseguiria enviar MAIS NENHUMA foto — travando a
@@ -6546,10 +6609,11 @@ function vrfComprimirImagem(file,cb){
   _travaFotoTimer=setTimeout(()=>{
     if(!_fotoEmProcessamento)return;
     _fotoEmProcessamento=false;
+    fecharCompr();
     fbLog('Compressão de foto não terminou em 20s — trava liberada','erro');
     toast('A foto demorou demais e não foi processada. Tente tirar de novo.','warn');
   },20000);
-  const liberar=()=>{clearTimeout(_travaFotoTimer);_travaFotoTimer=null;_fotoEmProcessamento=false;};
+  const liberar=()=>{clearTimeout(_travaFotoTimer);_travaFotoTimer=null;_fotoEmProcessamento=false;fecharCompr();};
   const reader=new FileReader();
   reader.onerror=()=>{liberar();toast('Não foi possível ler a foto — tente novamente','error');};
   reader.onload=e=>{
@@ -6575,7 +6639,10 @@ function vrfComprimirImagem(file,cb){
       try{saida=canvas.toDataURL('image/jpeg',0.5);}
       catch(err){liberar();toast('Não foi possível processar a foto — tente novamente','error');return;}
       liberar();                 // libera ANTES do cb: o cb pode abrir outra foto
-      cb(saida);
+      /* O callback é quem grava (armazém, localStorage, envio) e é assíncrono. Ele continua
+         rodando depois que a trava da compressão foi liberada, então é ELE a janela em que
+         uma recarga automática apagaria a foto. Declarado em voo até a promessa assentar. */
+      _emVoo('gravando a foto',()=>cb(saida));
     };
     img.src=e.target.result;
   };
@@ -8181,9 +8248,17 @@ async function gerarConviteTecnico(tecnicoId){
        versão antiga do app, que não manda o campo de validade que a regra passou a exigir
        (22/09/2026). O Service Worker busca o index novo, mas uma aba já aberta continua com
        o JavaScript velho na memória até recarregar. Dizer "tente de novo" nesse caso é
-       cruel: tentar de novo nunca resolve. Mensagem própria, com a ação que resolve. */
+       cruel: tentar de novo nunca resolve.
+       Até 01/10/2026 isto era um toast de 3 segundos, posto aqui porque o aviso geral estava
+       mudo — e foi o único aviso de versão velha que o proprietário chegou a ver. Agora o
+       aviso geral funciona (ver "VERSÃO NOVA" no fim do arquivo), então o remendo dá lugar à
+       faixa, que fica na tela em vez de sumir em 3 segundos -- com um toast curto junto, só
+       para dar retorno imediato ao toque: o botão fica no meio da lista de Configurações e a
+       faixa mora no topo do layout, sem position:fixed, então com a página rolada ela pode
+       estar fora da tela. _avisarVersaoVelhaPorErro rola a faixa à vista. */
     if(e&&e.code==='permission-denied'){
-      toast('Seu app está desatualizado — recarregue a página (Ctrl+Shift+R) e gere o convite de novo','error');
+      _avisarVersaoVelhaPorErro('a regra do servidor negou o convite');
+      toast('Seu app está desatualizado — veja a faixa no topo e recarregue','error');
       return;
     }
     toast('Não foi possível gerar o convite — tente de novo','error');
@@ -9081,7 +9156,13 @@ function openDetalhe(id){
     </div>`);
 }
 
-function salvarNota(id){const os=osList.find(o=>o.id===id);if(!os)return;os.notaGestor=document.getElementById('notaGestor').value;saveOS();toast('Nota salva — o técnico verá','success');}
+/* O `el.defaultValue=el.value` não é enfeite: a guarda de hora segura da recarga automática
+   (_campoComTextoNaoSalvo, no bloco "VERSÃO NOVA") descobre "texto digitado e não salvo"
+   comparando `value` com `defaultValue`, que é o que foi pintado na tela. Esta função salva
+   SEM repintar, então sem esta linha o campo ficaria para sempre com cara de não salvo e a
+   aba nunca mais se atualizaria sozinha nesta tela. Qualquer campo novo salvo por botão
+   precisa fazer o mesmo. */
+function salvarNota(id){const os=osList.find(o=>o.id===id);if(!os)return;const el=document.getElementById('notaGestor');os.notaGestor=el.value;el.defaultValue=el.value;saveOS();toast('Nota salva — o técnico verá','success');}
 /* Valor + status da OS (Story 8): só o gestor chega em openDetalhe() (view de técnico
    nunca renderiza esse modal -- ver secTec/abrirExecucao), então sem checagem extra de
    perfil aqui, mesmo padrão de salvarNota(). */
@@ -9631,7 +9712,14 @@ function ultimoCheckinHojeTs(){
   return melhor;
 }
 
-function meuLive(){return liveTracks[session.nome]||null;}
+/* `session&&` não é paranoia: sem ele, qualquer chamada com a tela de LOGIN aberta estoura
+   "Cannot read properties of null (reading 'nome')". Era alcançável em produção desde sempre --
+   o listener de visibilitychange logo abaixo (wake lock do GPS) chama liveAtivo() → meuLive(),
+   e basta alguém na tela de login sair do app e voltar. Medido em 01/10/2026 nas duas versões,
+   bd4bfd6 e esta, pelo detector de erro de página de testes/teste-atualizacao.js (CHECK 5), que
+   passou a disparar o evento de propósito. Todos os 7 chamadores já tratam null como "não tem
+   live", então consertar na raiz é menor e mais seguro que guardar cada um. */
+function meuLive(){return (session&&liveTracks[session.nome])||null;}
 function liveAtivo(lv){lv=lv||meuLive();return !!(lv&&lv.ativo&&Date.now()<lv.fimTs);}
 function liveRestanteMs(lv){lv=lv||meuLive();return lv?Math.max(0,lv.fimTs-Date.now()):0;}
 function fmtDuracaoMs(ms){
@@ -11100,31 +11188,245 @@ window.addEventListener('load',()=>{
   },4000);
 });
 
+/* ════════════════════════════════════════
+   VERSÃO NOVA: DETECTAR, AVISAR E TROCAR
+   ════════════════════════════════════════
+   Versão nova publicada enquanto esta aba está aberta (23/09/2026). O Service Worker usa
+   skipWaiting/clients.claim, então ele assume o controle na hora — mas o JavaScript DESTA
+   página continua sendo o antigo até recarregar. Isso já causou um problema real: depois que
+   a regra do convite passou a exigir o campo de validade, gerar convite numa aba velha
+   falhava com "não foi possível gerar", sem pista nenhuma do motivo.
+
+   Até 01/10/2026 este bloco funcionava AO CONTRÁRIO, e isso está medido em
+   testes/diag-atualizacao.js — não deduzido:
+     - avisava na PRIMEIRA visita (o clients.claim() de um SW recém-instalado também dispara
+       controllerchange: o app pedia para atualizar um app acabado de instalar);
+     - e ficava MUDO numa publicação real, porque o navegador só instala um SW novo quando os
+       BYTES do sw.js mudam — e o sw.js não mudou nenhuma vez desde que nasceu (24/08/2026),
+       enquanto o index.html mudou 41 vezes depois dele.
+   O que conserta cada metade:
+     - _TINHA_CONTROLADOR separa "instalação" de "atualização";
+     - o CACHE_VERSION do sw.js passou a ser a impressão digital da casca, com suíte guardiã
+       (testes/teste-atualizacao.js) — publicar sem mudar o sw.js deixa o npm test vermelho.
+
+   A recarga é automática, por decisão do proprietário, mas só em HORA SEGURA — e a definição
+   de hora segura está em _porQueNaoRecarregarAgora(), não aqui, porque ela é conferida em
+   teste. Fora da hora segura o app espera e tenta de novo: o aviso nunca é descartado, e nada
+   é recarregado por cima do trabalho de ninguém. */
+
+/* Havia controlador quando ESTA página abriu? É o que separa a instalação da atualização.
+   Lido agora, no boot: no momento do controllerchange o controlador já é o novo. */
+const _TINHA_CONTROLADOR=('serviceWorker'in navigator)&&!!navigator.serviceWorker.controller;
+const RECARGA_ESPERA_MS=4000;      // de quanto em quanto tenta de novo enquanto não é seguro
+const RECARGA_CARENCIA_MS=60000;   // depois de recarregar, não recarrega outra vez tão cedo
+const RECARGA_TETO=3;              // teto de recargas automáticas por sessão desta aba
+const RECARGA_MARCA='mappo_recarga_versao';
+const PROCURA_MINIMA_MS=30000;     // de quanto em quanto, no máximo, reconsulta o sw.js
+let _timerRecarga=null;
+let _recargaPedida=false;          // trava anti-laço DENTRO desta página
+let _ultimoMotivoAdiado='';        // só para não repetir a mesma linha no log a cada 4s
+let _ultimaProcura=0;              // quando o sw.js foi reconsultado pela última vez
+/* DUAS bandeiras, de propósito, e misturá-las já causou defeito:
+   _versaoNovaDisponivel  = a faixa está acesa. Pode ter sido acesa por DEDUÇÃO (o
+                            permission-denied do convite), que não prova que saiu versão nova.
+   _versaoNovaDetectada   = o Service Worker detectou de verdade. É esta que arma a recarga.
+   Até 01/10/2026 havia só a primeira, e _avisarVersaoNova começava com
+   "if(_versaoNovaDisponivel)return" — então UMA falha ao gerar convite desligava a recarga
+   automática daquela aba para sempre, sem log e sem rastro. Demonstrado por execução na
+   revisão: {timer:false, pedida:false, marca:null, logsNovos:0}. */
+let _versaoNovaDetectada=false;
+
+/* A trava anti-laço tem duas camadas, e a segunda é a que importa: _recargaPedida impede
+   duas recargas nesta página (controllerchange pode repetir), mas só a marca em
+   sessionStorage atravessa a recarga. Sem ela, um SW que insistisse em ser "novo" faria o
+   app piscar sem parar e não abrir — foi o que aconteceu no SONNAR, está na receita em
+   MAPPO-O-QUE-FALTA.md, e é o pior defeito possível aqui. */
+function _lerMarcaRecarga(){
+  try{
+    const bruto=sessionStorage.getItem(RECARGA_MARCA);
+    if(!bruto)return{n:0,ts:0};
+    const m=JSON.parse(bruto);
+    return{n:Number(m&&m.n)||0,ts:Number(m&&m.ts)||0};
+  }catch(e){
+    fbLog('Não deu para ler a marca de recarga de versão: '+(e&&e.code)+' — '+(e&&e.message||e),'erro');
+    return null;   // null = "não sei"; quem decide trata como não-seguro, nunca como zero
+  }
+}
+function _marcarRecarga(){
+  const m=_lerMarcaRecarga()||{n:RECARGA_TETO-1,ts:0};
+  try{
+    sessionStorage.setItem(RECARGA_MARCA,JSON.stringify({n:m.n+1,ts:Date.now()}));
+  }catch(e){
+    fbLog('Não deu para marcar a recarga de versão: '+(e&&e.code)+' — '+(e&&e.message||e),'erro');
+  }
+}
+
+/* Texto digitado e ainda NÃO salvo, fora de modal. O caso que existe é o #notaGestor: é um
+   textarea na tela de detalhe da OS, salvo só pelo botão "Salvar nota" -- tirar o foco e
+   recarregar perderia o que o gestor escreveu.
+   Como sabe que não foi salvo, sem precisar conhecer cada tela: `defaultValue` é o que veio
+   no HTML quando a tela foi pintada, ou seja o valor JÁ SALVO. Diferente disso = digitado
+   agora. Campo com oninput/onchange/onkeyup é pulado de propósito: esses salvam a cada tecla
+   (é o caso da execução de OS, `oninput="updEquip(...)"`), então o conteúdo já está guardado e
+   bloquear ali tiraria a recarga automática justamente da tela onde o técnico passa o dia. */
+function _campoComTextoNaoSalvo(){
+  const campos=document.querySelectorAll('textarea,input[type="text"]');
+  for(let i=0;i<campos.length;i++){
+    const el=campos[i];
+    if(el.offsetParent===null)continue;                                    // não está na tela
+    if(el.getAttribute('oninput')||el.getAttribute('onchange')||el.getAttribute('onkeyup'))continue;
+    if(typeof el.defaultValue!=='string')continue;
+    if(el.value!==el.defaultValue)return el.id||el.tagName.toLowerCase();
+  }
+  return '';
+}
+
+/* Devolve '' quando pode recarregar agora, ou o motivo em português de não poder. Motivo em
+   texto porque ele é logado e conferido em teste: "não recarregou" sem o porquê não se
+   distingue de "não detectou".
+   A ORDEM é a da consequência: o que perde trabalho vem primeiro. */
+function _porQueNaoRecarregarAgora(){
+  /* 1. Operação em voo. Primeiro de todos porque é o único cujo custo é dado APAGADO: a foto
+     que o técnico acabou de tirar, cujo input já foi limpo. Ver _opsEmVoo. */
+  if(_opsEmVooTotal()>0)return 'operação em voo: '+_opEmVooNome();
+  /* 2. Sobreposição na tela. `.overlay.open` cobre todo modal (showModal usa #curOverlay, mas
+     não é o único), e o lightbox é sobreposição própria: o técnico olhando uma foto em tela
+     cheia não pode levar recarga no meio. */
+  if(document.querySelector('.overlay.open'))return 'modal aberto';
+  if(document.querySelector('.lightbox.open'))return 'foto aberta em tela cheia';
+  /* 3. Campo em foco, ou texto digitado e não salvo. */
+  const a=document.activeElement;
+  if(a&&(/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName||'')||a.isContentEditable))return 'campo em foco';
+  const naoSalvo=_campoComTextoNaoSalvo();
+  if(naoSalvo)return 'texto digitado e não salvo ('+naoSalvo+')';
+  /* 4. e 5. A marca: desconhecido é tratado como inseguro, nunca como zero. */
+  const m=_lerMarcaRecarga();
+  if(!m)return 'não deu para ler a marca de recarga';
+  if(m.n>=RECARGA_TETO)return 'teto de recargas automáticas desta sessão';
+  if(m.ts&&(Date.now()-m.ts)<RECARGA_CARENCIA_MS)return 'recarga recente';
+  return '';
+}
+
+function _recarregarQuandoSeguro(){
+  if(_recargaPedida)return;                      // uma recarga só, sem laço
+  const motivo=_porQueNaoRecarregarAgora();
+  if(!motivo){
+    _recargaPedida=true;
+    if(_timerRecarga){clearTimeout(_timerRecarga);_timerRecarga=null;}
+    _marcarRecarga();
+    fbLog('Versão nova: recarregando agora (hora segura)','info');
+    location.reload();
+    return;
+  }
+  /* Teto estourado não se resolve esperando: para de tentar e deixa a faixa resolver. */
+  if(motivo==='teto de recargas automáticas desta sessão'||motivo==='não deu para ler a marca de recarga'){
+    fbLog('Versão nova: recarga automática desligada ('+motivo+') — a faixa continua na tela','erro');
+    return;
+  }
+  /* Não é hora: espera e tenta de novo. O aviso NUNCA é descartado — a faixa fica na tela e
+     a pessoa pode recarregar na hora que quiser.
+     Loga uma vez por MOTIVO, não a cada tentativa: o anel de log tem 60 linhas, e dez minutos
+     com um modal aberto varreriam toda a evidência de como o app chegou ali. */
+  if(motivo!==_ultimoMotivoAdiado){
+    _ultimoMotivoAdiado=motivo;
+    fbLog('Versão nova: recarga adiada ('+motivo+')','info');
+  }
+  if(_timerRecarga)return;
+  _timerRecarga=setTimeout(()=>{_timerRecarga=null;_recarregarQuandoSeguro();},RECARGA_ESPERA_MS);
+}
+
+/* Acende a faixa. `rolar` existe porque a faixa mora no topo do layout, sem position:fixed:
+   com a página rolada ela pode estar fora da tela, e aí o aviso não avisa ninguém. */
+function _acenderFaixaVersao(rolar){
+  _versaoNovaDisponivel=true;
+  _atualizarAlertaSync();
+  if(!rolar)return;
+  const el=document.getElementById('syncAlerta');
+  if(el&&typeof el.scrollIntoView==='function'){
+    try{el.scrollIntoView({block:'nearest'});}
+    catch(e){fbLog('Não deu para rolar a faixa à vista: '+(e&&e.code)+' — '+(e&&e.message||e),'erro');}
+  }
+}
+
+/* Detecção REAL (Service Worker). É a única que arma a recarga automática. */
+function _avisarVersaoNova(origem){
+  if(_versaoNovaDetectada)return;                // o aviso é um só; os eventos repetem
+  _versaoNovaDetectada=true;
+  fbLog('Versão nova do app disponível — '+origem,'info');
+  _acenderFaixaVersao(true);
+  _recarregarQuandoSeguro();
+}
+
+/* DEDUÇÃO a partir de um erro (hoje só o permission-denied do convite). Avisa e não recarrega:
+   aqui a versão velha é inferida, não detectada, e recarregar em cima da ação que a pessoa
+   acabou de fazer seria tirar a decisão dela com base numa suposição.
+   NÃO toca em _versaoNovaDetectada: se depois chegar uma atualização de verdade, ela ainda
+   arma a recarga. Era esse o defeito desta linha até 01/10/2026. */
+function _avisarVersaoVelhaPorErro(origem){
+  fbLog('Suspeita de versão velha nesta aba — '+origem+' (a faixa avisa; a recarga automática continua armável)','erro');
+  _acenderFaixaVersao(true);
+}
+
 /* Service Worker (Story 7: instalação multiplataforma via PWA) -- registra depois do
    load pra não competir com o boot do app; silencioso se o navegador não suportar. */
 if('serviceWorker'in navigator){
   navigator.serviceWorker.addEventListener('message',(event)=>{
     if(event.data&&event.data.type==='sw-cache-warning')fbLog('Service Worker — item não cacheado: '+event.data.detail,'erro');
   });
-  /* Versão nova publicada enquanto esta aba está aberta (23/09/2026).
-     O Service Worker usa skipWaiting/clients.claim, então ele assume o controle na hora —
-     mas o JavaScript DESTA página continua sendo o antigo até recarregar. Isso já causou um
-     problema real: depois que a regra do convite passou a exigir o campo de validade, gerar
-     convite numa aba velha falhava com "não foi possível gerar", sem pista nenhuma do
-     motivo.
-     Aqui o app avisa, em vez de recarregar sozinho: recarregar no meio de uma execução de OS
-     perderia o que o técnico está preenchendo na tela. Quem decide a hora é o usuário. */
+
   navigator.serviceWorker.addEventListener('controllerchange',()=>{
-    if(_versaoNovaDisponivel)return;      // o evento pode repetir
-    _versaoNovaDisponivel=true;
-    fbLog('Versão nova do app disponível — recarregue para usar','info');
-    _atualizarAlertaSync();
+    /* Primeira visita não é atualização: sem controlador ao abrir, o que acabou de
+       acontecer foi o clients.claim() da instalação. */
+    if(!_TINHA_CONTROLADOR)return;
+    _avisarVersaoNova('o Service Worker novo assumiu o controle');
   });
 
-  window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('sw.js').catch(e=>{
+  window.addEventListener('load',async()=>{
+    let reg;
+    try{
+      reg=await navigator.serviceWorker.register('sw.js');
+    }catch(e){
       fbLog('Service Worker não registrado: '+(e&&e.code)+' — '+(e&&e.message||e),'erro');
-    });
+      return;
+    }
+    /* Navegador que BLOQUEIA Service Worker (política, modo privado de alguns navegadores,
+       o próprio Playwright com serviceWorkers:'block') pode resolver o register() sem
+       devolver registro nenhum, em vez de rejeitar. Sem esta linha o app seguia e estourava
+       um TypeError em reg.waiting — barulho de defeito onde só falta um recurso. */
+    if(!reg){
+      fbLog('Service Worker não registrado: o navegador não devolveu registro (bloqueado ou sem suporte) — o app funciona, só não avisa de versão nova','erro');
+      return;
+    }
+    try{
+      /* (a) versão nova instalada numa visita anterior e deixada esperando: nenhum
+         controllerchange vai disparar nesta visita, então o registro é o único jeito de
+         saber. Sem isto, quem fechou o app antes de recarregar nunca mais via o aviso. */
+      if(reg.waiting&&_TINHA_CONTROLADOR)_avisarVersaoNova('a versão nova já estava esperando');
+      /* (b) versão nova aparecendo agora. 'installed' COM controlador = atualização; sem
+         controlador = primeira visita. */
+      reg.addEventListener('updatefound',()=>{
+        const novo=reg.installing;
+        if(!novo)return;
+        novo.addEventListener('statechange',()=>{
+          if(novo.state==='installed'&&navigator.serviceWorker.controller)_avisarVersaoNova('versão nova instalada');
+        });
+      });
+      /* (c) app instalado na tela inicial quase nunca é fechado de verdade: fica suspenso em
+         segundo plano. Sem isto a procura por versão nova só aconteceria num load, que pode
+         demorar dias — e é ESTE o caminho que encontra versão nova numa aba que nunca navega,
+         que é a vida normal do app instalado. Falha de rede aqui não quebra nada.
+         Com contenção: no celular, cada ida e volta a outro app dispara o evento, e sem teto
+         seria um pedido de rede por toque. 30s é curto para quem acabou de publicar e longo
+         para o vai-e-vem. */
+      document.addEventListener('visibilitychange',()=>{
+        if(document.visibilityState!=='visible')return;
+        if(Date.now()-_ultimaProcura<PROCURA_MINIMA_MS)return;
+        _ultimaProcura=Date.now();
+        reg.update().catch(e=>fbLog('Não deu para procurar versão nova: '+(e&&e.code)+' — '+(e&&e.message||e),'erro'));
+      });
+    }catch(e){
+      fbLog('Service Worker registrado, mas o aviso de versão nova falhou: '+(e&&e.code)+' — '+(e&&e.message||e),'erro');
+    }
   });
 }
 </script>

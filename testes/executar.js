@@ -21,7 +21,7 @@
  * Uso:
  *   node testes/executar.js                     roda tudo menos os que batem em producao
  *   node testes/executar.js --lista              mostra a classificacao sem executar nada
- *   node testes/executar.js --com-producao       inclui os 3 que batem no site publicado
+ *   node testes/executar.js --com-producao       inclui os que batem no site publicado
  *   node testes/executar.js --mostrar-diagnosticos  imprime a medicao dos diagnosticos
  *   node testes/executar.js link pdfos           roda so os arquivos cujo nome casa
  *
@@ -58,7 +58,7 @@ const MAX_SAIDA = 200000;
 /* Batem no site publicado (github.io) e no Firestore real: dependem de rede, de
  * producao e do estado da conta do proprietario. Ficam FORA da execucao normal e
  * fora do CI. Rodam so a mao, com --com-producao, quando o dono pedir. */
-const FORA_DO_CI = ['diag-difer.js', 'diag-linkreal.js', 'diag-pubreal.js'];
+const FORA_DO_CI = ['diag-difer.js', 'diag-linkreal.js', 'diag-pubreal.js', 'diag-swcache.js'];
 
 const IGNORAR = ['executar.js'];
 

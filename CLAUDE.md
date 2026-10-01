@@ -85,7 +85,7 @@ Todas vêm de defeitos que apagaram trabalho de técnico em campo.
   `TODOS OS CHECKS … PASSARAM` no fim — se não imprimir, o runner reprova nomeando o
   arquivo. `diag-*.js` e `controle-*.js` são diagnósticos: só medem, nunca reprovam.
   Não existe rebaixamento silencioso de suíte para diagnóstico.
-- `diag-difer`, `diag-linkreal` e `diag-pubreal` batem no site publicado e no Firestore
+- `diag-difer`, `diag-linkreal`, `diag-pubreal` e `diag-swcache` batem no site publicado e no Firestore
   real: ficam fora do `npm test` e do CI. Só à mão (`npm run test:producao`), quando o
   proprietário pedir.
 - O que navegador automatizado não alcança está em `testes/VERIFICACAO-MANUAL.md`.

@@ -48,18 +48,61 @@ function assert(c,m){ if(!c) throw new Error('FALHOU: '+m); console.log('  ok - 
   assert(r5.hidden===true,'faixa some');
   assert(r5.temClique===true,'o clique foi reatribuido (nao ficou preso no recarregar)');
 
-  console.log('\n=== CHECK 6: mensagem propria quando a regra nega o convite ===');
+  /* Era um toast de 3 segundos (index.html:8186), posto ali porque o aviso geral estava mudo
+     -- e foi o UNICO aviso de versao velha que o proprietario chegou a ver. Em 01/10/2026 o
+     aviso geral passou a funcionar (testes/teste-atualizacao.js) e o remendo deu lugar a
+     faixa, que fica na tela em vez de sumir em 3 segundos. O check continua cobrindo a mesma
+     coisa: permission-denied ao gerar convite tem que DIZER que o app esta desatualizado. */
+  /* "Acender a faixa" nao basta: ela mora no TOPO do layout e nao e position:fixed, enquanto o
+     botao de convite fica no meio da lista de Configuracoes. Com a pagina rolada, acender uma
+     faixa fora da tela e o mesmo que nao avisar -- o toast que saiu era fixed;bottom:26px. Por
+     isso este check mede o RETANGULO da faixa, e tem controle: primeiro confirma que, rolada, a
+     faixa fica FORA da tela (senao a medicao nao distinguiria nada). */
+  console.log('\n=== CHECK 6: regra nega o convite -> acende a FAIXA, na tela ===');
   const r6=await pg.evaluate(async()=>{
     fbReady=true;WORKSPACE='ws';
+    _falhasEnvio={};_chavesQuaseCheias={};
+    document.getElementById('toast').textContent='';
+    /* pagina alta o suficiente para rolar de verdade */
+    let esticador=document.getElementById('__esticador');
+    if(!esticador){esticador=document.createElement('div');esticador.id='__esticador';esticador.style.height='2400px';document.body.appendChild(esticador);}
+
+    /* CONTROLE: faixa acesa sem rolar para ela -- tem que ficar FORA da tela */
+    _versaoNovaDisponivel=true;_atualizarAlertaSync();
+    window.scrollTo(0,1800);
+    await new Promise(r=>setTimeout(r,120));
+    const el=document.getElementById('syncAlerta');
+    const rc=el.getBoundingClientRect();
+    const controle={rolou:window.scrollY>200,dentro:rc.top>=0&&rc.bottom<=window.innerHeight,top:Math.round(rc.top)};
+
+    /* agora o caminho de verdade: o convite falha por permission-denied */
+    _versaoNovaDisponivel=false;_atualizarAlertaSync();
+    window.scrollTo(0,1800);
+    await new Promise(r=>setTimeout(r,120));
     tecnicos=[{id:'t1',nome:'Novo Prestador',uid:null,modulos:{split:true,vrfObras:[]},ativo:true}];
     fbDB={collection:()=>({doc:()=>({set:async()=>{const e=new Error('Missing or insufficient permissions.');e.code='permission-denied';throw e;}})})};
     window.firebase={firestore:{FieldValue:{serverTimestamp:()=>Date.now()}}};
     await gerarConviteTecnico('t1');
-    return document.getElementById('toast').textContent;
+    await new Promise(r=>setTimeout(r,120));
+    const r2=el.getBoundingClientRect();
+    const tst=document.getElementById('toast');
+    esticador.remove();
+    return {controle,bandeira:_versaoNovaDisponivel,detectada:_versaoNovaDetectada,oculta:el.hidden,
+      faixa:el.textContent.replace(/\s+/g,' ').trim(),
+      naTela:r2.top>=0&&r2.bottom<=window.innerHeight,topDepois:Math.round(r2.top),
+      toast:(tst.textContent||''),toastVisivel:tst.className.indexOf('show')>=0||getComputedStyle(tst).opacity!=='0'};
   });
-  console.log('  ', r6);
-  assert(/desatualizado/i.test(r6)&&/recarregue/i.test(r6),'diz que o app esta desatualizado e manda recarregar');
-  assert(!/tente de novo/i.test(r6),'nao manda mais "tente de novo", que nunca resolveria');
+  console.log('  ', r6.faixa.slice(0,110));
+  console.log('   controle (acesa sem rolar):', JSON.stringify(r6.controle), ' depois:', r6.topDepois);
+  assert(r6.controle.rolou===true,'controle positivo: a pagina rolou de verdade');
+  assert(r6.controle.dentro===false,'controle positivo: acender a faixa sem rolar para ela a deixa FORA da tela');
+  assert(r6.bandeira===true,'o app marca que esta rodando versao velha');
+  assert(r6.oculta===false&&/Nova vers/i.test(r6.faixa),'a faixa de versao nova fica na tela, no lugar do toast de 3 segundos');
+  assert(/Recarregar agora/.test(r6.faixa),'com a acao que resolve');
+  assert(r6.naTela===true,'e a faixa esta VISIVEL: o app rolou ela a vista, mesmo com a pagina rolada');
+  assert(r6.detectada===false,'dedução nao marca como detectada (a deteccao real continua armavel)');
+  assert(/desatualizado/i.test(r6.toast),'um toast curto da retorno imediato ao toque, apontando a faixa');
+  assert(!/tente de novo/i.test(r6.toast),'nao manda "tente de novo", que nunca resolveria');
 
   console.log('\n=== CHECK 7: outros erros mantem a mensagem generica ===');
   const r7=await pg.evaluate(async()=>{

@@ -111,7 +111,7 @@ function rodarRunner(pasta, args, timeoutMs) {
     assert(!/0\/0 suites passaram/.test(soDiag.saida), 'nao imprime o falso verde "0/0 passaram"');
   }
 
-  console.log('\n=== CHECK 5: --com-producao inclui os 3 que batem em producao ===');
+  console.log('\n=== CHECK 5: --com-producao inclui os que batem em producao ===');
   {
     const pasta = criarPasta({
       'teste-passa.js': ARQ.passa,

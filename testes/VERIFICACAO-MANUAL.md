@@ -5,7 +5,7 @@ quantas são hoje). Elas não conseguem verificar o que sai do app para outro ap
 o sistema operacional ou para o hardware do celular: o navegador automatizado ou não tem
 permissão, ou não tem o aplicativo instalado, ou não tem câmera.
 
-São **5 áreas**, com cerca de **25 caixas** no total. Não é uma lista leve: várias caixas
+São **5 áreas**, com cerca de **30 caixas** no total. Não é uma lista leve: várias caixas
 exigem um **celular físico** — e a área 4 pede especificamente um **iPhone**, porque o
 descarte de página por pressão de memória no iOS foi a origem de vários defeitos reais.
 
@@ -133,7 +133,28 @@ dependem do sistema operacional e do navegador real.
 - [ ] Após atualizar, a versão nova realmente carrega (não fica servindo a antiga do cache).
 - [ ] O app instalado abre com o ícone e a tela de abertura certos, sem barra de navegador.
 
-**Quando conferir:** se mexer em `sw.js`, no `manifest.json` ou nos ícones.
+**A partir de 01/10/2026 o app recarrega sozinho em hora segura** (`testes/teste-atualizacao.js`
+cobre isso no Chromium; o que falta é o aparelho real):
+- [ ] Com o app **instalado na tela inicial do iPhone**, publicar uma versão e **cronometrar**
+      quanto tempo leva até a faixa aparecer / o app recarregar. É o único número que vale
+      para o uso real — `testes/diag-swcache.js` mede o cabeçalho, não a conduta do Safari.
+- [ ] Voltar ao app depois de ele ficar **suspenso em segundo plano** (sair, usar outro app,
+      voltar): a procura por versão nova acontece aí (`visibilitychange`).
+- [ ] **Fechar o app antes de ele recarregar** e abrir de novo: o aviso tem que voltar
+      (caminho `reg.waiting`, que o teste automatizado não consegue produzir de forma estável).
+- [ ] Com um **modal aberto**, uma **foto aberta em tela cheia** ou o **cursor num campo**
+      quando a versão nova chega: não recarrega naquele instante, e recarrega sozinho pouco
+      depois de fechar/sair do campo.
+- [ ] **O caso mais importante:** tirar foto pela câmera **exatamente** quando há versão nova
+      publicada (publique, e tire a foto em seguida). A foto tem de ser salva — nunca
+      recarregar durante a compressão/gravação. É a única caixa desta lista cujo defeito
+      **apaga** trabalho: o `<input>` já foi limpo quando a gravação começa, então uma recarga
+      ali perde a foto sem recuperação. Coberto no Chromium pelo CHECK 7 de
+      `testes/teste-atualizacao.js`; aqui é o aparelho real, com a câmera real.
+- [ ] O app **não fica piscando** (recarga em laço) depois de uma atualização.
+
+**Quando conferir:** se mexer em `sw.js`, no `manifest.json`, nos ícones ou no bloco
+"VERSÃO NOVA" do fim do `index.html`.
 
 ---
 

@@ -1095,7 +1095,7 @@ O objetivo é transformar o aplicativo em um produto profissional, seguro, escal
   escrito à mão em documento envelhece na primeira suíte nova. Convenção: `teste-*.js` é
   suíte e precisa imprimir o veredito (senão o runner reprova nomeando o arquivo);
   `diag-*.js` e `controle-*.js` só medem. Três diagnósticos batem em produção e ficam fora
-  do CI: `diag-difer`, `diag-linkreal`, `diag-pubreal`.
+  do CI: `diag-difer`, `diag-linkreal`, `diag-pubreal`, `diag-swcache`.
 - O CI **marca** o commit, não bloqueia publicação: falta proteção de ramo exigindo o status
   check, que só o proprietário pode ligar (passo a passo no `CLAUDE.md`).
 - Regra vigente: **todo defeito relatado vira teste antes de virar correção** — o teste
