@@ -18,7 +18,7 @@
    nada. O manifest.json fica fora porque não está na casca: ele é rede-primeiro.
    Mudar a casca sem trocar esta linha deixa o npm test VERMELHO, com a linha exata para
    colar. Depender de lembrar não funcionou em nenhuma das 41 vezes. */
-const CACHE_VERSION = 'mappo-shell-a57eb4d0a1fd';
+const CACHE_VERSION = 'mappo-shell-06b84e5520a1';
 const SHELL_URLS = [
   './',
   './index.html',
