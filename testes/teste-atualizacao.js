@@ -192,7 +192,14 @@ function tipo(p) {
 
 function lerEstado(pg) {
   return pg.evaluate(() => {
-    const el = document.getElementById('syncAlerta');
+    /* Em 02/10/2026 o aviso de versao saiu do #syncAlerta (faixa de sincronizacao, no topo do
+       fluxo, cor de alerta) para o #avisoVersao (pilula position:fixed no rodape, paleta da
+       logo). Este leitor passou a medir o elemento novo: a mesma pergunta, no lugar onde o
+       aviso mora agora. A deteccao, que e o que esta suite guarda, nao mudou nada.
+       O #avisoVersao tem markup ESTATICO no HTML (o JS so tira o `hidden`), entao o texto
+       existe mesmo escondido -- por isso falaDeVersao exige `!el.hidden`, senao ele seria
+       true desde o boot e a medicao nao distinguiria nada. */
+    const el = document.getElementById('avisoVersao');
     const txt = el ? (el.textContent || '').replace(/\s+/g, ' ').trim() : '';
     let marca = null, erroMarca = null;
     try { marca = sessionStorage.getItem('mappo_recarga_versao'); }
@@ -204,7 +211,7 @@ function lerEstado(pg) {
       tinhaControlador: (typeof _TINHA_CONTROLADOR !== 'undefined') ? _TINHA_CONTROLADOR : null,
       controlado: !!navigator.serviceWorker.controller,
       oculta: !!(el && el.hidden),
-      falaDeVersao: /Nova vers[ãa]o do MAPPO/i.test(txt),
+      falaDeVersao: !!(el && !el.hidden && /Nova vers[ãa]o do MAPPO/i.test(txt)),
       motivo: (typeof _porQueNaoRecarregarAgora === 'function') ? _porQueNaoRecarregarAgora() : 'SEM FUNCAO',
       timerPendente: (typeof _timerRecarga !== 'undefined') ? _timerRecarga !== null : null,
       avisos: logs.filter((l) => /Vers[ãa]o nova do app dispon/i.test(l.msg)).length,
@@ -306,6 +313,12 @@ async function esperarAte(pg, fn, tetoMs) {
   await A.pg.goto(base, { waitUntil: 'load' });
   await esperarControlador(A.pg, 15000);  // instala, ativa, reclama o controle
   await esperar(1500);                    // e sobra tempo para um aviso errado aparecer
+  /* Guarda de legibilidade do CONTROLE: rodando com MAPPO_RAIZ apontando para uma versão
+     anterior (onde o aviso ainda era o #syncAlerta), esta suíte reprovava com um TypeError de
+     "null.hidden" lá no CHECK 14, longe da causa. Aqui ela diz o que falta, na primeira vez
+     que o elemento é necessário. Prova exigida que sai ilegível não é prova. */
+  const temAviso = await A.pg.evaluate(() => !!document.getElementById('avisoVersao'));
+  assert(temAviso === true, 'o #avisoVersao existe nesta versão do app (o aviso de versão saiu do #syncAlerta em 02/10/2026)');
   const e3 = await lerEstado(A.pg);
   console.log('   ', JSON.stringify({ controlado: e3.controlado, bandeira: e3.bandeira, nav: A.est.nav, marca: e3.marca }));
   /* Controle positivo: sem SW instalado, "não avisou" não prova nada -- seria o mesmo
@@ -314,7 +327,7 @@ async function esperarAte(pg, fn, tetoMs) {
   assert(e3.bandeira === false, 'nenhum aviso de versão nova na primeira visita');
   assert(e3.detectada === false, 'e nada foi detectado como atualização');
   assert(e3.tinhaControlador === false, 'a página sabe que abriu SEM controlador (é instalação, não atualização)');
-  assert(e3.oculta === true, 'a faixa continua escondida');
+  assert(e3.oculta === true, 'o aviso de versão continua escondido');
   assert(A.est.nav === 1, 'nenhuma recarga automática (só a navegação do goto)');
   assert(e3.marca === null, 'nenhuma marca de recarga foi gravada');
 
@@ -351,7 +364,7 @@ async function esperarAte(pg, fn, tetoMs) {
   console.log('    reg.update() chamado ' + updates5 + 'x   detectada=' + e5.detectada + '   motivo=' + e5.motivo + '   nav=' + (A.est.nav - navAntes5));
   assert(updates5 >= 1, 'o evento de volta ao app disparou reg.update() (é o listener, não o goto)');
   assert(achou5 === true && e5.detectada === true, 'a versão nova foi detectada sem nenhuma navegação');
-  assert(e5.falaDeVersao === true, 'e a faixa avisa na tela');
+  assert(e5.falaDeVersao === true, 'e o aviso de versão aparece na tela');
   assert(e5.motivo === 'recarga recente', 'a carência da recarga anterior é o motivo de não recarregar agora');
   assert(A.est.nav - navAntes5 === 0, 'nenhuma recarga: a carência de 60s segurou, como manda o contrato');
   await ctxA.close();
@@ -502,7 +515,7 @@ async function esperarAte(pg, fn, tetoMs) {
   console.log('   ', JSON.stringify({ motivo: e8.motivo, timer: e8.timerPendente, avisos: e8.avisos, adiados: e8.adiados, nav: B.est.nav }));
   assert(e8.motivo === 'modal aberto', 'o app sabe dizer por que não pode recarregar agora');
   assert(e8.bandeira === true, 'o aviso de versão nova está de pé');
-  assert(e8.falaDeVersao === true && e8.oculta === false, 'a faixa está na tela avisando');
+  assert(e8.falaDeVersao === true && e8.oculta === false, 'o aviso de versão está na tela');
   assert(e8.avisos === 1, 'três chamadas, UM aviso só no log (o aviso não duplica)');
   assert(e8.timerPendente === true, 'ficou uma nova tentativa agendada (o aviso não foi descartado)');
   /* A linha de base é lida DEPOIS da primeira tentativa com este motivo: entre o CHECK 7 e
@@ -553,9 +566,15 @@ async function esperarAte(pg, fn, tetoMs) {
     return { motivo: _porQueNaoRecarregarAgora(), bandeira: _versaoNovaDisponivel };
   });
   await esperar(1500);
-  console.log('    motivo=' + e11.motivo + '  navegações=' + B.est.nav);
+  /* A BANDEIRA NÃO BASTA: desde 02/10/2026 _versaoNovaDisponivel não é lida em lugar nenhum do
+     index.html -- é só telemetria. Provar a presença do aviso por ela deixaria este check verde
+     com a pílula nunca aparecendo na tela. Por isso o elemento é medido junto. */
+  const e11el = await lerEstado(B.pg);
+  console.log('    motivo=' + e11.motivo + '  navegações=' + B.est.nav + '  avisoNaTela=' + e11el.falaDeVersao);
   assert(e11.motivo === 'recarga recente', 'a carência depois de uma recarga é o motivo de não recarregar');
-  assert(e11.bandeira === true, 'a faixa avisa de novo -- o que não acontece é a recarga automática');
+  assert(e11.bandeira === true, 'o aviso de versão aparece de novo -- o que não acontece é a recarga automática');
+  assert(e11el.falaDeVersao === true && e11el.oculta === false,
+    'e o aviso está MESMO na tela (elemento visível com o texto), não só a bandeira ligada');
   assert(B.est.nav === 2, 'nenhuma segunda recarga: a trava atravessa a própria recarga');
   await ctxB.close();
 
@@ -576,7 +595,7 @@ async function esperarAte(pg, fn, tetoMs) {
   await esperar(1500);
   const e12b = await lerEstado(C.pg);
   console.log('    dedução:', JSON.stringify(e12a), ' nav=' + C.est.nav);
-  assert(e12a.bandeira === true && e12b.falaDeVersao === true, 'a dedução acende a faixa');
+  assert(e12a.bandeira === true && e12b.falaDeVersao === true, 'a dedução acende o aviso de versão');
   assert(e12b.suspeitas === 1, 'e deixa rastro no log (suspeita de versão velha)');
   assert(e12a.detectada === false, 'mas NÃO marca como detectada: dedução não é detecção');
   assert(e12a.timer === false && C.est.nav === 1, 'e não recarrega sozinha nem agenda recarga');
@@ -624,7 +643,11 @@ async function esperarAte(pg, fn, tetoMs) {
   assert(e13.lancou === true, 'controle positivo: neste contexto o sessionStorage realmente lança');
   assert(e13.motivo === 'não deu para ler a marca de recarga', 'marca ilegível é tratada como hora INSEGURA, não como zero');
   assert(D.est.nav === 1, 'e nada recarregou');
-  assert(e13.bandeira === true, 'a faixa avisa (a pessoa recarrega no toque)');
+  /* mesma razão do CHECK 11: a bandeira sozinha não prova que a pessoa VÊ alguma coisa */
+  const e13el = await lerEstado(D.pg);
+  assert(e13.bandeira === true, 'a bandeira do aviso de versão está ligada');
+  assert(e13el.falaDeVersao === true && e13el.oculta === false,
+    'e o aviso está na tela, com o botão "Atualizar" -- é por ele que a pessoa resolve, já que a recarga automática desistiu');
   assert(e13.timer === false, 'não fica tentando de novo para sempre: o motivo não se resolve esperando');
   assert(e13.desligada >= 1, 'e o log diz que a recarga automática foi desligada, com o motivo');
   assert(e13.logouFalha >= 1, 'a falha de leitura foi registrada (não engolida)');
@@ -639,13 +662,13 @@ async function esperarAte(pg, fn, tetoMs) {
   const e14 = await E.pg.evaluate(() => ({
     bandeira: _versaoNovaDisponivel,
     controlado: !!navigator.serviceWorker.controller,
-    oculta: !!document.getElementById('syncAlerta').hidden,
+    oculta: !!document.getElementById('avisoVersao').hidden,
     logSw: (_fbLogs || []).filter((l) => /Service Worker/i.test(l.msg)).map((l) => l.msg.slice(0, 90))
   }));
   console.log('   ', JSON.stringify(e14));
   assert(e14.controlado === false, 'controle positivo: nenhum Service Worker assumiu esta página');
   assert(e14.bandeira === false, 'nenhum aviso de versão nova');
-  assert(e14.oculta === true, 'nenhuma faixa na tela');
+  assert(e14.oculta === true, 'nenhum aviso de versão na tela');
   assert(E.est.nav === 1, 'nada recarregou');
   assert(e14.logSw.some((m) => /não registrado|nao registrado/i.test(m)),
     'a falha de registro foi registrada no log com o motivo (não engolida)');

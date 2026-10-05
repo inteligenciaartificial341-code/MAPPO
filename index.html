@@ -736,6 +736,89 @@
   .sync-alerta-txt{flex:1;}
   .sync-alerta-acao{flex-shrink:0;font-weight:600;text-decoration:underline;white-space:nowrap;}
 
+  /* ── AVISO DE VERSÃO NOVA ─────────────────────────────────────────────────────
+     Elemento PRÓPRIO, fora do #syncAlerta, por duas razões medidas:
+     1. O #syncAlerta mora no topo do fluxo e NÃO é position:fixed — com a página rolada
+        ele sai de vista, e aviso fora da tela não avisa ninguém. Os outros avisos
+        (sem conexão, falha de envio, falha de leitura, chave quase cheia) continuam faixa
+        no topo; só o de versão passa a ser pílula fixa. Misturar os dois comportamentos num
+        elemento só obrigaria _atualizarAlertaSync a trocar `position` conforme o caso.
+     2. A cor: `.sync-alerta.aviso` é âmbar de alerta (#fffbeb/#92400e), e versão nova não é
+        defeito. Aqui é a paleta da logo — petróleo —, nunca vermelho, laranja ou âmbar.
+     O molde de posição é o do .toast (fixed no rodapé), que o app já usa.
+
+     z-index 75: acima do conteúdo e da barra de navegação (70), e ABAIXO do backdrop da
+     gaveta lateral (80), da sidebar (90), do menu flutuante (118-120), do .overlay dos modais
+     (200), do lightbox (500) e do toast (999). Era 150 e isso tapava os últimos itens da
+     sidebar aberta no celular; com 75, abrir a gaveta cobre a pílula, que é o certo.
+
+     NADA QUE SE TOCA PODE FICAR DEBAIXO DELA. A pílula não tem "×" nem "Agora não" (decisão
+     do proprietário), então cobrir um alvo de toque é BLOQUEÁ-LO até a recarga, que pode estar
+     adiada sem prazo. Medido em 02/10/2026, antes da correção: em 390x720 a pílula ocupava
+     y[515,646] e continha o FAB "Nova OS" inteiro (y[590,642]), e elementFromPoint no centro
+     do FAB devolvia o botão "Atualizar". Por isso a altura real da pílula vira --aviso-h
+     (medida em _medirAvisoVersao, não chutada: ela muda com a largura) e o FAB, o fim do
+     conteúdo e o toast sobem por ela enquanto `body.com-aviso-versao` estiver de pé. */
+  :root{--aviso-h:0px;}
+  .versao-nova{position:fixed;left:calc(var(--sidebar-w) + 26px);bottom:26px;z-index:75;max-width:430px;
+    display:flex;align-items:flex-start;gap:12px;background:var(--petrol-bg);color:var(--gray-800);
+    border:1px solid #cfe1e8;border-left:4px solid var(--petrol);border-radius:var(--radius);
+    padding:14px 16px;box-shadow:var(--shadow-lg);font-size:13.5px;line-height:1.45;}
+  /* OBRIGATÓRIO, não enfeite: `display:flex` numa classe vence o `display:none` que o
+     navegador aplica ao atributo `hidden` (regra de UA, especificidade menor). Sem esta
+     linha a pílula ficaria na tela vazia para sempre. */
+  .versao-nova[hidden]{display:none;}
+  /* O ícone é o do SISTEMA (.ico Feather + ICONS.refresh + svgIco), desenhado por
+     _desenharIconeVersao. Aqui só o tamanho e a cor: `.ico` já traz stroke:currentColor,
+     stroke-width:2 e fill:none, então basta o `color`. */
+  .versao-nova-ico{width:21px;height:21px;margin-top:1px;color:var(--petrol);}
+  .versao-nova-txt{flex:1;min-width:0;}
+  .versao-nova-txt b{display:block;font-weight:700;font-size:14.5px;color:var(--petrol-dark);margin-bottom:2px;}
+  /* Motivo em português, vindo de _porQueNaoRecarregarAgora, quando esperar não resolve ou
+     quando a espera estourou o teto do botão. Fica NA PÍLULA e não só no log: os comentários
+     deste arquivo dizem, com razão, que ninguém abre o log de diagnóstico. */
+  .versao-nova-motivo{display:block;margin-top:6px;font-size:12.5px;font-weight:600;color:var(--petrol-dark);}
+  .versao-nova-motivo[hidden]{display:none;}
+  /* mesmo sólido do .btn-primary ("Nova OS"): petróleo, não o --blue.
+     min-height 44px é o alvo de toque recomendado -- e sem ele a altura ficava em 40.0px
+     cravados, que vira vermelho no CI por uma métrica de fonte diferente, sem defeito nenhum. */
+  .versao-nova-btn{flex-shrink:0;align-self:center;display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:44px;background:var(--petrol);color:#fff;border:none;border-radius:var(--radius-sm);padding:9px 16px;font-family:inherit;font-size:13.5px;font-weight:600;white-space:nowrap;cursor:pointer;transition:background .15s;}
+  .versao-nova-btn:hover{background:var(--petrol-dark);}
+  .versao-nova-btn:active{transform:scale(.98);}
+  .versao-nova-btn[disabled]{background:var(--petrol-light);cursor:default;}
+  .versao-nova-spin{width:13px;height:13px;flex-shrink:0;border-radius:50%;border:2px solid rgba(255,255,255,.38);border-top-color:#fff;animation:syncspin .7s linear infinite;}
+  /* O `left` ESPELHA o `margin-left` do .main, regra por regra. Sem isso a pílula nasce em
+     cima da sidebar petróleo (248px) e parece erro de layout -- que é justamente o que esta
+     entrega veio tirar. Qualquer mudança no recuo do .main tem de vir acompanhada aqui. */
+  body.has-rail .versao-nova{left:calc(88px + 26px);}
+  @media(min-width:1025px){
+    body.desktop-clean.has-rail .versao-nova{left:calc(var(--sidebar-w) + 26px);}
+  }
+  /* no celular a barra de navegação é inferior (62px + área segura): a pílula fica ACIMA
+     dela, senão o botão "Atualizar" cai debaixo da barra e não é alcançável */
+  @media(max-width:1024px){
+    .versao-nova,body.has-rail .versao-nova{left:12px;right:12px;width:auto;max-width:none;bottom:calc(74px + env(safe-area-inset-bottom,0px));}
+  }
+  body.force-mobile .versao-nova,body.force-mobile.has-rail .versao-nova{left:12px;right:12px;width:auto;max-width:none;bottom:calc(74px + env(safe-area-inset-bottom,0px));}
+  @media(max-width:560px){
+    .versao-nova{flex-wrap:wrap;}
+    .versao-nova-btn{width:100%;margin-top:6px;padding:11px 16px;}
+  }
+  /* ── o que a pílula empurra enquanto está acesa ──
+     86px = os 74px do rodapé da pílula + 12px de folga. --aviso-h é a altura MEDIDA.
+     Os seletores repetem as combinações de classe do .main e do .fab porque algumas delas
+     (body.force-mobile.has-rail .main) têm especificidade maior que uma classe só. */
+  body.com-aviso-versao .main{padding-bottom:calc(var(--aviso-h) + 46px);}
+  body.com-aviso-versao .toast{bottom:calc(var(--aviso-h) + 46px);}
+  @media(max-width:1024px){
+    body.com-aviso-versao .main{padding-bottom:calc(86px + var(--aviso-h) + env(safe-area-inset-bottom,0px));}
+    body.com-aviso-versao .fab{bottom:calc(86px + var(--aviso-h) + env(safe-area-inset-bottom,0px));}
+    body.com-aviso-versao .toast{bottom:calc(86px + var(--aviso-h) + env(safe-area-inset-bottom,0px));}
+  }
+  body.force-mobile.com-aviso-versao .main,body.force-mobile.has-rail.com-aviso-versao .main{padding-bottom:calc(86px + var(--aviso-h) + env(safe-area-inset-bottom,0px));}
+  body.force-mobile.com-aviso-versao .fab{bottom:calc(86px + var(--aviso-h) + env(safe-area-inset-bottom,0px));}
+  body.force-mobile.com-aviso-versao .toast{bottom:calc(86px + var(--aviso-h) + env(safe-area-inset-bottom,0px));}
+
   /* ── tarefas adicionais ── */
   .tf-item{background:var(--white);border:1px solid var(--gray-200);border-radius:14px;padding:16px 18px;margin-bottom:12px;box-shadow:var(--shadow-sm);}
   .tf-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px;}
@@ -1103,8 +1186,9 @@
          tudo certo; aparece quando um envio falha ou quando um documento se aproxima do
          teto de 1 MiB do Firestore. Antes disto, os dois casos só existiam no log de
          diagnóstico, que ninguém abre -- a sincronização podia estar parada há dias. -->
-    <!-- o clique é definido em _atualizarAlertaSync: leva ao diagnóstico nos avisos de
-         sincronização, e recarrega a página no aviso de versão nova -->
+    <!-- o clique é definido em _atualizarAlertaSync e leva ao diagnóstico. O aviso de VERSÃO
+         NOVA saiu daqui em 02/10/2026: virou #avisoVersao, pílula fixa no rodapé (junto do
+         toast, no fim deste arquivo) -- esta faixa sai de vista com a página rolada. -->
     <div class="sync-alerta" id="syncAlerta" hidden></div>
 
     <div class="content" id="contentArea">
@@ -1114,6 +1198,25 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<!-- AVISO DE VERSÃO NOVA (ver bloco "VERSÃO NOVA" no fim do arquivo e o CSS .versao-nova).
+     Fica aqui, fora do #app e ao lado do toast, porque é position:fixed: não participa
+     do fluxo da página e por isso não depende de rolagem para ser visto.
+     ATENÇÃO: estar fora do #app significa que iniciarModoPublico/_mostrarLinkAntigo, que
+     removem o #app, NÃO removem isto. A página do cliente não pode mostrar esta pílula --
+     a proibição está em _acenderFaixaVersao e na remoção explícita naquelas duas funções.
+     Não tem "Agora não" nem "×" de propósito: a recarga é automática em hora segura (decisão
+     do proprietário, 01/10 e 02/10/2026), então dispensar não significaria nada. O botão
+     "Atualizar" existe para APRESSAR quando o app está esperando hora segura -- e ele passa
+     pela mesma guarda, nunca por location.reload() direto.
+     O ícone é preenchido por _desenharIconeVersao com svgIco('refresh'): o sistema de ícones
+     do app (.ico Feather) só existe depois que ICONS é declarado, lá embaixo. -->
+<div class="versao-nova" id="avisoVersao" role="status" aria-live="polite" hidden>
+  <span id="avisoVersaoIco" aria-hidden="true"></span>
+  <span class="versao-nova-txt"><b>Nova versão do MAPPO disponível</b>Atualize para ter as últimas melhorias.<span class="versao-nova-motivo" id="avisoVersaoMotivo" hidden></span></span>
+  <button class="versao-nova-btn" id="avisoVersaoBtn" type="button" onclick="_apressarAtualizacao()">Atualizar</button>
+</div>
+
 <div class="lightbox" id="lightbox" onclick="closeLightbox()"><img id="lightboxImg" src="" alt=""></div>
 
 <!-- MODAIS injetados -->
@@ -1299,7 +1402,7 @@ function _cachePor(id,uri){
    compressão e deixa a GRAVAÇÃO descoberta -- que é exatamente a janela do defeito.
 
    Se um contador ficar preso (uma operação que nunca termina), o efeito é a recarga
-   automática nunca acontecer: a faixa fica na tela e a pessoa recarrega no toque. O
+   automática nunca acontecer: o aviso fica na tela, e o botão "Atualizar" também espera a hora segura. O
    erro cai para o lado seguro de propósito. */
 const _opsEmVoo=new Map();            // nome da operação -> quantas em voo
 function _opsEmVooTotal(){let n=0;_opsEmVoo.forEach(v=>{n+=v;});return n;}
@@ -1519,11 +1622,14 @@ function _atualizarAlertaSync(){
   if(!el)return;
   const falhas=Object.keys(_falhasEnvio), cheias=Object.keys(_chavesQuaseCheias);
   const leituras=Object.keys(_falhasLeitura);
-  if(!_semNuvem()&&!_versaoNovaDisponivel&&!falhas.length&&!leituras.length&&!cheias.length){el.hidden=true;el.className='sync-alerta';el.innerHTML='';el.onclick=()=>nav('config');return;}
+  /* _versaoNovaDisponivel saiu daqui em 02/10/2026: o aviso de versão nova tem elemento
+     próprio (#avisoVersao, pílula fixa). Esta faixa voltou a ser só de sincronização, e
+     por isso ela esconde normalmente quando a única coisa acontecendo é "saiu versão nova". */
+  if(!_semNuvem()&&!falhas.length&&!leituras.length&&!cheias.length){el.hidden=true;el.className='sync-alerta';el.innerHTML='';el.onclick=()=>nav('config');return;}
   el.hidden=false;
-  /* SEM CONEXÃO tem a prioridade máxima: é a mensagem de maior consequência ("nada está
-     sendo salvo fora daqui"), e a ação que resolve — recarregar — é a mesma do aviso de
-     versão nova, então nada se perde por ela vir primeiro.
+  /* SEM CONEXÃO tem a prioridade máxima DENTRO desta faixa: é a mensagem de maior
+     consequência ("nada está sendo salvo fora daqui"). Desde 02/10/2026 ela não disputa mais
+     com o aviso de versão nova, que tem elemento próprio (#avisoVersao) e aparece junto.
      Isto nasceu de um caso real (24/09/2026): o app do gestor rodou horas com fbReady=false e
      WORKSPACE=null, restaurado do cache. A tela parecia normal, mas NADA subia: cada link de
      cliente regerado falhava em silêncio e o documento antigo, já revogado, continuava
@@ -1538,17 +1644,11 @@ function _atualizarAlertaSync(){
       <span class="sync-alerta-acao">Recarregar</span>`;
     return;
   }
-  /* Versão desatualizada vence tudo: enquanto esta aba roda código velho, qualquer outro
-     aviso é secundário -- e várias ações podem falhar sem motivo aparente. */
-  if(_versaoNovaDisponivel){
-    el.className='sync-alerta aviso';
-    el.onclick=()=>location.reload();
-    el.innerHTML=`<span class="sync-alerta-ico">🔄</span>
-      <span class="sync-alerta-txt"><b>Nova versão do MAPPO disponível.</b>
-      Recarregue para atualizar — até lá, algumas ações podem falhar.</span>
-      <span class="sync-alerta-acao">Recarregar agora</span>`;
-    return;
-  }
+  /* Aqui havia o ramo de VERSÃO NOVA, que vencia todos os outros avisos. Ele saiu em
+     02/10/2026 para o #avisoVersao: elemento próprio, fixo no rodapé, na paleta da logo.
+     Os dois podem estar na tela ao mesmo tempo sem competir -- um é faixa no topo do fluxo,
+     o outro é pílula fixa no rodapé -- e nenhum dos dois esconde o outro, que era o efeito
+     colateral do "vence tudo". */
   el.onclick=()=>nav('config');
   if(falhas.length){ // falha real vence o aviso preventivo
     const k=falhas[0], f=_falhasEnvio[k];
@@ -8251,14 +8351,15 @@ async function gerarConviteTecnico(tecnicoId){
        cruel: tentar de novo nunca resolve.
        Até 01/10/2026 isto era um toast de 3 segundos, posto aqui porque o aviso geral estava
        mudo — e foi o único aviso de versão velha que o proprietário chegou a ver. Agora o
-       aviso geral funciona (ver "VERSÃO NOVA" no fim do arquivo), então o remendo dá lugar à
-       faixa, que fica na tela em vez de sumir em 3 segundos -- com um toast curto junto, só
-       para dar retorno imediato ao toque: o botão fica no meio da lista de Configurações e a
-       faixa mora no topo do layout, sem position:fixed, então com a página rolada ela pode
-       estar fora da tela. _avisarVersaoVelhaPorErro rola a faixa à vista. */
+       aviso geral funciona (ver "VERSÃO NOVA" no fim do arquivo), então o remendo dá lugar ao
+       aviso, que fica na tela em vez de sumir em 3 segundos -- com um toast curto junto, só
+       para dar retorno imediato ao toque, porque o botão de convite fica no meio da lista de
+       Configurações e o aviso aparece no rodapé.
+       Em 02/10/2026 o aviso virou #avisoVersao, position:fixed: não depende mais de rolagem,
+       então o texto deixou de mandar olhar "a faixa no topo", que seria instrução errada. */
     if(e&&e.code==='permission-denied'){
       _avisarVersaoVelhaPorErro('a regra do servidor negou o convite');
-      toast('Seu app está desatualizado — veja a faixa no topo e recarregue','error');
+      toast('Seu app está desatualizado — toque em Atualizar no aviso','error');
       return;
     }
     toast('Não foi possível gerar o convite — tente de novo','error');
@@ -11035,6 +11136,11 @@ function _mostrarLinkAntigo(){
   const sp=document.getElementById('splashScreen');if(sp)sp.remove();
   const lg=document.getElementById('loginScreen');if(lg)lg.remove();
   const ap=document.getElementById('app');if(ap)ap.remove();
+  /* O aviso de versão nova é IRMÃO do #toast, não filho do #app: remover o #app não o leva
+     junto. Sem esta linha o cliente final veria tela interna do app com botão de recarga --
+     medido em 02/10/2026 (hidden:false, visível, recuado 274px numa tela sem sidebar).
+     _acenderFaixaVersao também recusa acender em modo-publico; as duas camadas de propósito. */
+  const av=document.getElementById('avisoVersao');if(av)av.remove();
   const box=document.createElement('div');
   box.id='pubScreen';
   box.innerHTML=`<div class="pub-wrap"><div class="pub-erro"><b>Link desatualizado</b><span>Este link de acompanhamento é de uma versão antiga do sistema e não funciona mais. Peça um novo link à empresa.</span></div></div>`;
@@ -11045,6 +11151,11 @@ function iniciarModoPublico(wsId,token){
   const sp=document.getElementById('splashScreen');if(sp)sp.remove();
   const lg=document.getElementById('loginScreen');if(lg)lg.remove();
   const ap=document.getElementById('app');if(ap)ap.remove();
+  /* O aviso de versão nova é IRMÃO do #toast, não filho do #app: remover o #app não o leva
+     junto. Sem esta linha o cliente final veria tela interna do app com botão de recarga --
+     medido em 02/10/2026 (hidden:false, visível, recuado 274px numa tela sem sidebar).
+     _acenderFaixaVersao também recusa acender em modo-publico; as duas camadas de propósito. */
+  const av=document.getElementById('avisoVersao');if(av)av.remove();
   const box=document.createElement('div');
   box.id='pubScreen';
   box.innerHTML=`<div class="pub-wrap"><div class="pub-load">Carregando acompanhamento...</div></div>`;
@@ -11222,12 +11333,15 @@ const RECARGA_CARENCIA_MS=60000;   // depois de recarregar, não recarrega outra
 const RECARGA_TETO=3;              // teto de recargas automáticas por sessão desta aba
 const RECARGA_MARCA='mappo_recarga_versao';
 const PROCURA_MINIMA_MS=30000;     // de quanto em quanto, no máximo, reconsulta o sw.js
+const BOTAO_ATUALIZAR_TETO_MS=25000; // até quando o botão fica em "Atualizando…" antes de voltar
 let _timerRecarga=null;
+let _timerBotaoAtualizar=null;     // devolve o botão "Atualizar" se a recarga não vier
+let _recargaManualPedida=false;    // a pessoa tocou em "Atualizar": o teto anti-laço não vale pra ela
 let _recargaPedida=false;          // trava anti-laço DENTRO desta página
 let _ultimoMotivoAdiado='';        // só para não repetir a mesma linha no log a cada 4s
 let _ultimaProcura=0;              // quando o sw.js foi reconsultado pela última vez
 /* DUAS bandeiras, de propósito, e misturá-las já causou defeito:
-   _versaoNovaDisponivel  = a faixa está acesa. Pode ter sido acesa por DEDUÇÃO (o
+   _versaoNovaDisponivel  = o aviso está aceso. Pode ter sido aceso por DEDUÇÃO (o
                             permission-denied do convite), que não prova que saiu versão nova.
    _versaoNovaDetectada   = o Service Worker detectou de verdade. É esta que arma a recarga.
    Até 01/10/2026 havia só a primeira, e _avisarVersaoNova começava com
@@ -11252,10 +11366,14 @@ function _lerMarcaRecarga(){
     return null;   // null = "não sei"; quem decide trata como não-seguro, nunca como zero
   }
 }
-function _marcarRecarga(){
+/* `manual` = a pessoa tocou em "Atualizar". Nesse caso o contador `n` NÃO sobe: ele é o teto
+   anti-laço da recarga AUTOMÁTICA, e racionar o toque de alguém com ele faria o botão responder
+   "feche e abra o app" ao terceiro pedido deliberado. O `ts` sobe nos dois casos, porque a
+   carência existe para o app não piscar — e piscar é piscar, venha de onde vier. */
+function _marcarRecarga(manual){
   const m=_lerMarcaRecarga()||{n:RECARGA_TETO-1,ts:0};
   try{
-    sessionStorage.setItem(RECARGA_MARCA,JSON.stringify({n:m.n+1,ts:Date.now()}));
+    sessionStorage.setItem(RECARGA_MARCA,JSON.stringify({n:m.n+(manual?0:1),ts:Date.now()}));
   }catch(e){
     fbLog('Não deu para marcar a recarga de versão: '+(e&&e.code)+' — '+(e&&e.message||e),'erro');
   }
@@ -11285,7 +11403,7 @@ function _campoComTextoNaoSalvo(){
    texto porque ele é logado e conferido em teste: "não recarregou" sem o porquê não se
    distingue de "não detectou".
    A ORDEM é a da consequência: o que perde trabalho vem primeiro. */
-function _porQueNaoRecarregarAgora(){
+function _porQueNaoRecarregarAgora(manual){
   /* 1. Operação em voo. Primeiro de todos porque é o único cujo custo é dado APAGADO: a foto
      que o técnico acabou de tirar, cujo input já foi limpo. Ver _opsEmVoo. */
   if(_opsEmVooTotal()>0)return 'operação em voo: '+_opEmVooNome();
@@ -11299,31 +11417,40 @@ function _porQueNaoRecarregarAgora(){
   if(a&&(/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName||'')||a.isContentEditable))return 'campo em foco';
   const naoSalvo=_campoComTextoNaoSalvo();
   if(naoSalvo)return 'texto digitado e não salvo ('+naoSalvo+')';
-  /* 4. e 5. A marca: desconhecido é tratado como inseguro, nunca como zero. */
+  /* 4. e 5. A marca: desconhecido é tratado como inseguro, nunca como zero.
+     `manual` vem de "a pessoa tocou em Atualizar" e muda UMA coisa: o teto. Ele é trava
+     anti-laço do Service Worker, e não racionamento de ação humana — três toques deliberados
+     não podem transformar o botão num "feche e abra o app". Tudo o mais continua valendo,
+     inclusive a marca ilegível: sem conseguir ler a marca não há como garantir que não vira
+     laço, e aí nem o toque passa. Sem o argumento o comportamento é exatamente o de antes. */
   const m=_lerMarcaRecarga();
   if(!m)return 'não deu para ler a marca de recarga';
-  if(m.n>=RECARGA_TETO)return 'teto de recargas automáticas desta sessão';
+  if(!manual&&m.n>=RECARGA_TETO)return 'teto de recargas automáticas desta sessão';
   if(m.ts&&(Date.now()-m.ts)<RECARGA_CARENCIA_MS)return 'recarga recente';
   return '';
 }
 
+/* A assinatura não mudou de propósito: quem decide se o pedido é "à mão" é a bandeira
+   _recargaManualPedida, ligada uma vez em _apressarAtualizacao e lida aqui. Assim a tentativa
+   REAGENDADA (o setTimeout lá embaixo) continua sabendo que a pessoa pediu — se ela ficasse
+   só no argumento, o teto voltaria a valer na segunda tentativa e o pedido se perderia. */
 function _recarregarQuandoSeguro(){
   if(_recargaPedida)return;                      // uma recarga só, sem laço
-  const motivo=_porQueNaoRecarregarAgora();
+  const motivo=_porQueNaoRecarregarAgora(_recargaManualPedida);
   if(!motivo){
     _recargaPedida=true;
     if(_timerRecarga){clearTimeout(_timerRecarga);_timerRecarga=null;}
-    _marcarRecarga();
-    fbLog('Versão nova: recarregando agora (hora segura)','info');
+    _marcarRecarga(_recargaManualPedida);
+    fbLog('Versão nova: recarregando agora (hora segura'+(_recargaManualPedida?', a pedido da pessoa':'')+')','info');
     location.reload();
     return;
   }
-  /* Teto estourado não se resolve esperando: para de tentar e deixa a faixa resolver. */
+  /* Teto estourado não se resolve esperando: para de tentar; o aviso fica na tela com o botão. */
   if(motivo==='teto de recargas automáticas desta sessão'||motivo==='não deu para ler a marca de recarga'){
-    fbLog('Versão nova: recarga automática desligada ('+motivo+') — a faixa continua na tela','erro');
+    fbLog('Versão nova: recarga automática desligada ('+motivo+') — o aviso continua na tela','erro');
     return;
   }
-  /* Não é hora: espera e tenta de novo. O aviso NUNCA é descartado — a faixa fica na tela e
+  /* Não é hora: espera e tenta de novo. O aviso NUNCA é descartado — ele fica na tela e
      a pessoa pode recarregar na hora que quiser.
      Loga uma vez por MOTIVO, não a cada tentativa: o anel de log tem 60 linhas, e dez minutos
      com um modal aberto varreriam toda a evidência de como o app chegou ali. */
@@ -11335,17 +11462,139 @@ function _recarregarQuandoSeguro(){
   _timerRecarga=setTimeout(()=>{_timerRecarga=null;_recarregarQuandoSeguro();},RECARGA_ESPERA_MS);
 }
 
-/* Acende a faixa. `rolar` existe porque a faixa mora no topo do layout, sem position:fixed:
-   com a página rolada ela pode estar fora da tela, e aí o aviso não avisa ninguém. */
-function _acenderFaixaVersao(rolar){
-  _versaoNovaDisponivel=true;
-  _atualizarAlertaSync();
-  if(!rolar)return;
-  const el=document.getElementById('syncAlerta');
-  if(el&&typeof el.scrollIntoView==='function'){
-    try{el.scrollIntoView({block:'nearest'});}
-    catch(e){fbLog('Não deu para rolar a faixa à vista: '+(e&&e.code)+' — '+(e&&e.message||e),'erro');}
+/* Acende o aviso de versão nova (#avisoVersao, pílula fixa no rodapé).
+   O parâmetro `rolar` SAIU em 02/10/2026, e com ele o scrollIntoView: ele existia porque o
+   aviso morava no topo do fluxo do layout e com a página rolada ficava fora da tela. Agora o
+   elemento é position:fixed — não participa do fluxo, então não há para onde rolar e rolar a
+   página por conta própria seria mexer na tela da pessoa sem motivo.
+   Os dois chamadores (_avisarVersaoNova e _avisarVersaoVelhaPorErro) não mudaram de
+   comportamento — só pararam de passar um argumento que não significa mais nada. */
+function _acenderFaixaVersao(){
+  /* NUNCA na página pública do cliente. Até esta entrega a proteção existia POR ACIDENTE: o
+     aviso vivia dentro do #app, que iniciarModoPublico remove. Ao virar irmão do #toast para
+     poder ser fixo, ele passou a sobreviver — medido em 02/10/2026: hidden:false, visível,
+     com botão "Atualizar", recuado 274px numa tela sem sidebar. O cliente final da Elite Ar
+     veria tela interna do app. A proibição agora é explícita, e tem par: as duas funções de
+     modo público também removem o elemento. */
+  if(document.body.classList.contains('modo-publico')){
+    fbLog('Versão nova detectada no modo público — o aviso NÃO é mostrado ao cliente','info');
+    return;
   }
+  _versaoNovaDisponivel=true;
+  const el=document.getElementById('avisoVersao');
+  if(!el){fbLog('Aviso de versão nova: o elemento #avisoVersao não existe nesta página','erro');return;}
+  el.hidden=false;
+  _medirAvisoVersao();
+}
+
+/* O ícone vem do SISTEMA de ícones do app (`.ico` Feather + `ICONS.refresh` + `svgIco`), não de
+   um SVG desenhado à mão. É desenhado aqui, e não no HTML, porque a pílula é markup estático e
+   `svgIco`/`ICONS` só existem depois da declaração deles, mais acima no arquivo. */
+function _desenharIconeVersao(){
+  const ico=document.getElementById('avisoVersaoIco');
+  if(!ico){fbLog('Aviso de versão nova: #avisoVersaoIco não existe nesta página','erro');return;}
+  if(ico.firstChild)return;
+  ico.innerHTML=svgIco('refresh','versao-nova-ico');
+}
+_desenharIconeVersao();
+
+/* A ALTURA REAL da pílula vira --aviso-h, e `body.com-aviso-versao` liga as regras que fazem o
+   FAB "Nova OS", o fim do conteúdo e o toast subirem por ela. Medida, nunca chutada: a altura
+   muda com a largura (em ≤560px o botão vira linha própria) e com a linha de motivo.
+   Isto existe porque a pílula não tem "×" nem "Agora não" (decisão do proprietário): o que ela
+   cobre fica BLOQUEADO até a recarga, que pode estar adiada sem prazo. Medido em 02/10/2026,
+   antes da correção: em 390x720 a pílula continha o FAB inteiro e elementFromPoint no centro
+   dele devolvia o botão "Atualizar" — um toque mirando "Nova OS" acionava "Atualizar". */
+function _medirAvisoVersao(){
+  const el=document.getElementById('avisoVersao');
+  if(!el||el.hidden){
+    document.body.classList.remove('com-aviso-versao');
+    document.documentElement.style.setProperty('--aviso-h','0px');
+    return;
+  }
+  document.body.classList.add('com-aviso-versao');
+  document.documentElement.style.setProperty('--aviso-h',Math.ceil(el.getBoundingClientRect().height)+'px');
+}
+/* girar o aparelho ou redimensionar a janela muda a altura da pílula (o botão passa a caber,
+   ou não, na mesma linha) — sem isto o FAB ficaria recuado pela altura errada */
+window.addEventListener('resize',()=>{
+  try{_medirAvisoVersao();}
+  catch(e){fbLog('Não deu para remedir o aviso de versão: '+(e&&e.code)+' — '+(e&&e.message||e),'erro');}
+});
+
+/* O motivo de não dar para atualizar agora, em português, NA PÍLULA — não só no fbLog, que os
+   comentários deste arquivo dizem, com razão, que ninguém abre. O texto é o mesmo que
+   _porQueNaoRecarregarAgora devolve e que o teste confere: uma fonte só. */
+function _mostrarMotivoVersao(motivo){
+  const el=document.getElementById('avisoVersaoMotivo');
+  if(!el)return;
+  if(!motivo){el.hidden=true;el.textContent='';}
+  else{el.textContent='Ainda não dá para atualizar — '+motivo+'.';el.hidden=false;}
+  _medirAvisoVersao();
+}
+
+/* Devolve o botão ao estado "Atualizar". Usado quando a espera estoura o teto do botão. */
+function _devolverBotaoAtualizar(motivo){
+  const b=document.getElementById('avisoVersaoBtn');
+  if(!b)return;
+  b.disabled=false;
+  b.removeAttribute('aria-busy');
+  b.textContent='Atualizar';
+  _mostrarMotivoVersao(motivo);
+}
+
+/* Motivos que NÃO se resolvem esperando. Mostrar "Atualizando…" neles é mentira: o indicador
+   gira, nada acontece, e a pessoa para de procurar a causa.
+   - 'não deu para ler a marca de recarga': sessionStorage lançando; a recarga automática já se
+     desligou, e esperar não conserta.
+   - 'texto digitado e não salvo (...)': só sai quando a PESSOA salvar ou limpar o campo.
+   O teto de recargas não entra aqui porque, para um toque manual, ele nem é mais consultado. */
+function _esperarResolve(motivo){
+  if(!motivo)return true;
+  if(motivo==='não deu para ler a marca de recarga')return false;
+  if(motivo.indexOf('texto digitado e não salvo')===0)return false;
+  return true;
+}
+
+/* Botão "Atualizar" do aviso: APRESSA, não atropela.
+   Passa pela MESMA guarda da recarga automática (_recarregarQuandoSeguro, que consulta
+   _porQueNaoRecarregarAgora) e nunca por location.reload() direto. O aviso antigo tinha
+   onclick=()=>location.reload() no elemento INTEIRO: um toque errado em cima da faixa
+   recarregava por cima de foto sendo gravada, e foto de serviço perdida é a linha vermelha
+   do projeto. Aqui o toque pede, a guarda decide a hora. */
+function _apressarAtualizacao(){
+  const btn=document.getElementById('avisoVersaoBtn');
+  /* `true` = pedido humano: o teto anti-laço não vale (ver _porQueNaoRecarregarAgora). */
+  const motivo=_porQueNaoRecarregarAgora(true);
+  if(!_recargaPedida&&!_esperarResolve(motivo)){
+    fbLog('Atualizar: não dá agora ('+motivo+') — esperar não resolve isto','erro');
+    _mostrarMotivoVersao(motivo);        // o botão continua disponível: nada foi prometido
+    return;
+  }
+  if(btn){
+    if(btn.disabled)return;                      // dois toques não viram dois pedidos
+    btn.disabled=true;
+    btn.setAttribute('aria-busy','true');
+    btn.innerHTML='<span class="versao-nova-spin"></span>Atualizando…';
+  }
+  _recargaManualPedida=true;
+  _mostrarMotivoVersao('');                      // limpa um motivo de uma tentativa anterior
+  fbLog('Atualizar: recarga pedida à mão'+(motivo?' (esperando: '+motivo+')':' (hora segura)'),'info');
+  /* Teto para o "Atualizando…": se a recarga não vier nesse tempo, o botão VOLTA e DIZ POR QUÊ
+     na própria pílula. Nada é cancelado — a tentativa automática segue no timer de
+     _recarregarQuandoSeguro, e a guarda continua sendo quem decide. O que este teto evita é o
+     indicador girar para sempre afirmando que algo está acontecendo: um contador de operação em
+     voo que ficasse preso (caso documentado em _opsEmVoo) deixaria exatamente isso na tela. */
+  if(_timerBotaoAtualizar){clearTimeout(_timerBotaoAtualizar);}
+  _timerBotaoAtualizar=setTimeout(()=>{
+    _timerBotaoAtualizar=null;
+    const b2=document.getElementById('avisoVersaoBtn');
+    if(!b2||!b2.disabled||_recargaPedida)return;      // já recarregou, ou já foi devolvido
+    const agora=_porQueNaoRecarregarAgora(true);
+    fbLog('Atualizar: ainda não deu ('+(agora||'sem motivo aparente')+') — o botão volta para a pessoa tentar de novo','erro');
+    _devolverBotaoAtualizar(agora||'a recarga não veio');
+  },BOTAO_ATUALIZAR_TETO_MS);
+  _recarregarQuandoSeguro();
 }
 
 /* Detecção REAL (Service Worker). É a única que arma a recarga automática. */
@@ -11353,7 +11602,7 @@ function _avisarVersaoNova(origem){
   if(_versaoNovaDetectada)return;                // o aviso é um só; os eventos repetem
   _versaoNovaDetectada=true;
   fbLog('Versão nova do app disponível — '+origem,'info');
-  _acenderFaixaVersao(true);
+  _acenderFaixaVersao();
   _recarregarQuandoSeguro();
 }
 
@@ -11363,8 +11612,8 @@ function _avisarVersaoNova(origem){
    NÃO toca em _versaoNovaDetectada: se depois chegar uma atualização de verdade, ela ainda
    arma a recarga. Era esse o defeito desta linha até 01/10/2026. */
 function _avisarVersaoVelhaPorErro(origem){
-  fbLog('Suspeita de versão velha nesta aba — '+origem+' (a faixa avisa; a recarga automática continua armável)','erro');
-  _acenderFaixaVersao(true);
+  fbLog('Suspeita de versão velha nesta aba — '+origem+' (o aviso aparece na tela; a recarga automática continua armável)','erro');
+  _acenderFaixaVersao();
 }
 
 /* Service Worker (Story 7: instalação multiplataforma via PWA) -- registra depois do
@@ -11433,5 +11682,6 @@ if('serviceWorker'in navigator){
 </body>
 </html>
 
-<!-- publicacao de teste 02/10/2026: confirma em aparelho real que a faixa de versao nova
-     aparece numa aba que ja estava aberta. Sem mudanca de comportamento. -->
+<!-- publicacao de teste 02/10/2026: confirma em aparelho real que o aviso de versao nova
+     aparece numa aba que ja estava aberta. Sem mudanca de comportamento.
+     (Em 02/10/2026 esse aviso deixou de ser faixa no topo e virou a pilula #avisoVersao.) -->

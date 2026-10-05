@@ -16,6 +16,30 @@ pontos de 25/09.
 
 ---
 
+## Decisão do proprietário: a faixa "sem conexão" recarrega sem passar pela guarda 🟠
+
+**Achado em 02/10/2026**, durante a revisão do aviso de versão nova. **Não foi corrigido de
+propósito** — mexer no comportamento dos outros avisos do `#syncAlerta` é "Ask First" no spec,
+e isto é decisão de produto, não detalhe de implementação.
+
+**O que foi medido, não deduzido:** em `_atualizarAlertaSync`, o ramo de *sem conexão* faz
+`el.onclick=()=>location.reload()` na faixa inteira. Um toque em qualquer ponto dela recarrega
+**na hora**, sem consultar `_porQueNaoRecarregarAgora()`.
+
+**Por que importa:** é o mesmo caminho de perda de foto que o aviso de versão nova acabou de
+eliminar. `onEquipFoto` limpa o `<input>` e **depois** comprime e grava, de forma assíncrona:
+uma recarga nessa janela apaga a foto sem recuperação. A faixa de sem-conexão fica no topo e é
+toda clicável — e "sem conexão" é justamente o estado em que o técnico tenta tocar em coisas.
+
+**Qual seria a correção:** trocar `()=>location.reload()` por `()=>_recarregarQuandoSeguro()`,
+que é o `if` ao lado. Custo: uma linha, mais o caso correspondente em `testes/teste-semnuvem.js`.
+
+**Por que não saiu junto:** o proprietário pode querer que "Recarregar" ali seja imediato —
+reconectar é a ação que ele pede, e esperar hora segura muda o que o toque promete. Decisão
+dele, não minha.
+
+---
+
 ## Bloco 0 — falhas silenciosas ✅ fechado
 
 **Bloco 0 fechado.** O item 4 (`mappo_localizacao_historico` cresce para sempre) foi

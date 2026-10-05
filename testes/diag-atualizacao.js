@@ -78,14 +78,23 @@ const espera = (ms) => new Promise((r) => setTimeout(r, ms));
      grava em sessionStorage ANTES de recarregar -- e a marca que sobrevive a recarga, e
      portanto a unica evidencia de que a recarga automatica aconteceu de proposito. */
   const lerAviso = (pg) => pg.evaluate(() => {
-    const el = document.getElementById('syncAlerta');
+    /* Em 02/10/2026 o aviso de versao saiu do #syncAlerta para o #avisoVersao (pilula fixa no
+       rodape). Este diagnostico passou a ler o elemento novo: medir o formato antigo devolveria
+       "nenhum aviso" com o aviso na tela, e diagnostico que mede a forma antiga ja mandou o
+       proprietario cacar problema inexistente uma vez (CLAUDE.md, "Regras sobre dado").
+       O markup do #avisoVersao e estatico, entao `falaDeVersao` exige `!el.hidden`.
+       SEM fallback para o #syncAlerta de proposito: cair na forma antiga quando o elemento novo
+       some e exatamente o "diagnostico medindo a forma antiga" que o paragrafo acima condena --
+       ele diria "nenhum aviso" com todo o aviso funcionando, ou o contrario. Elemento ausente
+       aqui vira `null` e aparece como tal no relatorio. */
+    const el = document.getElementById('avisoVersao');
     const txt = el ? (el.textContent || '').replace(/\s+/g, ' ').trim() : '';
     let marca = null;
     try { marca = sessionStorage.getItem('mappo_recarga_versao'); } catch (e) { marca = 'ERRO: ' + e.message; }
     return {
       bandeira: (typeof _versaoNovaDisponivel !== 'undefined') ? _versaoNovaDisponivel : null,
       faixaVisivel: !!(el && !el.hidden),
-      falaDeVersao: /Nova vers[ãa]o do MAPPO/i.test(txt),
+      falaDeVersao: !!(el && !el.hidden && /Nova vers[ãa]o do MAPPO/i.test(txt)),
       controlado: !!navigator.serviceWorker.controller,
       motivo: (typeof _porQueNaoRecarregarAgora === 'function') ? _porQueNaoRecarregarAgora() : '(função não existe nesta versão)',
       marca,
@@ -143,8 +152,8 @@ const espera = (ms) => new Promise((r) => setTimeout(r, ms));
     console.log('  ' + pergunta);
     console.log('  service worker:   controlando=' + (av && av.controlado));
     console.log('  _versaoNovaDisponivel = ' + (av && av.bandeira));
-    console.log('  faixa na tela:    ' + (av && av.falaDeVersao ? 'SIM — avisa versão nova'
-      : (av && av.faixaVisivel ? 'outra faixa: "' + av.texto + '"' : 'nenhuma')));
+    console.log('  aviso na tela:    ' + (av && av.falaDeVersao ? 'SIM — avisa versão nova'
+      : (av && av.faixaVisivel ? 'visível, com outro texto: "' + av.texto + '"' : 'nenhum')));
     console.log('  recarga:          ' + (navs > 1 ? 'SIM, ' + (navs - 1) + ' recarga(s) automática(s)' : 'nenhuma')
       + '   marca=' + (av && av.marca));
     console.log('  pode recarregar agora? ' + (av && av.motivo === '' ? 'sim' : 'não — ' + (av && av.motivo)));

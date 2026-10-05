@@ -136,7 +136,7 @@ dependem do sistema operacional e do navegador real.
 **A partir de 01/10/2026 o app recarrega sozinho em hora segura** (`testes/teste-atualizacao.js`
 cobre isso no Chromium; o que falta é o aparelho real):
 - [ ] Com o app **instalado na tela inicial do iPhone**, publicar uma versão e **cronometrar**
-      quanto tempo leva até a faixa aparecer / o app recarregar. É o único número que vale
+      quanto tempo leva até o aviso aparecer / o app recarregar. É o único número que vale
       para o uso real — `testes/diag-swcache.js` mede o cabeçalho, não a conduta do Safari.
 - [ ] Voltar ao app depois de ele ficar **suspenso em segundo plano** (sair, usar outro app,
       voltar): a procura por versão nova acontece aí (`visibilitychange`).
@@ -153,8 +153,20 @@ cobre isso no Chromium; o que falta é o aparelho real):
       `testes/teste-atualizacao.js`; aqui é o aparelho real, com a câmera real.
 - [ ] O app **não fica piscando** (recarga em laço) depois de uma atualização.
 
-**Quando conferir:** se mexer em `sw.js`, no `manifest.json`, nos ícones ou no bloco
-"VERSÃO NOVA" do fim do `index.html`.
+**A aparência do aviso (02/10/2026).** O `#avisoVersao` é pílula fixa no rodapé, na paleta da
+logo. `testes/teste-versaonova.js` mede a cor calculada e o retângulo, mas no Chromium de uma
+máquina — e a reclamação que originou a mudança foi exatamente de percepção de cor **no
+aparelho do proprietário**:
+- [ ] No **iPhone**, com o aviso na tela: a cor lê como **petróleo/azulado**, não avermelhada,
+      e o aviso **não** parece mensagem de erro.
+- [ ] O aviso fica **acima da barra de navegação inferior**, e o botão **Atualizar** é
+      alcançável com o polegar (não fica debaixo da barra nem cortado pela área segura).
+- [ ] Rolar a tela até o fim: o aviso **continua visível** (é `position:fixed`).
+- [ ] Tocar em **Atualizar** com uma foto sendo gravada: aparece **"Atualizando…"** com
+      indicador, a foto **é salva**, e o app recarrega depois — nunca durante.
+
+**Quando conferir:** se mexer em `sw.js`, no `manifest.json`, nos ícones, no `#avisoVersao`/CSS
+`.versao-nova` ou no bloco "VERSÃO NOVA" do fim do `index.html`.
 
 ---
 

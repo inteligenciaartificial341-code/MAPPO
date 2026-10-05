@@ -48,13 +48,33 @@ function assert(c,m){ if(!c) throw new Error('FALHOU: '+m); console.log('  ok - 
   });
   assert(/Sem conex/i.test(r5),'o aviso de conexao vence os demais');
 
-  console.log('\n=== CHECK 6: sem-nuvem tem prioridade sobre versao nova ===');
-  const r6=await pg.evaluate(()=>{_versaoNovaDisponivel=true;_atualizarAlertaSync();
-    return document.getElementById('syncAlerta').textContent.replace(/\s+/g,' ').trim();});
-  assert(/Sem conex/i.test(r6),'sem-nuvem vence (mensagem mais consequente; a acao e a mesma)');
-  const r6b=await pg.evaluate(()=>{fbReady=true;WORKSPACE='ws';_atualizarAlertaSync();
-    return document.getElementById('syncAlerta').textContent.replace(/\s+/g,' ').trim();});
-  assert(/Nova vers/i.test(r6b),'com a nuvem ok, o aviso de versao nova aparece');
+  /* Ate 02/10/2026 o aviso de versao nova morava NESTA faixa e disputava prioridade com o
+     "sem conexao": quem acendia depois sequestrava a faixa do outro. Agora o de versao tem
+     elemento proprio (#avisoVersao, pilula fixa no rodape, paleta da logo), e nao ha mais
+     disputa -- os dois ficam na tela ao mesmo tempo. O que este check guarda e justamente isso:
+     o aviso de versao NAO esconde mais a mensagem de maior consequencia. */
+  console.log('\n=== CHECK 6: versao nova NAO sequestra mais a faixa de sem-conexao ===');
+  /* Guarda de legibilidade do CONTROLE: com MAPPO_RAIZ apontando para uma versao anterior (onde
+     o aviso de versao ainda morava no #syncAlerta) esta suite estourava um TypeError de
+     "null.hidden" aqui. Agora ela diz o que falta. Prova que sai ilegivel nao e prova. */
+  const temAviso=await pg.evaluate(()=>({el:!!document.getElementById('avisoVersao'),
+    fn:typeof _acenderFaixaVersao==='function'}));
+  assert(temAviso.el===true,'o #avisoVersao existe nesta versao do app (o aviso de versao saiu do #syncAlerta em 02/10/2026)');
+  assert(temAviso.fn===true,'_acenderFaixaVersao existe');
+  const r6=await pg.evaluate(()=>{_acenderFaixaVersao();_atualizarAlertaSync();
+    return {faixa:document.getElementById('syncAlerta').textContent.replace(/\s+/g,' ').trim(),
+            bandeira:_versaoNovaDisponivel,
+            avisoVisivel:!document.getElementById('avisoVersao').hidden};});
+  console.log('  ', JSON.stringify({bandeira:r6.bandeira,aviso:r6.avisoVisivel}));
+  assert(r6.bandeira===true,'controle positivo: o aviso de versao nova esta aceso');
+  assert(/Sem conex/i.test(r6.faixa),'a faixa continua dizendo "sem conexao" -- a mensagem de maior consequencia');
+  assert(r6.avisoVisivel===true,'e o aviso de versao aparece junto, em elemento proprio');
+  const r6b=await pg.evaluate(()=>{fbReady=true;WORKSPACE='ws';
+    _falhasEnvio={};_chavesQuaseCheias={};_atualizarAlertaSync();
+    return {faixaOculta:document.getElementById('syncAlerta').hidden,
+            avisoVisivel:!document.getElementById('avisoVersao').hidden};});
+  assert(r6b.faixaOculta===true,'resolvida a conexao, a faixa de sincronizacao some');
+  assert(r6b.avisoVisivel===true,'e o aviso de versao nova continua na tela, independente dela');
 
   console.log('\n=== CHECK 7: a ronda de vigilancia fica ativa ===');
   assert(await pg.evaluate(()=>{_vigiarConexao();return _rondaNuvem!==null;})===true,'ronda de 5s instalada');
