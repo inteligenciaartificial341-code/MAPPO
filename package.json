@@ -8,7 +8,9 @@
     "test:lista": "node testes/executar.js --lista",
     "test:regras": "node testes/teste-regras.js",
     "test:producao": "node testes/executar.js --com-producao --mostrar-diagnosticos",
-    "emulador:baixar": "firebase setup:emulators:firestore"
+    "emulador:baixar": "firebase setup:emulators:firestore",
+    "mapa": "node ferramentas/gerar-mapa.js",
+    "mapa:conferir": "node ferramentas/gerar-mapa.js --conferir"
   },
   "engines": {
     "node": ">=18"

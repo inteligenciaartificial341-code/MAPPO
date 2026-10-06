@@ -39,6 +39,7 @@
 'use strict';
 const { chromium } = require('playwright');
 const path = require('path'), http = require('http'), fs = require('fs'), crypto = require('crypto');
+const { spawnSync } = require('child_process');
 const RAIZ = process.env.MAPPO_RAIZ || path.resolve(__dirname, '..');
 function assert(c, m) { if (!c) throw new Error('FALHOU: ' + m); console.log('  ok - ' + m); }
 
@@ -89,6 +90,25 @@ function impressaoDaCasca(raiz, nomes) {
     return nome + ':' + hash;
   });
   return crypto.createHash('sha256').update(partes.join('\n'), 'utf8').digest('hex').slice(0, 12);
+}
+
+/* O MAPA-INDEX.md e o indice do index.html (funcao -> linha) que os agentes leem no lugar de
+   varrer 744 KB. Se ele envelhecer vira a "mentira ativa" que o CLAUDE.md proibe: aponta linha
+   errada e manda o agente abrir o trecho errado -- pior que nao existir, porque parece confiavel.
+   A conferencia mora AQUI, no mesmo guardiao do CACHE_VERSION: os dois reprovam pela mesma causa
+   (o index.html mudou) e se consertam na mesma passada. */
+function checarMapa() {
+  console.log('\n=== CHECK 0: o MAPA-INDEX.md esta em dia com o index.html ===');
+  const r = spawnSync(process.execPath, [path.join(RAIZ, 'ferramentas', 'gerar-mapa.js'), '--conferir'], { encoding: 'utf8' });
+  const saida = ((r.stdout || '') + (r.stderr || '')).trim();
+  if (r.status !== 0) {
+    console.error('FALHOU: ' + saida);
+    console.error('  (mapa velho aponta linha errada e manda o agente abrir o trecho errado)');
+    process.exitCode = 1;
+    return false;
+  }
+  console.log('  ok - ' + saida);
+  return true;
 }
 
 function parte1() {
@@ -272,7 +292,7 @@ async function esperarAte(pg, fn, tetoMs) {
 
 (async () => {
   if (SO_CONDUTA) console.log('\n[MAPPO_SO_CONDUTA=1] PARTE 1 pulada de propósito: só a conduta no navegador.');
-  else { parte1(); parte1bExclusaoDeProducao(); }
+  else { checarMapa(); parte1(); parte1bExclusaoDeProducao(); }
 
   const srv = http.createServer((rq, rs) => {
     const p = rq.url === '/' ? '/index.html' : rq.url.split('?')[0];

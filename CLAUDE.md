@@ -90,6 +90,64 @@ Todas vêm de defeitos que apagaram trabalho de técnico em campo.
   proprietário pedir.
 - O que navegador automatizado não alcança está em `testes/VERIFICACAO-MANUAL.md`.
 
+## Roteamento e economia (obrigatório)
+Escrito em 06/10/2026 depois de medir: três entregas gastaram **~5,4 milhões de tokens** e
+estouraram o limite de uso do proprietário várias vezes, obrigando a esperar horas. A causa
+medida não foi "agente errado chamado" — foi **cada agente ler demais**. O `index.html` tem
+~744 KB (~213 mil tokens): abri-lo inteiro para localizar vinte linhas é o maior desperdício
+do projeto.
+
+### Primeiro: o mapa
+`MAPA-INDEX.md` diz em que linha cada função, estado, `id` e classe CSS do `index.html`
+vive. Custa ~9 mil tokens contra ~213 mil do arquivo — **24× mais barato**.
+
+- **Ler o mapa antes de abrir o `index.html`.** Mapa → `grep` para confirmar → `sed -n 'X,Yp'`
+  só no trecho.
+- **Nunca** ler o `index.html` inteiro, nem a pasta `testes/` inteira.
+- `npm run mapa` regenera; `npm run mapa:conferir` diz se está em dia. O guardião de
+  `testes/teste-atualizacao.js` reprova se o arquivo mudar e o mapa não.
+- O mapa diz **onde**, nunca **o quê**. Decidir pelo mapa sem abrir a função é pior que deduzir
+  a partir do código — é deduzir sem ter lido.
+
+### Quem roda em cada tipo de pedido
+
+| Pedido | O que roda |
+|---|---|
+| Trocar texto, cor, ajuste de 1 linha, pergunta, diagnóstico | **eu, direto** — nenhum agente |
+| Visual, CSS, markup | `implementador` + `revisor-bordas` + minha medição |
+| Lógica, sincronização, fotos, dados | `implementador` + `revisor-bordas` + `revisor-adversarial` + `revisor-verificacao` |
+| `firestore.rules`, login, chaves, link do cliente, dados de cliente | o acima **+** `revisor-seguranca` |
+| "como está a produção?", "publicou?", "quantas suítes?" | `medidor` sozinho |
+
+**Uma área por pedido.** Envolver uma segunda só se for indispensável, e avisando o
+proprietário antes.
+
+**Segunda rodada de revisão: só sobre o diff da correção**, nunca o diff inteiro de novo.
+Máximo de duas voltas; se não resolver, parar e chamar o proprietário.
+
+### Regras que valem para todo agente
+- **`grep` antes de abrir arquivo.** Achar a linha, depois abrir a vizinhança dela.
+- Ler só o ligado à tarefa. Curiosidade custa o limite de uso do proprietário.
+- Devolver **resumo curto** — o que mudou, onde, o que rodou, o que ficou arriscado. Nunca
+  arquivo inteiro nem diff longo.
+- Ferramenta mínima: **revisor e medidor são só-leitura**, não editam. A assimetria entre quem
+  escreve e quem revisa é o que faz a revisão achar.
+- Exit code medido **sem pipe** (`cmd > saida 2>&1; echo $?`) — com pipe se lê o código do
+  `tail`, e isso já enganou duas vezes.
+
+### Agente cortado por limite: pedir o relatório, nunca re-rodar
+Quando um agente é interrompido antes de entregar, **o trabalho dele ainda está no contexto**.
+Pedir a entrega custa quase nada; re-rodar do zero paga tudo de novo. Em 02/10/2026 re-rodar
+três revisores cortados custou ~370 mil tokens de puro retrabalho; da vez seguinte, pedir o
+relatório resolveu.
+
+Antes de retomar qualquer agente: **levantar o estado real do disco** (`git diff --numstat`,
+mtimes, suíte) e dizer a ele onde parou. Agente que recomeça às cegas re-paga contexto.
+
+### Agrupar mudanças pequenas
+Cada entrega paga a cerimônia inteira (spec, implementação, revisão, verificação). Três ajustes
+pequenos numa cerimônia só pagam uma vez.
+
 ## Fluxo com agentes (obrigatório)
 Pedido pelo proprietário em 26/09/2026, depois de a revisão adversarial achar 19 defeitos
 que eu não tinha visto sozinha — inclusive um que deixava a suíte parar de reprovar em
