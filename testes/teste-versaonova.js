@@ -525,10 +525,11 @@ function assert(c,m){ if(!c) throw new Error('FALHOU: '+m); console.log('  ok - 
   const pub=await pg6.evaluate(async()=>{
     const antes=!!document.getElementById('avisoVersao');       // controle: existia antes
     try{iniciarModoPublico('ws','tok');}catch(e){console.log('iniciarModoPublico: '+(e&&e.message||e));}
-    /* segura a RECARGA, nao o aviso: no modo publico nada bloqueia a hora segura, entao
-       _avisarVersaoNova recarregaria a pagina no meio da medicao. Essa recarga e comportamento
-       PRE-EXISTENTE da deteccao (que este trabalho nao pode mexer); o que se mede aqui e a
-       PILULA, que e tela interna do app e nao pode aparecer para o cliente. */
+    /* segura a RECARGA, nao o aviso: ate 07/10/2026 o modo publico NAO era motivo para a
+       guarda, e _avisarVersaoNova recarregava a pagina no meio desta medicao. Desde 07/10/2026
+       ele e motivo (ver CHECK 5k, que mede justamente isso), mas a operacao em voo FICA aqui:
+       assim uma regressao da recarga reprova no 5k, em aba propria, em vez de destruir a
+       medicao da PILULA -- que e o que este check existe para medir. */
     _abrirOp('segurando a recarga durante a medicao');
     /* as DUAS portas de entrada do aviso, as mesmas do app normal */
     _avisarVersaoNova('teste: versao nova no modo publico');
@@ -556,6 +557,88 @@ function assert(c,m){ if(!c) throw new Error('FALHOU: '+m); console.log('  ok - 
   assert(pub.logou>=1,'a recusa fica registrada no log, com o motivo (nao e silencio)');
   assert(erros6.length===0,'sem erro de pagina na aba publica');
   await pg6.close();
+
+  /* A OUTRA METADE DO MODO PUBLICO (07/10/2026): a pagina do cliente tambem nao RECARREGA
+     sozinha. Em 02/10/2026 _acenderFaixaVersao passou a recusar mostrar a pilula ao cliente,
+     mas _avisarVersaoNova chama _recarregarQuandoSeguro() logo depois -- e a guarda nao sabia
+     nada de modo publico. Resultado: o cliente lendo o acompanhamento da OS via a pagina
+     piscar sozinha. Piscar embaixo da leitura dele e pior que ele estar uma versao atras numa
+     tela que so consulta.
+     Aba PROPRIA e SEM nada em voo, de proposito: e exatamente o estado em que o commit
+     anterior recarregava, e e aqui que o controle com MAPPO_RAIZ reprova.
+     A GUARDA e consultada ANTES de disparar a deteccao, de proposito, e e isso que faz o
+     controle ser legivel: no commit anterior _porQueNaoRecarregarAgora() devolvia '' no modo
+     publico, entao a deteccao recarregava a pagina no meio da medicao e o Playwright estourava
+     "Execution context was destroyed" -- vermelho que nao diz nada. Perguntando primeiro, o
+     controle reprova dizendo que a guarda nao conhece o modo publico. */
+  console.log('\n=== CHECK 5k: no modo publico a pagina do cliente NAO recarrega sozinha ===');
+  const pg7=await b.newPage({viewport:{width:1100,height:760}});
+  const nav7={n:0}; pg7.on('framenavigated',f=>{if(f===pg7.mainFrame())nav7.n++;});
+  const erros7=[]; pg7.on('pageerror',e=>erros7.push('aba publica (recarga): '+e.message));
+  await pg7.goto(BASE,{waitUntil:'load'});
+  await pg7.waitForTimeout(300);
+  const base7=nav7.n;
+  const antesDoPublico=await pg7.evaluate(()=>_porQueNaoRecarregarAgora());
+  assert(antesDoPublico==='','controle positivo: ANTES do modo publico esta pagina nao tinha motivo nenhum para adiar -- entao o que segura a recarga abaixo e o modo publico, e nao outra coisa');
+  const guarda=await pg7.evaluate(()=>{
+    const toastAntes=!!document.getElementById('toast');       // controle: existia antes
+    try{iniciarModoPublico('ws','tok');}catch(e){console.log('iniciarModoPublico: '+(e&&e.code)+' — '+(e&&e.message||e));}
+    return {motivo:_porQueNaoRecarregarAgora(),motivoManual:_porQueNaoRecarregarAgora(true),
+      modoPublico:document.body.classList.contains('modo-publico'),opsEmVoo:_opsEmVooTotal(),
+      /* MOTIVO_PUBLICO e recusa, nao espera: nunca vira hora segura. Medido direto porque o
+         unico chamador de _esperarResolve e o botao "Atualizar", que nem existe nesta pagina --
+         e e justamente por ser inalcancavel que ele ficaria verde quebrado para sempre. */
+      /* defensivo para o CONTROLE ser legivel: no commit anterior MOTIVO_PUBLICO nem existe, e
+         um ReferenceError aqui mataria o evaluate antes do assert que nomeia o defeito */
+      esperaResolve:(typeof MOTIVO_PUBLICO==='string'&&typeof _esperarResolve==='function')
+        ? _esperarResolve(MOTIVO_PUBLICO) : '(MOTIVO_PUBLICO nao existe nesta versao do app)',
+      toastAntes,toastRemovido:!document.getElementById('toast')};});
+  console.log('   guarda no modo publico:', JSON.stringify(guarda));
+  assert(guarda.modoPublico===true,'controle positivo: o modo publico de fato comecou');
+  assert(guarda.opsEmVoo===0,'controle positivo: NADA em voo -- o que segura a recarga nao e operacao em voo');
+  assert(/modo p[uú]blico/.test(guarda.motivo),'a guarda devolve o modo publico como motivo: "'+guarda.motivo+'"');
+  assert(guarda.motivoManual===guarda.motivo,'e nem um pedido manual atravessa isso -- na pagina do cliente nao ha quem peca');
+  assert(guarda.esperaResolve===false,'e esperar nao resolve o modo publico: e recusa, nao "ainda nao" -- senao o timer bateria de 4 em 4 segundos na pagina do cliente para sempre');
+  /* O #TOAST TAMBEM E IRMAO DO #app. Desde 07/10/2026 ele carrega texto da guarda de recarga
+     ("algo ainda esta sendo salvo neste aparelho"), que e linguagem interna do app -- a mesma
+     forma do defeito de 02/10, quando a pilula de versao nova estava protegida POR ACIDENTE por
+     viver dentro do #app e passou a aparecer na tela do cliente ao mudar de lugar. Duas camadas,
+     como a pilula: recusa na propria funcao toast() E remocao do elemento no modo publico. */
+  assert(guarda.toastAntes===true,'controle positivo: o #toast EXISTIA nesta pagina antes do modo publico');
+  assert(guarda.toastRemovido===true,'o #toast foi removido junto com o #app na pagina do cliente');
+  const tst=await pg7.evaluate(()=>{
+    let lancou='';
+    try{toast('algo ainda está sendo salvo neste aparelho');}
+    catch(e){lancou=(e&&e.code)+' — '+(e&&e.message||e);}
+    return {lancou,txtDaPagina:(document.body.innerText||'').replace(/\s+/g,' ').trim().slice(0,200),
+      logs:(_fbLogs||[]).filter(l=>/toast/i.test(l.msg)).map(l=>l.msg)};});
+  console.log('   toast no modo publico:', JSON.stringify(tst));
+  assert(tst.lancou==='','chamar toast() na pagina do cliente nao estoura erro (o elemento nao existe mais la)');
+  assert(!/sendo salvo neste aparelho/i.test(tst.txtDaPagina),'e o texto interno do app NAO aparece na tela do cliente');
+  assert(tst.logs.filter(m=>/recusado no modo p[uú]blico/i.test(m)).length>=1,'a recusa fica registrada no log, com a mensagem que seria mostrada (nao e silencio): '+JSON.stringify(tst.logs));
+  /* e agora o COMPORTAMENTO: a deteccao real, do jeito que o Service Worker a dispara */
+  const pubRec=await pg7.evaluate(async()=>{
+    _avisarVersaoNova('teste: versao nova no modo publico, com a pagina livre');
+    await new Promise(r=>setTimeout(r,500));
+    const el=document.getElementById('avisoVersao');
+    return {detectada:_versaoNovaDetectada,bandeira:_versaoNovaDisponivel,
+      pedida:_recargaPedida,timer:_timerRecarga!==null,
+      pilula:!!(el&&!el.hidden),
+      txtDaPagina:(document.body.innerText||'').replace(/\s+/g,' ').trim().slice(0,200),
+      logs:(_fbLogs||[]).filter(l=>/modo p[uú]blico/i.test(l.msg)).map(l=>l.msg)};});
+  console.log('  ', JSON.stringify(pubRec), ' navegacoes:', nav7.n-base7);
+  assert(pubRec.detectada===true,'controle positivo: a deteccao ACONTECEU (senao "nao recarregou" nao se distinguiria de "nao detectou")');
+  assert(nav7.n-base7===0,'a pagina do cliente NAO recarregou');
+  assert(pubRec.pedida===false,'e a recarga nem foi marcada como pedida');
+  assert(pubRec.timer===false,'nem ficou uma tentativa batendo de 4 em 4 segundos na pagina do cliente: e recusa, nao espera');
+  assert(pubRec.pilula===false&&!/Nova vers[ãa]o do MAPPO/i.test(pubRec.txtDaPagina),'e o aviso tambem nao aparece: nada muda na tela do cliente');
+  assert(pubRec.logs.filter(m=>/recarregada/i.test(m)).length>=1,'a recusa da RECARGA fica registrada no log, com o motivo (nao e silencio): '+JSON.stringify(pubRec.logs));
+  await pg7.waitForTimeout(4500);   // > RECARGA_ESPERA_MS: se houvesse tentativa agendada, ela teria vindo
+  console.log('   navegacoes depois de 4,5s:', nav7.n-base7);
+  assert(nav7.n-base7===0,'e continua sem recarregar depois de passado o tempo de uma nova tentativa');
+  console.log('   erros desta aba:', erros7.length?erros7:'(nenhum)');
+  assert(erros7.length===0,'sem erro de pagina nesta aba');
+  await pg7.close();
 
   /* Era um toast de 3 segundos, posto ali porque o aviso geral estava mudo -- e foi o UNICO
      aviso de versao velha que o proprietario chegou a ver. Em 01/10/2026 o aviso geral passou a

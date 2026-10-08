@@ -1636,12 +1636,20 @@ function _atualizarAlertaSync(){
      valendo na nuvem. O único aviso era um toast de 3 segundos — fraco demais pra isso. */
   if(_semNuvem()){
     el.className='sync-alerta erro';
-    el.onclick=()=>location.reload();
+    /* O toque PEDE a reconexão; quem decide a hora é a guarda (_recarregarPorFaltaDeNuvem ->
+       _porQueNaoRecarregarAgora). Até 07/10/2026 esta linha era `()=>location.reload()` no
+       elemento INTEIRO: um toque em qualquer ponto da faixa recarregava por cima de foto sendo
+       gravada, e foto de serviço perdida é a linha vermelha do projeto. Dói mais justamente
+       aqui, offline, que é quando o que o técnico lançou ainda não subiu. O aviso de versão
+       nova já havia perdido esse `onclick` em 02/10/2026; esta faixa tinha ficado para trás.
+       O texto mudou junto: "Recarregar" prometia o que a guarda pode adiar. */
+    el.onclick=()=>_recarregarPorFaltaDeNuvem();
     el.innerHTML=`<span class="sync-alerta-ico">☁️</span>
       <span class="sync-alerta-txt"><b>Sem conexão com a nuvem.</b>
       O que você fizer agora fica só neste aparelho: ninguém mais vê, e links de cliente não
-      são publicados. Recarregue para tentar reconectar.</span>
-      <span class="sync-alerta-acao">Recarregar</span>`;
+      são publicados. Toque para tentar reconectar — se houver algo sendo salvo agora, o app
+      espera terminar.</span>
+      <span class="sync-alerta-acao">Tentar reconectar</span>`;
     return;
   }
   /* Aqui havia o ramo de VERSÃO NOVA, que vencia todos os outros avisos. Ele saiu em
@@ -5851,8 +5859,21 @@ function setView(mode){
 }
 
 /* ── UTILS ── */
+/* NUNCA na página pública do cliente, e por duas camadas — a recusa aqui e a remoção do
+   elemento em iniciarModoPublico/_mostrarLinkAntigo. Mesma proteção do #avisoVersao, e pelo
+   mesmo motivo: o #toast é IRMÃO do #app, então removê-lo não vem de graça com o modo público.
+   Em 02/10/2026 a pílula de versão nova só estava protegida POR ACIDENTE (vivia dentro do
+   #app) e, quando mudou de lugar para poder ser fixa, passou a aparecer na tela do cliente
+   final. Desde 07/10/2026 este diff escreve no #toast texto da guarda de recarga ("algo ainda
+   está sendo salvo neste aparelho"), que é linguagem interna do app: a mesma forma de defeito,
+   fechada antes de acontecer. */
 function toast(msg,type){
+  if(document.body.classList.contains('modo-publico')){
+    fbLog('Toast recusado no modo público (a tela é do cliente): '+msg,'info');
+    return;
+  }
   const t=document.getElementById('toast');
+  if(!t){fbLog('Toast sem o elemento #toast nesta página: '+msg,'erro');return;}
   t.textContent=msg;t.className='toast show'+(type?' t-'+type:'');
   setTimeout(()=>t.classList.remove('show'),3200);
 }
@@ -11141,6 +11162,10 @@ function _mostrarLinkAntigo(){
      medido em 02/10/2026 (hidden:false, visível, recuado 274px numa tela sem sidebar).
      _acenderFaixaVersao também recusa acender em modo-publico; as duas camadas de propósito. */
   const av=document.getElementById('avisoVersao');if(av)av.remove();
+  /* O #toast também é irmão do #app, e desde 07/10/2026 ele carrega texto da guarda de
+     recarga (linguagem interna do app). Vai junto, pelo mesmo motivo da pílula; toast()
+     também recusa sozinho no modo público, e as duas camadas são de propósito. */
+  const tst=document.getElementById('toast');if(tst)tst.remove();
   const box=document.createElement('div');
   box.id='pubScreen';
   box.innerHTML=`<div class="pub-wrap"><div class="pub-erro"><b>Link desatualizado</b><span>Este link de acompanhamento é de uma versão antiga do sistema e não funciona mais. Peça um novo link à empresa.</span></div></div>`;
@@ -11156,6 +11181,10 @@ function iniciarModoPublico(wsId,token){
      medido em 02/10/2026 (hidden:false, visível, recuado 274px numa tela sem sidebar).
      _acenderFaixaVersao também recusa acender em modo-publico; as duas camadas de propósito. */
   const av=document.getElementById('avisoVersao');if(av)av.remove();
+  /* O #toast também é irmão do #app, e desde 07/10/2026 ele carrega texto da guarda de
+     recarga (linguagem interna do app). Vai junto, pelo mesmo motivo da pílula; toast()
+     também recusa sozinho no modo público, e as duas camadas são de propósito. */
+  const tst=document.getElementById('toast');if(tst)tst.remove();
   const box=document.createElement('div');
   box.id='pubScreen';
   box.innerHTML=`<div class="pub-wrap"><div class="pub-load">Carregando acompanhamento...</div></div>`;
@@ -11334,11 +11363,25 @@ const RECARGA_TETO=3;              // teto de recargas automáticas por sessão 
 const RECARGA_MARCA='mappo_recarga_versao';
 const PROCURA_MINIMA_MS=30000;     // de quanto em quanto, no máximo, reconsulta o sw.js
 const BOTAO_ATUALIZAR_TETO_MS=25000; // até quando o botão fica em "Atualizando…" antes de voltar
+/* Motivo de NUNCA (não de "ainda não"): no link do cliente a página não recarrega sozinha.
+   Em constante porque três lugares comparam a string — a guarda devolve, e
+   _recarregarQuandoSeguro e _esperarResolve reconhecem para NÃO ficar tentando de novo. */
+const MOTIVO_PUBLICO='modo público: a página é do cliente';
 let _timerRecarga=null;
 let _timerBotaoAtualizar=null;     // devolve o botão "Atualizar" se a recarga não vier
 let _recargaManualPedida=false;    // a pessoa tocou em "Atualizar": o teto anti-laço não vale pra ela
 let _recargaPedida=false;          // trava anti-laço DENTRO desta página
 let _ultimoMotivoAdiado='';        // só para não repetir a mesma linha no log a cada 4s
+/* A espera do pedido que nasce da faixa de sem conexão, SEPARADA da espera da versão nova.
+   Dois pedidos distintos, duas esperas: assim nenhum herda a intenção do outro (um toque na
+   faixa não pode fazer a recarga automática de versão passar por "a pessoa pediu") e nenhum
+   dos dois cancela o outro. Quem pediu viaja no objeto do pedido — ver _recarregarQuandoSeguro.
+   Uma bandeira global de "quem pediu" foi tentada em 07/10/2026 e reprovada na revisão: ela
+   nunca voltava, então depois de um toque na faixa TODA recarga posterior era logada como "Sem
+   conexão", inclusive uma de versão nova disparada pelo Service Worker — o sinal de
+   família-de-causa-errada que custou as quatro tentativas do "link sempre expirado". */
+let _timerFaixa=null;
+let _ultimoMotivoFaixa='';         // só para não repetir a mesma linha no log a cada toque
 let _ultimaProcura=0;              // quando o sw.js foi reconsultado pela última vez
 /* DUAS bandeiras, de propósito, e misturá-las já causou defeito:
    _versaoNovaDisponivel  = o aviso está aceso. Pode ter sido aceso por DEDUÇÃO (o
@@ -11404,8 +11447,17 @@ function _campoComTextoNaoSalvo(){
    distingue de "não detectou".
    A ORDEM é a da consequência: o que perde trabalho vem primeiro. */
 function _porQueNaoRecarregarAgora(manual){
-  /* 1. Operação em voo. Primeiro de todos porque é o único cujo custo é dado APAGADO: a foto
-     que o técnico acabou de tirar, cujo input já foi limpo. Ver _opsEmVoo. */
+  /* 0. Modo público (link de acompanhamento do cliente). Não é "ainda não" como os de baixo:
+     é NUNCA. A página é do cliente, e piscar embaixo da leitura dele é pior que estar uma
+     versão atrás numa tela que só consulta. Mora AQUI, e não em cada chamador, para valer
+     para todos os caminhos de uma vez — a detecção do Service Worker, o timer de nova
+     tentativa e o botão "Atualizar", que nem existe nessa página.
+     É o par da proibição que já estava em _acenderFaixaVersao desde 02/10/2026: lá o aviso
+     não acende, aqui a recarga não acontece. Até 07/10/2026 só a primeira metade existia —
+     o cliente não via o aviso, mas via a página recarregar sozinha debaixo dele. */
+  if(document.body.classList.contains('modo-publico'))return MOTIVO_PUBLICO;
+  /* 1. Operação em voo. Primeiro dos motivos do app porque é o único cujo custo é dado
+     APAGADO: a foto que o técnico acabou de tirar, cujo input já foi limpo. Ver _opsEmVoo. */
   if(_opsEmVooTotal()>0)return 'operação em voo: '+_opEmVooNome();
   /* 2. Sobreposição na tela. `.overlay.open` cobre todo modal (showModal usa #curOverlay, mas
      não é o único), e o lightbox é sobreposição própria: o técnico olhando uma foto em tela
@@ -11430,24 +11482,49 @@ function _porQueNaoRecarregarAgora(manual){
   return '';
 }
 
-/* A assinatura não mudou de propósito: quem decide se o pedido é "à mão" é a bandeira
-   _recargaManualPedida, ligada uma vez em _apressarAtualizacao e lida aqui. Assim a tentativa
-   REAGENDADA (o setTimeout lá embaixo) continua sabendo que a pessoa pediu — se ela ficasse
-   só no argumento, o teto voltaria a valer na segunda tentativa e o pedido se perderia. */
-function _recarregarQuandoSeguro(){
+/* `pedido` é OPCIONAL e é a intenção viajando COM o pedido: {manual, origem, valeAinda}.
+   Sem ele nada muda para o caminho da versão nova: ele continua lendo a bandeira
+   _recargaManualPedida (ligada em _apressarAtualizacao) e continua se chamando "Versão nova".
+   A tentativa REAGENDADA recebe o MESMO objeto pelo setTimeout lá embaixo, então a intenção
+   sobrevive à espera sem precisar morar numa variável global.
+
+   POR QUE ARGUMENTO E NÃO BANDEIRA (07/10/2026, achado na revisão): a faixa de sem conexão
+   também pede recarga. Quando ela ligava _recargaManualPedida, a bandeira NUNCA voltava — e
+   assim UM toque na faixa, inclusive um que a guarda adiou e que não recarregou nada, desligava
+   o RECARGA_TETO das recargas AUTOMÁTICAS pelo resto da vida da página, e o `n` da marca
+   parava de subir. O teto é a rede contra o pior defeito possível aqui (ver o comentário da
+   marca, acima: app que pisca sem parar e não abre); sem ele sobraria só a carência de 60s, o
+   que troca "para depois de 3" por "recarrega a cada 60s para sempre". Nenhum pedido afrouxa
+   a guarda para outro pedido. */
+function _recarregarQuandoSeguro(pedido){
   if(_recargaPedida)return;                      // uma recarga só, sem laço
-  const motivo=_porQueNaoRecarregarAgora(_recargaManualPedida);
+  const manual=pedido?!!pedido.manual:_recargaManualPedida;
+  const origem=(pedido&&pedido.origem)||'Versão nova';
+  /* Pedido cujo MOTIVO já passou morre aqui, antes de qualquer recarga. Sem isto um toque na
+     faixa de sem conexão continuava valendo depois de a nuvem voltar sozinha e a faixa sair da
+     tela: a página recarregava do nada, com o app saudável. */
+  if(pedido&&typeof pedido.valeAinda==='function'&&!pedido.valeAinda()){
+    fbLog(origem+': pedido de recarga abandonado — o que o motivou já passou','info');
+    return;
+  }
+  const motivo=_porQueNaoRecarregarAgora(manual);
   if(!motivo){
     _recargaPedida=true;
     if(_timerRecarga){clearTimeout(_timerRecarga);_timerRecarga=null;}
-    _marcarRecarga(_recargaManualPedida);
-    fbLog('Versão nova: recarregando agora (hora segura'+(_recargaManualPedida?', a pedido da pessoa':'')+')','info');
+    _marcarRecarga(manual);
+    fbLog(origem+': recarregando agora (hora segura'+(manual?', a pedido da pessoa':'')+')','info');
     location.reload();
+    return;
+  }
+  /* Modo público não se resolve esperando — é recusa, não espera. Sem esta saída o timer de
+     RECARGA_ESPERA_MS ficaria batendo de 4 em 4 segundos na página do cliente para sempre. */
+  if(motivo===MOTIVO_PUBLICO){
+    fbLog('Versão nova detectada no modo público — a página do cliente NÃO é recarregada','info');
     return;
   }
   /* Teto estourado não se resolve esperando: para de tentar; o aviso fica na tela com o botão. */
   if(motivo==='teto de recargas automáticas desta sessão'||motivo==='não deu para ler a marca de recarga'){
-    fbLog('Versão nova: recarga automática desligada ('+motivo+') — o aviso continua na tela','erro');
+    fbLog(origem+': recarga automática desligada ('+motivo+') — o aviso continua na tela','erro');
     return;
   }
   /* Não é hora: espera e tenta de novo. O aviso NUNCA é descartado — ele fica na tela e
@@ -11456,10 +11533,112 @@ function _recarregarQuandoSeguro(){
      com um modal aberto varreriam toda a evidência de como o app chegou ali. */
   if(motivo!==_ultimoMotivoAdiado){
     _ultimoMotivoAdiado=motivo;
-    fbLog('Versão nova: recarga adiada ('+motivo+')','info');
+    fbLog(origem+': recarga adiada ('+motivo+')','info');
   }
   if(_timerRecarga)return;
-  _timerRecarga=setTimeout(()=>{_timerRecarga=null;_recarregarQuandoSeguro();},RECARGA_ESPERA_MS);
+  _timerRecarga=setTimeout(()=>{_timerRecarga=null;_recarregarQuandoSeguro(pedido);},RECARGA_ESPERA_MS);
+}
+
+/* Os motivos da guarda são escritos para o LOG e para os testes: "recarga recente", "não deu
+   para ler a marca de recarga", "operação em voo: …". O técnico em campo não tem o que fazer
+   com essas palavras — e "recarga recente" é justamente o motivo MAIS frequente desta faixa,
+   porque recarregar não conserta estar sem nuvem. O log continua recebendo o motivo técnico
+   (é por ele que se investiga); só o que vai para a tela é traduzido.
+   Motivo que ninguém traduziu ainda sai NO ORIGINAL, nunca sumido: texto estranho na tela se
+   corrige depois; mensagem vazia esconde o problema agora. */
+function _motivoParaPessoa(motivo){
+  if(!motivo)return '';
+  if(motivo.indexOf('operação em voo')===0)return 'algo ainda está sendo salvo neste aparelho';
+  if(motivo==='modal aberto')return 'há uma janela aberta na tela';
+  if(motivo==='foto aberta em tela cheia')return 'há uma foto aberta em tela cheia';
+  if(motivo==='campo em foco')return 'o cursor está num campo de digitação';
+  if(motivo.indexOf('texto digitado e não salvo')===0)return 'há texto digitado e ainda não salvo na tela';
+  if(motivo==='recarga recente')return 'a página já recarregou agora há pouco';
+  if(motivo==='não deu para ler a marca de recarga')return 'este navegador não está deixando o app guardar o controle de recargas';
+  if(motivo==='teto de recargas automáticas desta sessão')return 'o app já tentou recarregar várias vezes nesta sessão';
+  if(motivo===MOTIVO_PUBLICO)return 'esta é a página de acompanhamento do cliente';
+  return motivo;
+}
+
+/* O pedido que nasce do toque na faixa. `manual` viaja AQUI, não em bandeira global (ver
+   _recarregarQuandoSeguro). `valeAinda` é o que faz o pedido MORRER quando o motivo dele morre:
+   se a nuvem voltou sozinha e a faixa saiu da tela, não há mais nada para reconectar, e
+   recarregar seria piscar a tela do técnico do nada. */
+function _pedidoDaFaixa(){
+  return {manual:true,origem:'Sem conexão',valeAinda:()=>_semNuvem()};
+}
+
+/* Uma linha por MOTIVO, não por toque. O anel de log tem 60 linhas, e dez toques seguidos numa
+   faixa que a pessoa não entende por que não responde varreriam toda a evidência de como o app
+   chegou ali — a mesma defesa que _recarregarQuandoSeguro já tinha. O TOAST continua saindo a
+   cada toque: toque sem resposta na tela é pior que linha repetida no log. */
+function _logFaixa(txt,nivel){
+  if(txt===_ultimoMotivoFaixa)return;
+  _ultimoMotivoFaixa=txt;
+  fbLog('Sem conexão: recarga pedida na faixa, '+txt,nivel);
+}
+
+/* Toque na faixa de "Sem conexão com a nuvem" (ver _atualizarAlertaSync, ramo _semNuvem()).
+   Mesmo princípio do botão "Atualizar": o toque PEDE, a guarda decide a hora — nunca
+   location.reload() direto. Aqui isso importa mais, não menos: sem nuvem, o que o técnico
+   lançou existe só neste aparelho, e recarregar por cima de uma foto sendo gravada no armazém
+   local a APAGA (o input dela já foi limpo).
+   A espera tem timer PRÓPRIO (_timerFaixa), separado do _timerRecarga da versão nova: são dois
+   pedidos diferentes, com motivos diferentes, e um não pode herdar nem atropelar a intenção do
+   outro. */
+function _recarregarPorFaltaDeNuvem(){
+  if(_recargaPedida){toast('Recarregando…');return;}
+  /* APARELHO SEM REDE. Recarregar não reconecta nada (não há o que reconectar) e, se esta
+     página não estiver sendo servida pelo Service Worker, a recarga não volta: dá a tela de
+     erro do navegador e o app sai do ar com o trabalho do dia só neste aparelho. Medido em
+     07/10/2026 na revisão. Então aqui a resposta é explicar, não recarregar.
+     Fica nesta função, e não na guarda compartilhada, de propósito: mudar o comportamento da
+     recarga de versão fora do modo público é "Ask First" no spec desta entrega. */
+  if(navigator.onLine===false){
+    _logFaixa('o aparelho está sem internet — recarregar não reconectaria','erro');
+    toast('Este aparelho está sem internet agora. Recarregar não reconectaria, e o que você fez continua salvo aqui.');
+    return;
+  }
+  const motivo=_porQueNaoRecarregarAgora(true);
+  if(!motivo){_recarregarQuandoSeguro(_pedidoDaFaixa());return;}
+  /* Motivo que não se resolve esperando: NÃO agenda nada. Dizer "espere" e ficar tentando de
+     4 em 4 segundos faria o app recarregar sozinho quando a pessoa salvasse a nota, muito
+     depois, sem novo toque — e seria exatamente a recarga surpresa que esta entrega veio tirar
+     do caminho. O botão "Atualizar" já tinha esse `return`; esta faixa não tinha. */
+  if(!_esperarResolve(motivo)){
+    _logFaixa('adiada ('+motivo+') — esperar não resolve isto','erro');
+    toast('Não dá para reconectar agora: '+_motivoParaPessoa(motivo)+'.');
+    return;
+  }
+  _logFaixa('adiada ('+motivo+') — o app tenta de novo sozinho','info');
+  toast('Vou reconectar assim que der: '+_motivoParaPessoa(motivo)+'.');
+  if(_timerFaixa)return;                         // uma espera só, por mais que a pessoa toque
+  _timerFaixa=setTimeout(_tentarDeNovoPelaFaixa,RECARGA_ESPERA_MS);
+}
+
+/* A espera do pedido da faixa. Cada volta reconfere TRÊS coisas, nesta ordem: o pedido ainda
+   faz sentido, o aparelho tem rede, e a hora é segura. */
+function _tentarDeNovoPelaFaixa(){
+  _timerFaixa=null;
+  if(_recargaPedida)return;
+  if(!_semNuvem()){
+    fbLog('Sem conexão: pedido de recarga abandonado — a nuvem voltou e a faixa saiu da tela','info');
+    _ultimoMotivoFaixa='';
+    return;
+  }
+  if(navigator.onLine===false){                  // sem rede: continua esperando, a rede volta
+    _logFaixa('o aparelho está sem internet — recarregar não reconectaria','erro');
+    _timerFaixa=setTimeout(_tentarDeNovoPelaFaixa,RECARGA_ESPERA_MS);
+    return;
+  }
+  const motivo=_porQueNaoRecarregarAgora(true);
+  if(!motivo){_recarregarQuandoSeguro(_pedidoDaFaixa());return;}
+  if(!_esperarResolve(motivo)){
+    _logFaixa('adiada ('+motivo+') — esperar não resolve isto','erro');
+    return;                                      // para de tentar; a faixa continua na tela
+  }
+  _logFaixa('adiada ('+motivo+') — o app tenta de novo sozinho','info');
+  _timerFaixa=setTimeout(_tentarDeNovoPelaFaixa,RECARGA_ESPERA_MS);
 }
 
 /* Acende o aviso de versão nova (#avisoVersao, pílula fixa no rodapé).
@@ -11548,9 +11727,11 @@ function _devolverBotaoAtualizar(motivo){
    - 'não deu para ler a marca de recarga': sessionStorage lançando; a recarga automática já se
      desligou, e esperar não conserta.
    - 'texto digitado e não salvo (...)': só sai quando a PESSOA salvar ou limpar o campo.
+   - MOTIVO_PUBLICO: no link do cliente a recarga é recusada, não adiada — nunca vira hora segura.
    O teto de recargas não entra aqui porque, para um toque manual, ele nem é mais consultado. */
 function _esperarResolve(motivo){
   if(!motivo)return true;
+  if(motivo===MOTIVO_PUBLICO)return false;     // recusa, não espera: nunca vai virar hora segura
   if(motivo==='não deu para ler a marca de recarga')return false;
   if(motivo.indexOf('texto digitado e não salvo')===0)return false;
   return true;

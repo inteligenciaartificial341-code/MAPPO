@@ -36,3 +36,16 @@ quebrada.
 
 Lista de achados: **onde**, **o que está errado ou falta**, **o que quebra**. Diga o que rodou
 e o que só leu. Resposta curta; nada de arquivo inteiro.
+
+## Restauração: NUNCA `git checkout` enquanto o trabalho não está commitado
+
+Incidente real em 08/10/2026: uma camada de revisão restaurou o `index.html` com
+`git checkout -- index.html` depois de mutar, esquecendo que a entrega em revisão **ainda
+não tinha commit**. Isso apagou a mudança inteira. Só foi recuperada porque havia uma cópia
+byte-idêntica feita antes.
+
+Enquanto o trabalho não estiver commitado, a restauração é:
+
+1. `cp arquivo copia.ok` **antes** de mutar, e guardar o `sha256sum`;
+2. `cp copia.ok arquivo` para restaurar;
+3. conferir que o `sha256sum` voltou ao valor de antes — e **dizer isso no relatório**.

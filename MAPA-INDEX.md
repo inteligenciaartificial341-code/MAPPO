@@ -2,7 +2,7 @@
 
 # Mapa do `index.html`
 
-`index.html` tem **11.688 linhas** e **727 KB** — ler o arquivo inteiro custa ~213 mil tokens. Este mapa custa uma fração disso e diz **onde** cada coisa está.
+`index.html` tem **11.869 linhas** e **739 KB** — ler o arquivo inteiro custa ~216 mil tokens. Este mapa custa uma fração disso e diz **onde** cada coisa está.
 
 **Como usar:** ache o nome aqui, pegue a linha, e abra só o trecho (`sed -n '1200,1260p' index.html`). Nunca leia o arquivo inteiro para localizar algo.
 
@@ -10,8 +10,8 @@
 
 | | |
 |---|---|
-| Funções | 537 |
-| Estado de topo (`const`/`let`) | 167 |
+| Funções | 542 |
+| Estado de topo (`const`/`let`) | 170 |
 | Elementos com `id` | 163 |
 | Classes CSS | 337 |
 | Seções do arquivo | 23 |
@@ -23,10 +23,10 @@
 `DESKTOP LIMPO: esconde a rail lateral, sidebar única` 327 · `BARRA DE NAVEGAÇÃO — MOBILE (inferior fixa)` 360
 `MODO MOBILE FORÇADO (toggle no desktop)` 383 · `BOAS-VINDAS + DASHBOARD CENTRAL` 426
 `VRF — painel do gestor` 531 · `VRF — checklist do prestador` 598
-`TUTORIAL GUIADO (coach-marks/spotlight) — Story 17` 936 · `VRF — estrutura de dados de obra` 4895
-`HOME DO TÉCNICO — boas-vindas ou resumo do que tem em andamento` 5440 · `DASHBOARD` 6043 · `ORDENS` 6184
-`CLIENTES` 6239 · `MANUTENÇÕES` 6271 · `MAPA` 6302 · `SPLITS` 6353 · `VRF (placeholder pra integração)` 6381
-`CONFIG` 7633
+`TUTORIAL GUIADO (coach-marks/spotlight) — Story 17` 936 · `VRF — estrutura de dados de obra` 4903
+`HOME DO TÉCNICO — boas-vindas ou resumo do que tem em andamento` 5448 · `DASHBOARD` 6064 · `ORDENS` 6205
+`CLIENTES` 6260 · `MANUTENÇÕES` 6292 · `MAPA` 6323 · `SPLITS` 6374 · `VRF (placeholder pra integração)` 6402
+`CONFIG` 7654
 
 ## Funções, agrupadas pela seção onde vivem
 
@@ -37,171 +37,172 @@
 `_cachePor` 1382 · `_opsEmVooTotal` 1408 · `_opEmVooNome` 1409 · `_abrirOp` 1410 · `_fecharOp` 1411
 `_emVoo` 1418 · `guardarFotoNoAparelho` 1437 · `fotoBytes` 1449 · `imgFoto` 1479 · `_pintarUma` 1490
 `pintarFotos` 1525 · `ligarPintorDeFotos` 1530 · `_bytesDe` 1549 · `_nomeAmigavel` 1585 · `_nomeDoAndar` 1590
-`_semNuvem` 1603 · `_vigiarConexao` 1613 · `_atualizarAlertaSync` 1620 · `_docDoAndar` 1706
-`_ehDocDeFotos` 1707 · `_fotoOSDoc` 1721 · `_ehDocFotoOS` 1724 · `_camposFotoOS` 1730 · `_separarFotosOS` 1743
-`_resolverFotosOS` 1770 · `_valorFotoDe` 1820 · `_preservarFotosNoMerge` 1839 · `_reancorarConversoesOS` 1893
-`migrarFotosParaOArmazem` 1912 · `migrarFotosObraETarefaParaOArmazem` 1962 · `_fotosJaEnviadas` 2016
-`_esquecerEnvio` 2022 · `_marcarFotoEnviada` 2031 · `_idFotoPorConteudo` 2056 · `_idFotoObra` 2065
-`_ehDocFotoObra` 2066 · `_ehFotoDeVerdade` 2069 · `_separarFotosAndar` 2072 · `_resolverFotosAndar` 2097
-`_apagarAndarNaNuvem` 2166 · `_migracaoFotosPendente` 2194 · `_marcarMigracaoFotos` 2197
-`_idFotoTarefa` 2220 · `_ehDocFotoTarefa` 2221 · `_chaveFotoTarefa` 2225 · `_readicionarFotoTarefa` 2244
-`_separarFotosTarefa` 2261 · `_resolverFotosTarefa` 2291 · `_preservarFotosTarefaNoMerge` 2358
-`_mesclarAndar` 2420 · `_saveTouch` 2446 · `_pendDe` 2456 · `_temPend` 2457 · `_arr` 2459 · `_obj` 2460
-`_porId` 2461 · `_setLocalQuiet` 2464 · `_anotarPendentes` 2483 · `_detectarMudancasNaoVistas` 2516
-`_marcarAlteracaoLocal` 2527 · `_ehErroDeCota` 2539 · `_fecharAvisoMemoria` 2552 · `_avisarMemoriaCheia` 2553
-`_testInterceptor` 2624 · `_startPolling` 2640 · `fbInit` 2665 · `_resolverWorkspace` 2716
-`_cacheWorkspace` 2757 · `_lerCacheWorkspace` 2760 · `_aplicarSessaoResolvida` 2768 · `_mostrarBoxLogin` 2808
-`mostrarLogin` 2813 · `mostrarCadastroEmpresa` 2814 · `mostrarPrestadorBox` 2815
-`mostrarRecuperarSenha` 2818 · `enviarRecuperacaoSenha` 2838 · `_mostrarSemAcesso` 2878
-`_mostrarUidManual` 2889 · `_mostrarPendente` 2894 · `_tentarNovamenteAcesso` 2901 · `_sairSemAcesso` 2910
-`_slugify` 2915 · `_gerarSufixoWs` 2925 · `_ramoCustomInvalido` 2946 · `_mensagemErroAuth` 2956
-`cadastrarEmpresa` 2967 · `prestadorEntrar` 3061 · `_consumirConviteTecnico` 3108 · `fbPush` 3168
-`_gravarMesclado` 3180 · `_nomeDoUid` 3234 · `_guardarPosicaoDeUid` 3261 · `_semVazios` 3267
-`_meuCorpoPosicao` 3274 · `_supremaciaPorUid` 3299 · `_remontarPosicoes` 3317
-`_agendarEnvioDaMinhaPosicao` 3364 · `_aplicarPosicaoDeUid` 3377 · `_limparEstadoDePosicao` 3386
-`_registrarFalhaPosicao` 3401 · `_pushMinhaPosicao` 3428 · `_pullPosicoes` 3507
-`_retentarLeituraPosicoes` 3528 · `_pushFotosPorAndar` 3538 · `_confirmarEnvioAndar` 3652
-`_pushOSSemFotos` 3666 · `_pushTarefasSemFotos` 3739 · `_doPush` 3834 · `_doPushAgora` 3841
-`_mergeLista` 3920 · `_mergeItens` 3935 · `_mergeLeafs` 3959 · `_confirmarEnvio` 3978 · `_mergeMapa` 4010
-`_reancorarExecOS` 4028 · `_execucaoAberta` 4037 · `_aplicarNaMemoria` 4040 · `_ehChaveDeSync` 4079
-`_aplicarShardFotos` 4085 · `_aplicarLegadoFotos` 4117 · `_limparPubVazados` 4142 · `_naFilaSync` 4166
-`_aplicarOSComFotos` 4178 · `_aplicarListaOS` 4188 · `_aplicarTarefasComFotos` 4210 · `fbApply` 4232
-`fbOnRemoteChange` 4322 · `fbStartListeners` 4392 · `_vigiarMembership` 4451 · `_remoteMs` 4466
-`fbStopListeners` 4472 · `fbPullAll` 4475 · `fbSeedFromLocal` 4494 · `initSync` 4530 · `_semAutenticacao` 4556
-`_voltarAoLogin` 4589 · `fbBoot` 4599 · `fbLog` 4612 · `renderDiagTamanhos` 4623 · `renderDiagAparelho` 4704
-`renderDebugLogs` 4748 · `syncManual` 4761 · `saveTecnicos` 4822 · `nomesTecnicos` 4823 · `getTecnico` 4824
-`avatarDoTecnico` 4836 · `setMeuAvatar` 4837 · `svgIco` 4884
+`_semNuvem` 1603 · `_vigiarConexao` 1613 · `_atualizarAlertaSync` 1620 · `_docDoAndar` 1714
+`_ehDocDeFotos` 1715 · `_fotoOSDoc` 1729 · `_ehDocFotoOS` 1732 · `_camposFotoOS` 1738 · `_separarFotosOS` 1751
+`_resolverFotosOS` 1778 · `_valorFotoDe` 1828 · `_preservarFotosNoMerge` 1847 · `_reancorarConversoesOS` 1901
+`migrarFotosParaOArmazem` 1920 · `migrarFotosObraETarefaParaOArmazem` 1970 · `_fotosJaEnviadas` 2024
+`_esquecerEnvio` 2030 · `_marcarFotoEnviada` 2039 · `_idFotoPorConteudo` 2064 · `_idFotoObra` 2073
+`_ehDocFotoObra` 2074 · `_ehFotoDeVerdade` 2077 · `_separarFotosAndar` 2080 · `_resolverFotosAndar` 2105
+`_apagarAndarNaNuvem` 2174 · `_migracaoFotosPendente` 2202 · `_marcarMigracaoFotos` 2205
+`_idFotoTarefa` 2228 · `_ehDocFotoTarefa` 2229 · `_chaveFotoTarefa` 2233 · `_readicionarFotoTarefa` 2252
+`_separarFotosTarefa` 2269 · `_resolverFotosTarefa` 2299 · `_preservarFotosTarefaNoMerge` 2366
+`_mesclarAndar` 2428 · `_saveTouch` 2454 · `_pendDe` 2464 · `_temPend` 2465 · `_arr` 2467 · `_obj` 2468
+`_porId` 2469 · `_setLocalQuiet` 2472 · `_anotarPendentes` 2491 · `_detectarMudancasNaoVistas` 2524
+`_marcarAlteracaoLocal` 2535 · `_ehErroDeCota` 2547 · `_fecharAvisoMemoria` 2560 · `_avisarMemoriaCheia` 2561
+`_testInterceptor` 2632 · `_startPolling` 2648 · `fbInit` 2673 · `_resolverWorkspace` 2724
+`_cacheWorkspace` 2765 · `_lerCacheWorkspace` 2768 · `_aplicarSessaoResolvida` 2776 · `_mostrarBoxLogin` 2816
+`mostrarLogin` 2821 · `mostrarCadastroEmpresa` 2822 · `mostrarPrestadorBox` 2823
+`mostrarRecuperarSenha` 2826 · `enviarRecuperacaoSenha` 2846 · `_mostrarSemAcesso` 2886
+`_mostrarUidManual` 2897 · `_mostrarPendente` 2902 · `_tentarNovamenteAcesso` 2909 · `_sairSemAcesso` 2918
+`_slugify` 2923 · `_gerarSufixoWs` 2933 · `_ramoCustomInvalido` 2954 · `_mensagemErroAuth` 2964
+`cadastrarEmpresa` 2975 · `prestadorEntrar` 3069 · `_consumirConviteTecnico` 3116 · `fbPush` 3176
+`_gravarMesclado` 3188 · `_nomeDoUid` 3242 · `_guardarPosicaoDeUid` 3269 · `_semVazios` 3275
+`_meuCorpoPosicao` 3282 · `_supremaciaPorUid` 3307 · `_remontarPosicoes` 3325
+`_agendarEnvioDaMinhaPosicao` 3372 · `_aplicarPosicaoDeUid` 3385 · `_limparEstadoDePosicao` 3394
+`_registrarFalhaPosicao` 3409 · `_pushMinhaPosicao` 3436 · `_pullPosicoes` 3515
+`_retentarLeituraPosicoes` 3536 · `_pushFotosPorAndar` 3546 · `_confirmarEnvioAndar` 3660
+`_pushOSSemFotos` 3674 · `_pushTarefasSemFotos` 3747 · `_doPush` 3842 · `_doPushAgora` 3849
+`_mergeLista` 3928 · `_mergeItens` 3943 · `_mergeLeafs` 3967 · `_confirmarEnvio` 3986 · `_mergeMapa` 4018
+`_reancorarExecOS` 4036 · `_execucaoAberta` 4045 · `_aplicarNaMemoria` 4048 · `_ehChaveDeSync` 4087
+`_aplicarShardFotos` 4093 · `_aplicarLegadoFotos` 4125 · `_limparPubVazados` 4150 · `_naFilaSync` 4174
+`_aplicarOSComFotos` 4186 · `_aplicarListaOS` 4196 · `_aplicarTarefasComFotos` 4218 · `fbApply` 4240
+`fbOnRemoteChange` 4330 · `fbStartListeners` 4400 · `_vigiarMembership` 4459 · `_remoteMs` 4474
+`fbStopListeners` 4480 · `fbPullAll` 4483 · `fbSeedFromLocal` 4502 · `initSync` 4538 · `_semAutenticacao` 4564
+`_voltarAoLogin` 4597 · `fbBoot` 4607 · `fbLog` 4620 · `renderDiagTamanhos` 4631 · `renderDiagAparelho` 4712
+`renderDebugLogs` 4756 · `syncManual` 4769 · `saveTecnicos` 4830 · `nomesTecnicos` 4831 · `getTecnico` 4832
+`avatarDoTecnico` 4844 · `setMeuAvatar` 4845 · `svgIco` 4892
 
 **VRF — estrutura de dados de obra**
 
-`saveVrfFasesConfig` 4919 · `_garantirVrfFasesConfig` 4920 · `vrfFasesAtuais` 4926
-`vrfTotalEtapasAtuais` 4929 · `vrfObraAtual` 4948 · `vrfResolverObraAtual` 4954 · `_vrfPertenceObra` 4971
-`_vrfPertenceObraAtual` 4972 · `_novoIdAndar` 4975 · `_novoIdObra` 4976 · `vrfObrasDoTecnico` 4997
-`vrfObrasPermitidas` 5003 · `vrfTemAtividadeObras` 5010 · `vrfProgGeralObras` 5013
-`_vrfResumoDashObras` 5018 · `registrarHistoricoLocalizacao` 5037 · `saveTarefas` 5052 · `saveLive` 5054
-`saveVrfFotosMeta` 5056 · `vrfFotoPrestador` 5057 · `vrfMissaoAndar` 5073 · `vrfMissaoTotal` 5074
-`vrfMissaoInclui` 5075 · `saveVrfObra` 5077 · `saveVrfProgresso` 5078 · `saveVrfFotos` 5079
-`saveVrfNotas` 5080 · `vrfProgAndar` 5083 · `vrfProgObra` 5092 · `vrfProgGeral` 5102 · `vrfProgFase` 5103
-`vrfCorProg` 5109 · `saveChecklistConfig` 5170 · `_fallbackChecklistRamo` 5180 · `ehManutencao` 5186
-`checklistDoTipo` 5187 · `corrigirChecklistSeVazio` 5195 · `savePrecoConfig` 5244 · `_fallbackPrecoRamo` 5251
-`_garantirPrecoConfig` 5258 · `_precoCfgExibicao` 5262 · `_normTipo` 5265 · `valorDoTipo` 5270
-`_moduloDefaultParaRamo` 5288 · `saveModuloConfig` 5293 · `_fallbackModuloRamo` 5296
-`_garantirModuloConfig` 5302 · `moduloSplitAtual` 5309 · `_aplicarModuloVocabulario` 5316 · `saveOS` 5346
-`saveClientes` 5347 · `saveManut` 5348 · `saveSettings` 5349 · `saveSession` 5350 · `saveFinanceiroNotas` 5351
-`fazerLogin` 5357 · `entrarApp` 5372
+`saveVrfFasesConfig` 4927 · `_garantirVrfFasesConfig` 4928 · `vrfFasesAtuais` 4934
+`vrfTotalEtapasAtuais` 4937 · `vrfObraAtual` 4956 · `vrfResolverObraAtual` 4962 · `_vrfPertenceObra` 4979
+`_vrfPertenceObraAtual` 4980 · `_novoIdAndar` 4983 · `_novoIdObra` 4984 · `vrfObrasDoTecnico` 5005
+`vrfObrasPermitidas` 5011 · `vrfTemAtividadeObras` 5018 · `vrfProgGeralObras` 5021
+`_vrfResumoDashObras` 5026 · `registrarHistoricoLocalizacao` 5045 · `saveTarefas` 5060 · `saveLive` 5062
+`saveVrfFotosMeta` 5064 · `vrfFotoPrestador` 5065 · `vrfMissaoAndar` 5081 · `vrfMissaoTotal` 5082
+`vrfMissaoInclui` 5083 · `saveVrfObra` 5085 · `saveVrfProgresso` 5086 · `saveVrfFotos` 5087
+`saveVrfNotas` 5088 · `vrfProgAndar` 5091 · `vrfProgObra` 5100 · `vrfProgGeral` 5110 · `vrfProgFase` 5111
+`vrfCorProg` 5117 · `saveChecklistConfig` 5178 · `_fallbackChecklistRamo` 5188 · `ehManutencao` 5194
+`checklistDoTipo` 5195 · `corrigirChecklistSeVazio` 5203 · `savePrecoConfig` 5252 · `_fallbackPrecoRamo` 5259
+`_garantirPrecoConfig` 5266 · `_precoCfgExibicao` 5270 · `_normTipo` 5273 · `valorDoTipo` 5278
+`_moduloDefaultParaRamo` 5296 · `saveModuloConfig` 5301 · `_fallbackModuloRamo` 5304
+`_garantirModuloConfig` 5310 · `moduloSplitAtual` 5317 · `_aplicarModuloVocabulario` 5324 · `saveOS` 5354
+`saveClientes` 5355 · `saveManut` 5356 · `saveSettings` 5357 · `saveSession` 5358 · `saveFinanceiroNotas` 5359
+`fazerLogin` 5365 · `entrarApp` 5380
 
 **HOME DO TÉCNICO — boas-vindas ou resumo do que tem em andamento**
 
-`renderTecnicoHome` 5441 · `injetarIcones` 5538 · `getNavItems` 5550 · `montarNavbar` 5591
-`montarFloatMenu` 5606 · `floatMenuNav` 5617 · `toggleFloatMenu` 5623 · `_encerrarPorAcessoRemovido` 5637
-`logout` 5657 · `compartilharApp` 5680 · `abrirAvaliarApp` 5734 · `_renderAvalNotas` 5754
-`_setAvalNota` 5759 · `enviarFeedbackApp` 5764 · `nav` 5808 · `ajustarNavbarContexto` 5829
-`openSidebar` 5838 · `closeSidebar` 5839 · `setView` 5842 · `toast` 5854 · `fmtDate` 5859 · `fmtMoeda` 5860
-`_parseMoeda` 5866 · `escapeHtml` 5891 · `hoje` 5894 · `openLightbox` 5898 · `toggleChkFoto` 5910
-`closeLightbox` 5916 · `updateDate` 5917 · `statusReal` 5918 · `etapaAtual` 5919 · `aplicarMenuTecnico` 5933
-`_renderViewConteudo` 5946 · `renderView` 6024 · `atualizarBadges` 6029
+`renderTecnicoHome` 5449 · `injetarIcones` 5546 · `getNavItems` 5558 · `montarNavbar` 5599
+`montarFloatMenu` 5614 · `floatMenuNav` 5625 · `toggleFloatMenu` 5631 · `_encerrarPorAcessoRemovido` 5645
+`logout` 5665 · `compartilharApp` 5688 · `abrirAvaliarApp` 5742 · `_renderAvalNotas` 5762
+`_setAvalNota` 5767 · `enviarFeedbackApp` 5772 · `nav` 5816 · `ajustarNavbarContexto` 5837
+`openSidebar` 5846 · `closeSidebar` 5847 · `setView` 5850 · `toast` 5870 · `fmtDate` 5880 · `fmtMoeda` 5881
+`_parseMoeda` 5887 · `escapeHtml` 5912 · `hoje` 5915 · `openLightbox` 5919 · `toggleChkFoto` 5931
+`closeLightbox` 5937 · `updateDate` 5938 · `statusReal` 5939 · `etapaAtual` 5940 · `aplicarMenuTecnico` 5954
+`_renderViewConteudo` 5967 · `renderView` 6045 · `atualizarBadges` 6050
 
 **DASHBOARD**
 
-`vrfTemAtividade` 6046 · `_vrfResumoDash` 6052 · `renderBemVindoGestor` 6055 · `cardVRFdash` 6085
-`renderDashboard` 6106 · `renderEquipeMini` 6159 · `renderManutMini` 6171
+`vrfTemAtividade` 6067 · `_vrfResumoDash` 6073 · `renderBemVindoGestor` 6076 · `cardVRFdash` 6106
+`renderDashboard` 6127 · `renderEquipeMini` 6180 · `renderManutMini` 6192
 
 **ORDENS**
 
-`renderOrdens` 6185 · `setFilter` 6197 · `renderOSGrid` 6199 · `osCardHTML` 6212
+`renderOrdens` 6206 · `setFilter` 6218 · `renderOSGrid` 6220 · `osCardHTML` 6233
 
 **CLIENTES**
 
-`renderClientes` 6240
+`renderClientes` 6261
 
 **MANUTENÇÕES**
 
-`renderManutencoes` 6272 · `manutCardHTML` 6284
+`renderManutencoes` 6293 · `manutCardHTML` 6305
 
 **MAPA**
 
-`renderMapa` 6303 · `renderHistoricoLocalizacao` 6339
+`renderMapa` 6324 · `renderHistoricoLocalizacao` 6360
 
 **SPLITS**
 
-`renderSplits` 6354
+`renderSplits` 6375
 
 **VRF (placeholder pra integração)**
 
-`renderVRF` 6382 · `vrfCheckinHoje` 6389 · `vrfCardCheckin` 6393 · `vrfFazerCheckin` 6413
-`vrfSalvarCheckin` 6432 · `renderVRFtecnico` 6449 · `vrfMissaoProgresso` 6509 · `vrfSetTab` 6518
-`vrfRenderMissaoPainel` 6527 · `vrfRenderAndarPainel` 6572 · `vrfToggleTec` 6625 · `vrfAtualizarTabs` 6637
-`vrfAbrirCamera` 6651 · `_assinaturaComprimida` 6662 · `vrfComprimirImagem` 6690 · `vrfSetupCamera` 6751
-`vrfAbrirNota` 6793 · `vrfSalvarNota` 6805 · `vrfVerFoto` 6816 · `vrfExcluirFoto` 6829
-`vrfEnviarRelatorio` 6839 · `renderVRFgestor` 6848 · `renderVRFobras` 6934 · `renderVRFsemAcesso` 6962
-`vrfNovaObraModal` 6966 · `vrfCriarObra` 6978 · `vrfSelecionarObra` 7000 · `renderVRFandares` 7011
-`renderVRFrelatorios` 7045 · `renderVRFmapa` 7062 · `initVRFmapa` 7085 · `vrfCentralizarMapa` 7113
-`renderVRFfotos` 7118 · `vrfVerFotoDetalhe` 7155 · `vrfMissaoResumo` 7177 · `vrfConfigObra` 7196
-`vrfAddAndar` 7218 · `vrfRemoverAndar` 7222 · `vrfRenomearAndar` 7234 · `vrfSalvarObra` 7235
-`vrfConfigMissao` 7249 · `vrfMissaoTab` 7269 · `vrfRenderMissaoSteps` 7274 · `vrfToggleMissao` 7293
-`vrfSalvarMissao` 7307 · `vrfAbrirAndar` 7314 · `vrfToggleEtapa` 7359 · `carregarJsPDF` 7370
-`exportarPDFos` 7388 · `gerarPDFos` 7398 · `vrfExportarPDF` 7509 · `gerarPDFandar` 7522
+`renderVRF` 6403 · `vrfCheckinHoje` 6410 · `vrfCardCheckin` 6414 · `vrfFazerCheckin` 6434
+`vrfSalvarCheckin` 6453 · `renderVRFtecnico` 6470 · `vrfMissaoProgresso` 6530 · `vrfSetTab` 6539
+`vrfRenderMissaoPainel` 6548 · `vrfRenderAndarPainel` 6593 · `vrfToggleTec` 6646 · `vrfAtualizarTabs` 6658
+`vrfAbrirCamera` 6672 · `_assinaturaComprimida` 6683 · `vrfComprimirImagem` 6711 · `vrfSetupCamera` 6772
+`vrfAbrirNota` 6814 · `vrfSalvarNota` 6826 · `vrfVerFoto` 6837 · `vrfExcluirFoto` 6850
+`vrfEnviarRelatorio` 6860 · `renderVRFgestor` 6869 · `renderVRFobras` 6955 · `renderVRFsemAcesso` 6983
+`vrfNovaObraModal` 6987 · `vrfCriarObra` 6999 · `vrfSelecionarObra` 7021 · `renderVRFandares` 7032
+`renderVRFrelatorios` 7066 · `renderVRFmapa` 7083 · `initVRFmapa` 7106 · `vrfCentralizarMapa` 7134
+`renderVRFfotos` 7139 · `vrfVerFotoDetalhe` 7176 · `vrfMissaoResumo` 7198 · `vrfConfigObra` 7217
+`vrfAddAndar` 7239 · `vrfRemoverAndar` 7243 · `vrfRenomearAndar` 7255 · `vrfSalvarObra` 7256
+`vrfConfigMissao` 7270 · `vrfMissaoTab` 7290 · `vrfRenderMissaoSteps` 7295 · `vrfToggleMissao` 7314
+`vrfSalvarMissao` 7328 · `vrfAbrirAndar` 7335 · `vrfToggleEtapa` 7380 · `carregarJsPDF` 7391
+`exportarPDFos` 7409 · `gerarPDFos` 7419 · `vrfExportarPDF` 7530 · `gerarPDFandar` 7543
 
 **CONFIG**
 
-`renderConfig` 7634 · `toggleSet` 7710 · `setField` 7711 · `_templateRamoFallback` 7726
-`_garantirChecklistConfig` 7734 · `_checklistCfgExibicao` 7738 · `renderChecklistConfig` 7741
-`editarItemChecklist` 7760 · `removerItemChecklist` 7771 · `adicionarItemChecklist` 7780
-`renderModuloConfig` 7801 · `salvarModuloConfig` 7809 · `renderVrfFasesConfig` 7834 · `editarEtapaVrf` 7856
-`removerEtapaVrf` 7872 · `adicionarEtapaVrf` 7906 · `renderPrecoConfig` 7927 · `editarPrecoCategoria` 7944
-`removerPrecoCategoria` 7955 · `adicionarPrecoCategoria` 7962 · `setFinanceiroPeriodo` 7987
-`_dentroDoPeriodo` 7988 · `_rotuloPeriodo` 7999 · `financeiroResumo` 8003 · `renderFinanceiroHierarquia` 8020
-`renderFinanceiroNotas` 8054 · `removerNotaFinanceira` 8075 · `adicionarNotaFinanceira` 8086
-`renderFinanceiro` 8105 · `_reconciliarEquipe` 8140 · `renderEquipeConfig` 8185 · `openModalTecnico` 8220
-`_vincularAcessoTecnico` 8279 · `_gerarCodigoConvite` 8300 · `_conviteExpirado` 8322
-`gerarConviteTecnico` 8326 · `revogarConviteTecnico` 8372 · `_revogarConviteSeExistir` 8400
-`_mostrarModalConvite` 8417 · `_copiarConviteCodigo` 8439 · `_atualizarNomeMembro` 8458
-`_renomearTecnicoEmDados` 8479 · `salvarTecnico` 8497 · `removerTecnico` 8560 · `toggleModuloTec` 8603
-`toggleObraTec` 8630 · `emptyState` 8647 · `diasAte` 8648 · `getTecnicoLoc` 8649 · `showModal` 8654
-`closeModal` 8660 · `_temTourVisto` 8788 · `_gravarTourVisto` 8797 · `_temTourViewVisto` 8808
-`_gravarTourViewVisto` 8814 · `_tourAlvoCandidatos` 8837 · `_tourElExiste` 8841
-`_tourAdiarReposicaoAposAbrirSidebar` 8857 · `_tourAdiarReposicaoAposAbrirFloatMenu` 8874
-`_tourElVisivel` 8894 · `_tourExisteProximoVisivel` 8925 · `_tourExisteAnteriorVisivel` 8929
-`_tourIniciar` 8934 · `_tourIniciarView` 8945 · `_tourEntrarView` 8962 · `_tourAvancar` 8980
-`_tourMostrarPasso` 8989 · `_tourReposicionar` 9036 · `_tourFechar` 9062 · `openModalOS` 9086 · `criarOS` 9112
-`_selectTecnicoReatribuir` 9156 · `reatribuirOS` 9171 · `openDetalhe` 9182 · `salvarNota` 9266
-`salvarValorOS` 9270 · `excluirOS` 9281 · `revisarOS` 9282 · `openModalManut` 9285 · `criarManut` 9310
-`salvarManutEdicao` 9333 · `_reofereceAgenda` 9364 · `openModalManutEdit` 9383 · `excluirManut` 9420
-`concluirManut` 9421 · `criarOSdeManut` 9432 · `agendarProximaManut` 9437 · `openModalCliente` 9440
-`criarCliente` 9450 · `openHistoricoCliente` 9456 · `abrirGoogleAgenda` 9468 · `_painelMapaConteudoHtml` 9492
-`_renderPainelMapa` 9517 · `abrirPainelMapa` 9534 · `fecharPainelMapa` 9540 · `toggleColapsoPainelMapa` 9541
-`_carregarAvatarSvg` 9547 · `_avatarMarkerHtml` 9564 · `initMapa` 9574 · `atualizarMarcadores` 9584
-`loadLeaflet` 9666 · `renderTecnicoApp` 9687 · `meuAvatarBtnLabel` 9714 · `abrirEscolhaAvatar` 9717
-`escolherMeuAvatar` 9734 · `secTec` 9741 · `afterTecnicoRender` 9754 · `_temConsentimentoGPS` 9774
-`_gravarConsentimentoGPS` 9783 · `_distM` 9791 · `ultimoCheckinHojeTs` 9799 · `meuLive` 9823
-`liveAtivo` 9824 · `liveRestanteMs` 9825 · `fmtDuracaoMs` 9826 · `toggleGPS` 9832 · `toggleLive` 9833
-`_mostrarConsentimentoGPS` 9840 · `_confirmarConsentimentoGPS` 9853 · `iniciarLive` 9860 · `pararLive` 9895
-`_ligarWatchLive` 9907 · `liveRegistrarPonto` 9916 · `_pedirWakeLock` 9940 · `_soltarWakeLock` 9948
-`_ligarGuardaLive` 9954 · `retomarLiveSePreciso` 9965 · `salvarPosicao` 9982 · `msgErroGPS` 9988
-`updateGPSLabel` 9996 · `liveBlocoHTML` 10004 · `getExecTarefa` 10025 · `renderTarefas` 10028
-`renderTarefasGestor` 10033 · `openModalTarefa` 10063 · `salvarTarefa` 10082 · `excluirTarefa` 10099
-`verTarefaDetalhe` 10106 · `renderTarefasTecnico` 10129 · `abrirTarefa` 10155 · `voltarTarefa` 10156
-`rerenderTarefaExec` 10157 · `renderExecTarefa` 10159 · `setupTarefaCam` 10201 · `tarefaRemoverFoto` 10241
-`tarefaSalvarNota` 10254 · `tarefaCheckin` 10262 · `tarefaFinalizarCheckin` 10284 · `abrirMapaCoord` 10303
-`tarefaCheckinHoje` 10326 · `concluirTarefa` 10331 · `_lembrarExecucao` 10352 · `_esquecerExecucao` 10356
-`_retomarExecucaoSePreciso` 10360 · `abrirExecucao` 10372 · `renderExecucao` 10382 · `switchEquipTab` 10436
-`updEquip` 10457 · `onEquipFoto` 10458 · `renderChecklistExec` 10484 · `toggleCheck` 10512
-`onCheckFoto` 10521 · `execCheckin` 10536 · `finalizarCheckin` 10558 · `initSigCanvas` 10568
-`limparSig` 10580 · `_pendenciasParaConcluir` 10586 · `verificarConcluir` 10610 · `execConcluir` 10625
-`saveExecOS` 10643 · `voltarExec` 10644 · `renderManutTecnico` 10647 · `startNotifChecker` 10669
-`checkManutencoes` 10695 · `notificarNavegador` 10713 · `enviarEmailManut` 10720 · `enviarSMSManut` 10721
-`agendarLonge` 10741 · `cancelarLonge` 10750 · `_pubToken` 10754 · `pubURL` 10759 · `_thumbKey` 10760
-`_thumb` 10765 · `pubPayloadOS` 10789 · `pubPayloadObra` 10819 · `publicarAcompanhamento` 10876
-`_precisaNovoToken` 10901 · `gerarLinkOS` 10907 · `conferirLinkNoServidor` 10927 · `gerarLinkObra` 10945
-`abrirModalLink` 10955 · `revogarLink` 11023 · `emitirEnderecoNovo` 11046 · `marcarLinkEnviado` 11069
-`copiarLinkPub` 11078 · `agendarRepublicacao` 11098 · `republicarAtivos` 11103 · `_pubRotaToken` 11126
-`_mostrarLinkAntigo` 11134 · `iniciarModoPublico` 11149 · `_pubOuvirToken` 11167 · `renderPublicoErro` 11209
-`_pubStatusLbl` 11213 · `renderPublico` 11216 · `pubZoom` 11276 · `_lerMarcaRecarga` 11358
-`_marcarRecarga` 11373 · `_campoComTextoNaoSalvo` 11390 · `_porQueNaoRecarregarAgora` 11406
-`_recarregarQuandoSeguro` 11437 · `_acenderFaixaVersao` 11472 · `_desenharIconeVersao` 11493
-`_medirAvisoVersao` 11508 · `_mostrarMotivoVersao` 11528 · `_devolverBotaoAtualizar` 11537
-`_esperarResolve` 11552 · `_apressarAtualizacao` 11565 · `_avisarVersaoNova` 11601
-`_avisarVersaoVelhaPorErro` 11614
+`renderConfig` 7655 · `toggleSet` 7731 · `setField` 7732 · `_templateRamoFallback` 7747
+`_garantirChecklistConfig` 7755 · `_checklistCfgExibicao` 7759 · `renderChecklistConfig` 7762
+`editarItemChecklist` 7781 · `removerItemChecklist` 7792 · `adicionarItemChecklist` 7801
+`renderModuloConfig` 7822 · `salvarModuloConfig` 7830 · `renderVrfFasesConfig` 7855 · `editarEtapaVrf` 7877
+`removerEtapaVrf` 7893 · `adicionarEtapaVrf` 7927 · `renderPrecoConfig` 7948 · `editarPrecoCategoria` 7965
+`removerPrecoCategoria` 7976 · `adicionarPrecoCategoria` 7983 · `setFinanceiroPeriodo` 8008
+`_dentroDoPeriodo` 8009 · `_rotuloPeriodo` 8020 · `financeiroResumo` 8024 · `renderFinanceiroHierarquia` 8041
+`renderFinanceiroNotas` 8075 · `removerNotaFinanceira` 8096 · `adicionarNotaFinanceira` 8107
+`renderFinanceiro` 8126 · `_reconciliarEquipe` 8161 · `renderEquipeConfig` 8206 · `openModalTecnico` 8241
+`_vincularAcessoTecnico` 8300 · `_gerarCodigoConvite` 8321 · `_conviteExpirado` 8343
+`gerarConviteTecnico` 8347 · `revogarConviteTecnico` 8393 · `_revogarConviteSeExistir` 8421
+`_mostrarModalConvite` 8438 · `_copiarConviteCodigo` 8460 · `_atualizarNomeMembro` 8479
+`_renomearTecnicoEmDados` 8500 · `salvarTecnico` 8518 · `removerTecnico` 8581 · `toggleModuloTec` 8624
+`toggleObraTec` 8651 · `emptyState` 8668 · `diasAte` 8669 · `getTecnicoLoc` 8670 · `showModal` 8675
+`closeModal` 8681 · `_temTourVisto` 8809 · `_gravarTourVisto` 8818 · `_temTourViewVisto` 8829
+`_gravarTourViewVisto` 8835 · `_tourAlvoCandidatos` 8858 · `_tourElExiste` 8862
+`_tourAdiarReposicaoAposAbrirSidebar` 8878 · `_tourAdiarReposicaoAposAbrirFloatMenu` 8895
+`_tourElVisivel` 8915 · `_tourExisteProximoVisivel` 8946 · `_tourExisteAnteriorVisivel` 8950
+`_tourIniciar` 8955 · `_tourIniciarView` 8966 · `_tourEntrarView` 8983 · `_tourAvancar` 9001
+`_tourMostrarPasso` 9010 · `_tourReposicionar` 9057 · `_tourFechar` 9083 · `openModalOS` 9107 · `criarOS` 9133
+`_selectTecnicoReatribuir` 9177 · `reatribuirOS` 9192 · `openDetalhe` 9203 · `salvarNota` 9287
+`salvarValorOS` 9291 · `excluirOS` 9302 · `revisarOS` 9303 · `openModalManut` 9306 · `criarManut` 9331
+`salvarManutEdicao` 9354 · `_reofereceAgenda` 9385 · `openModalManutEdit` 9404 · `excluirManut` 9441
+`concluirManut` 9442 · `criarOSdeManut` 9453 · `agendarProximaManut` 9458 · `openModalCliente` 9461
+`criarCliente` 9471 · `openHistoricoCliente` 9477 · `abrirGoogleAgenda` 9489 · `_painelMapaConteudoHtml` 9513
+`_renderPainelMapa` 9538 · `abrirPainelMapa` 9555 · `fecharPainelMapa` 9561 · `toggleColapsoPainelMapa` 9562
+`_carregarAvatarSvg` 9568 · `_avatarMarkerHtml` 9585 · `initMapa` 9595 · `atualizarMarcadores` 9605
+`loadLeaflet` 9687 · `renderTecnicoApp` 9708 · `meuAvatarBtnLabel` 9735 · `abrirEscolhaAvatar` 9738
+`escolherMeuAvatar` 9755 · `secTec` 9762 · `afterTecnicoRender` 9775 · `_temConsentimentoGPS` 9795
+`_gravarConsentimentoGPS` 9804 · `_distM` 9812 · `ultimoCheckinHojeTs` 9820 · `meuLive` 9844
+`liveAtivo` 9845 · `liveRestanteMs` 9846 · `fmtDuracaoMs` 9847 · `toggleGPS` 9853 · `toggleLive` 9854
+`_mostrarConsentimentoGPS` 9861 · `_confirmarConsentimentoGPS` 9874 · `iniciarLive` 9881 · `pararLive` 9916
+`_ligarWatchLive` 9928 · `liveRegistrarPonto` 9937 · `_pedirWakeLock` 9961 · `_soltarWakeLock` 9969
+`_ligarGuardaLive` 9975 · `retomarLiveSePreciso` 9986 · `salvarPosicao` 10003 · `msgErroGPS` 10009
+`updateGPSLabel` 10017 · `liveBlocoHTML` 10025 · `getExecTarefa` 10046 · `renderTarefas` 10049
+`renderTarefasGestor` 10054 · `openModalTarefa` 10084 · `salvarTarefa` 10103 · `excluirTarefa` 10120
+`verTarefaDetalhe` 10127 · `renderTarefasTecnico` 10150 · `abrirTarefa` 10176 · `voltarTarefa` 10177
+`rerenderTarefaExec` 10178 · `renderExecTarefa` 10180 · `setupTarefaCam` 10222 · `tarefaRemoverFoto` 10262
+`tarefaSalvarNota` 10275 · `tarefaCheckin` 10283 · `tarefaFinalizarCheckin` 10305 · `abrirMapaCoord` 10324
+`tarefaCheckinHoje` 10347 · `concluirTarefa` 10352 · `_lembrarExecucao` 10373 · `_esquecerExecucao` 10377
+`_retomarExecucaoSePreciso` 10381 · `abrirExecucao` 10393 · `renderExecucao` 10403 · `switchEquipTab` 10457
+`updEquip` 10478 · `onEquipFoto` 10479 · `renderChecklistExec` 10505 · `toggleCheck` 10533
+`onCheckFoto` 10542 · `execCheckin` 10557 · `finalizarCheckin` 10579 · `initSigCanvas` 10589
+`limparSig` 10601 · `_pendenciasParaConcluir` 10607 · `verificarConcluir` 10631 · `execConcluir` 10646
+`saveExecOS` 10664 · `voltarExec` 10665 · `renderManutTecnico` 10668 · `startNotifChecker` 10690
+`checkManutencoes` 10716 · `notificarNavegador` 10734 · `enviarEmailManut` 10741 · `enviarSMSManut` 10742
+`agendarLonge` 10762 · `cancelarLonge` 10771 · `_pubToken` 10775 · `pubURL` 10780 · `_thumbKey` 10781
+`_thumb` 10786 · `pubPayloadOS` 10810 · `pubPayloadObra` 10840 · `publicarAcompanhamento` 10897
+`_precisaNovoToken` 10922 · `gerarLinkOS` 10928 · `conferirLinkNoServidor` 10948 · `gerarLinkObra` 10966
+`abrirModalLink` 10976 · `revogarLink` 11044 · `emitirEnderecoNovo` 11067 · `marcarLinkEnviado` 11090
+`copiarLinkPub` 11099 · `agendarRepublicacao` 11119 · `republicarAtivos` 11124 · `_pubRotaToken` 11147
+`_mostrarLinkAntigo` 11155 · `iniciarModoPublico` 11174 · `_pubOuvirToken` 11196 · `renderPublicoErro` 11238
+`_pubStatusLbl` 11242 · `renderPublico` 11245 · `pubZoom` 11305 · `_lerMarcaRecarga` 11401
+`_marcarRecarga` 11416 · `_campoComTextoNaoSalvo` 11433 · `_porQueNaoRecarregarAgora` 11449
+`_recarregarQuandoSeguro` 11499 · `_motivoParaPessoa` 11549 · `_pedidoDaFaixa` 11567 · `_logFaixa` 11575
+`_recarregarPorFaltaDeNuvem` 11589 · `_tentarDeNovoPelaFaixa` 11621 · `_acenderFaixaVersao` 11651
+`_desenharIconeVersao` 11672 · `_medirAvisoVersao` 11687 · `_mostrarMotivoVersao` 11707
+`_devolverBotaoAtualizar` 11716 · `_esperarResolve` 11732 · `_apressarAtualizacao` 11746
+`_avisarVersaoNova` 11782 · `_avisarVersaoVelhaPorErro` 11795
 
 ## Estado de topo de arquivo
 
@@ -210,41 +211,42 @@
 `_snapshot` 1277 · `IDB_NOME` 1295 · `_idbConn` 1296 · `FOTO_CACHE_MAX` 1380 · `_fotoCache` 1381
 `_opsEmVoo` 1407 · `_pintorLigado` 1489 · `DOC_LIMITE_BYTES` 1547 · `DOC_ALERTA_BYTES` 1548
 `_falhasEnvio` 1553 · `_falhasLeitura` 1558 · `_chavesQuaseCheias` 1559 · `_versaoNovaDisponivel` 1563
-`NOMES_DOC` 1566 · `_rondaNuvem` 1612 · `ITEM_LISTS` 1690 · `LEAF_MAPS` 1692 · `CHAVE_FOTOS` 1702
-`FOTOS_PREFIXO` 1705 · `FOTO_OS_PREFIXO` 1720 · `MIGR_IDB_CHAVE` 1878 · `MIGR_IDB_OT_CHAVE` 1961
-`FOTO_OBRA_PREFIXO` 2050 · `MIGR_FOTOS_CHAVE` 2193 · `FOTO_TAREFA_PREFIXO` 2219 · `SEP` 2435 · `_pend` 2440
-`_localTouch` 2441 · `PUB_KEYS` 2534 · `_avisoMemoriaAberto` 2551 · `_interceptorOk` 2623 · `_pollTimer` 2639
-`_enviandoRecuperacao` 2837 · `_tentandoNovamente` 2900 · `RAMO_RESERVADOS` 2944
-`RAMO_CHAVES_PERIGOSAS` 2945 · `_prestadorEntrando` 3060 · `_consumindoConvite` 3102 · `_pushTimers` 3159
-`APPEND_LISTS` 3161 · `MERGE_MAPS` 3164 · `IMMEDIATE_KEYS` 3166 · `_posicoesPorUid` 3229
-`_nomesAmbiguosAvisados` 3233 · `_avisouPosicaoSemUid` 3422 · `_avisouSemPosicaoLocal` 3423
-`_proximaTentativaLeitura` 3527 · `_filaSync` 4165 · `fbUnsubs` 4391 · `_avisouSessaoExpirada` 4585
-`_fbLogs` 4611 · `tecnicos` 4821 · `AVATAR_IDS` 4834 · `avataresTecnicos` 4835 · `ICONS` 4849
-`NAV_ITEMS` 4887 · `VRF_FASES` 4896 · `VRF_TOTAL_ETAPAS` 4908 · `vrfFasesConfig` 4918 · `vrfObras` 4939
-`vrfObraAtualId` 4947 · `_mudouNaMigracaoTecVrfObras` 4986 · `vrfProgresso` 5026 · `vrfFotos` 5027
-`vrfNotas` 5028 · `vrfRelatorios` 5029 · `vrfCheckins` 5030 · `localizacaoHistorico` 5036 · `tarefas` 5051
-`liveTracks` 5053 · `vrfFotosMeta` 5055 · `vrfFloorTab` 5061 · `CHECKLIST_BASE` 5113 · `CHECKLIST_MANUT` 5125
-`CHECKLIST_PREDIAL_BASE` 5135 · `CHECKLIST_PREDIAL_MANUT` 5147 · `RAMO_TEMPLATES` 5159
-`checklistConfig` 5169 · `PRECO_TEMPLATES` 5216 · `precoConfig` 5243 · `moduloConfig` 5292 · `ETAPAS` 5328
-`ETAPA_LBL` 5329 · `session` 5332 · `osList` 5333 · `clientes` 5334 · `manutencoes` 5335 · `settings` 5336
-`financeiroNotas` 5337 · `currentView` 5338 · `currentFilter` 5339 · `currentDetailId` 5340
-`mapaInstance` 5341 · `mapaMarkers` 5342 · `mapaTrails` 5343 · `_encerrandoPorRemocao` 5636
-`_compartilhando` 5679 · `_avalNota` 5733 · `VIEW_META` 5789 · `navbarContexto` 5828 · `_vrfFotoTarget` 6650
-`_fotoEmProcessamento` 6683 · `_travaFotoTimer` 6684 · `FOTO_MAX_BYTES` 6688 · `vrfMapaInstance` 7061
-`_vrfMissaoAndarIdx` 7248 · `financeiroPeriodo` 7986 · `_reconciliandoEquipe` 8139
-`CONVITE_VALIDADE_MS` 8321 · `_timerFecharModal` 8659 · `TOUR_VERSAO` 8685 · `TOUR_GESTOR` 8687
-`TOUR_TECNICO` 8701 · `TOUR_VIEWS_GESTOR` 8718 · `TOUR_VIEWS_TECNICO` 8767 · `_tourPassos` 8779
-`_tourIndice` 8780 · `_tourResizeHandler` 8781 · `_tourContextoAtual` 8785 · `mapaPainelAberto` 9489
-`mapaPainelColapsado` 9490 · `_avatarSvgCache` 9546 · `gpsWatchId` 9762 · `LIVE_DURACAO_MS` 9763
-`LIVE_INTERVALO_MS` 9764 · `LIVE_DIST_MIN_M` 9765 · `LIVE_MAX_PONTOS` 9766 · `_liveUltimoReg` 9767
-`_liveWakeLock` 9768 · `_liveGuardTimer` 9769 · `GPS_CONSENT_VERSAO` 9773 · `execTarefaId` 10024
-`TF_LABEL` 10026 · `execOS` 10344 · `EXEC_ABERTA` 10351 · `sigCtx` 10567 · `PUB_LIMITE_BYTES` 10730
-`PUB_VALIDADE_MS` 10733 · `MAX_TIMEOUT_MS` 10740 · `_thumbCache` 10751 · `_pubUltimo` 10752
-`_pubTimer` 11097 · `_pubRota` 11282 · `_TINHA_CONTROLADOR` 11330 · `RECARGA_ESPERA_MS` 11331
-`RECARGA_CARENCIA_MS` 11332 · `RECARGA_TETO` 11333 · `RECARGA_MARCA` 11334 · `PROCURA_MINIMA_MS` 11335
-`BOTAO_ATUALIZAR_TETO_MS` 11336 · `_timerRecarga` 11337 · `_timerBotaoAtualizar` 11338
-`_recargaManualPedida` 11339 · `_recargaPedida` 11340 · `_ultimoMotivoAdiado` 11341 · `_ultimaProcura` 11342
-`_versaoNovaDetectada` 11351
+`NOMES_DOC` 1566 · `_rondaNuvem` 1612 · `ITEM_LISTS` 1698 · `LEAF_MAPS` 1700 · `CHAVE_FOTOS` 1710
+`FOTOS_PREFIXO` 1713 · `FOTO_OS_PREFIXO` 1728 · `MIGR_IDB_CHAVE` 1886 · `MIGR_IDB_OT_CHAVE` 1969
+`FOTO_OBRA_PREFIXO` 2058 · `MIGR_FOTOS_CHAVE` 2201 · `FOTO_TAREFA_PREFIXO` 2227 · `SEP` 2443 · `_pend` 2448
+`_localTouch` 2449 · `PUB_KEYS` 2542 · `_avisoMemoriaAberto` 2559 · `_interceptorOk` 2631 · `_pollTimer` 2647
+`_enviandoRecuperacao` 2845 · `_tentandoNovamente` 2908 · `RAMO_RESERVADOS` 2952
+`RAMO_CHAVES_PERIGOSAS` 2953 · `_prestadorEntrando` 3068 · `_consumindoConvite` 3110 · `_pushTimers` 3167
+`APPEND_LISTS` 3169 · `MERGE_MAPS` 3172 · `IMMEDIATE_KEYS` 3174 · `_posicoesPorUid` 3237
+`_nomesAmbiguosAvisados` 3241 · `_avisouPosicaoSemUid` 3430 · `_avisouSemPosicaoLocal` 3431
+`_proximaTentativaLeitura` 3535 · `_filaSync` 4173 · `fbUnsubs` 4399 · `_avisouSessaoExpirada` 4593
+`_fbLogs` 4619 · `tecnicos` 4829 · `AVATAR_IDS` 4842 · `avataresTecnicos` 4843 · `ICONS` 4857
+`NAV_ITEMS` 4895 · `VRF_FASES` 4904 · `VRF_TOTAL_ETAPAS` 4916 · `vrfFasesConfig` 4926 · `vrfObras` 4947
+`vrfObraAtualId` 4955 · `_mudouNaMigracaoTecVrfObras` 4994 · `vrfProgresso` 5034 · `vrfFotos` 5035
+`vrfNotas` 5036 · `vrfRelatorios` 5037 · `vrfCheckins` 5038 · `localizacaoHistorico` 5044 · `tarefas` 5059
+`liveTracks` 5061 · `vrfFotosMeta` 5063 · `vrfFloorTab` 5069 · `CHECKLIST_BASE` 5121 · `CHECKLIST_MANUT` 5133
+`CHECKLIST_PREDIAL_BASE` 5143 · `CHECKLIST_PREDIAL_MANUT` 5155 · `RAMO_TEMPLATES` 5167
+`checklistConfig` 5177 · `PRECO_TEMPLATES` 5224 · `precoConfig` 5251 · `moduloConfig` 5300 · `ETAPAS` 5336
+`ETAPA_LBL` 5337 · `session` 5340 · `osList` 5341 · `clientes` 5342 · `manutencoes` 5343 · `settings` 5344
+`financeiroNotas` 5345 · `currentView` 5346 · `currentFilter` 5347 · `currentDetailId` 5348
+`mapaInstance` 5349 · `mapaMarkers` 5350 · `mapaTrails` 5351 · `_encerrandoPorRemocao` 5644
+`_compartilhando` 5687 · `_avalNota` 5741 · `VIEW_META` 5797 · `navbarContexto` 5836 · `_vrfFotoTarget` 6671
+`_fotoEmProcessamento` 6704 · `_travaFotoTimer` 6705 · `FOTO_MAX_BYTES` 6709 · `vrfMapaInstance` 7082
+`_vrfMissaoAndarIdx` 7269 · `financeiroPeriodo` 8007 · `_reconciliandoEquipe` 8160
+`CONVITE_VALIDADE_MS` 8342 · `_timerFecharModal` 8680 · `TOUR_VERSAO` 8706 · `TOUR_GESTOR` 8708
+`TOUR_TECNICO` 8722 · `TOUR_VIEWS_GESTOR` 8739 · `TOUR_VIEWS_TECNICO` 8788 · `_tourPassos` 8800
+`_tourIndice` 8801 · `_tourResizeHandler` 8802 · `_tourContextoAtual` 8806 · `mapaPainelAberto` 9510
+`mapaPainelColapsado` 9511 · `_avatarSvgCache` 9567 · `gpsWatchId` 9783 · `LIVE_DURACAO_MS` 9784
+`LIVE_INTERVALO_MS` 9785 · `LIVE_DIST_MIN_M` 9786 · `LIVE_MAX_PONTOS` 9787 · `_liveUltimoReg` 9788
+`_liveWakeLock` 9789 · `_liveGuardTimer` 9790 · `GPS_CONSENT_VERSAO` 9794 · `execTarefaId` 10045
+`TF_LABEL` 10047 · `execOS` 10365 · `EXEC_ABERTA` 10372 · `sigCtx` 10588 · `PUB_LIMITE_BYTES` 10751
+`PUB_VALIDADE_MS` 10754 · `MAX_TIMEOUT_MS` 10761 · `_thumbCache` 10772 · `_pubUltimo` 10773
+`_pubTimer` 11118 · `_pubRota` 11311 · `_TINHA_CONTROLADOR` 11359 · `RECARGA_ESPERA_MS` 11360
+`RECARGA_CARENCIA_MS` 11361 · `RECARGA_TETO` 11362 · `RECARGA_MARCA` 11363 · `PROCURA_MINIMA_MS` 11364
+`BOTAO_ATUALIZAR_TETO_MS` 11365 · `MOTIVO_PUBLICO` 11369 · `_timerRecarga` 11370
+`_timerBotaoAtualizar` 11371 · `_recargaManualPedida` 11372 · `_recargaPedida` 11373
+`_ultimoMotivoAdiado` 11374 · `_timerFaixa` 11383 · `_ultimoMotivoFaixa` 11384 · `_ultimaProcura` 11385
+`_versaoNovaDetectada` 11394
 
 ## Elementos com `id` (primeira ocorrência)
 
@@ -262,25 +264,25 @@
 `topTitle` 1167 · `topSub` 1168 · `topDate` 1172 · `syncBtn` 1173 · `viewToggle` 1176 · `tgDesktop` 1177
 `tgMobile` 1178 · `syncAlerta` 1192 · `contentArea` 1194 · `toast` 1200 · `avisoVersao` 1214
 `avisoVersaoIco` 1215 · `avisoVersaoMotivo` 1216 · `avisoVersaoBtn` 1217 · `lightbox` 1220
-`lightboxImg` 1220 · `modalRoot` 1223 · `tourRoot` 1226 · `avalNotas` 5742 · `avalTexto` 5746
-`osGridContainer` 6194 · `mapaBox` 6324 · `mapaPainelInfo` 6325 · `mapaCardEquipe` 6327
-`mapaCardHistorico` 6331 · `vrfTabs` 6493 · `vrfPainel` 6496 · `vrfRespNome` 6500 · `vrfObs` 6501
-`vrfCameraInput` 6505 · `vrfNotaTxt` 6798 · `vrfNovaObraNome` 6970 · `vrfNovaObraEndereco` 6971
-`vrfMapaBox` 7070 · `vrfNome` 7205 · `vrfEndereco` 7206 · `vrfMeta` 7207 · `vrfAndaresList` 7209
-`vrfMissaoTabs` 7259 · `vrfMissaoAndarAtual` 7260 · `vrfMissaoSteps` 7261 · `diagStatus` 7699
-`diagTamanhos` 7702 · `diagAparelho` 7704 · `diagLogBody` 7706 · `moduloNome` 7805 · `moduloDesc` 7806
-`novaCategoriaPreco` 7940 · `notaPrestador` 8060 · `notaValor` 8061 · `notaObs` 8063 · `finPeriodo` 8111
-`finHierarquiaCard` 8123 · `tNome` 8227 · `tUid` 8231 · `modCardSplit` 8236 · `tSplit` 8237
-`modCardVrf` 8242 · `tVrf` 8243 · `conviteCodigoInput` 8427 · `curOverlay` 8654 · `tourBackdrop` 8999
-`tourSpot` 9000 · `tourCard` 9001 · `oCliente` 9090 · `clientesList` 9091 · `oEndereco` 9092 · `oTipo` 9094
-`oTecnico` 9097 · `oData` 9100 · `oHora` 9101 · `oSplits` 9103 · `oObs` 9104 · `notaGestor` 9229
-`osValor` 9235 · `osValorStatus` 9236 · `mCliente` 9290 · `mEndereco` 9292 · `mData` 9294 · `mTecnico` 9295
-`mTipo` 9298 · `mRecorrencia` 9299 · `mObs` 9301 · `meData` 9390 · `meTipo` 9397 · `meRecorrencia` 9400
-`meEndereco` 9405 · `meObs` 9406 · `cNome` 9444 · `cEndereco` 9445 · `cContato` 9446 · `gpsLabel` 9706
-`tfNome` 10069 · `tfDesc` 10070 · `tfTec` 10071 · `tfMax` 10072 · `tfNotas` 10074 · `tarefaNota` 10166
-`btnTarefaCheckin` 10177 · `tarefaCamInput` 10190 · `coordMapaBox` 10307 · `equipPanelArea` 10404
-`checklistArea` 10411 · `sigCanvas` 10418 · `pendConcluir` 10422 · `btnConcluir` 10423 · `pubLinkInput` 10997
-`pubZoom` 11274 · `pubZoomImg` 11274
+`lightboxImg` 1220 · `modalRoot` 1223 · `tourRoot` 1226 · `avalNotas` 5750 · `avalTexto` 5754
+`osGridContainer` 6215 · `mapaBox` 6345 · `mapaPainelInfo` 6346 · `mapaCardEquipe` 6348
+`mapaCardHistorico` 6352 · `vrfTabs` 6514 · `vrfPainel` 6517 · `vrfRespNome` 6521 · `vrfObs` 6522
+`vrfCameraInput` 6526 · `vrfNotaTxt` 6819 · `vrfNovaObraNome` 6991 · `vrfNovaObraEndereco` 6992
+`vrfMapaBox` 7091 · `vrfNome` 7226 · `vrfEndereco` 7227 · `vrfMeta` 7228 · `vrfAndaresList` 7230
+`vrfMissaoTabs` 7280 · `vrfMissaoAndarAtual` 7281 · `vrfMissaoSteps` 7282 · `diagStatus` 7720
+`diagTamanhos` 7723 · `diagAparelho` 7725 · `diagLogBody` 7727 · `moduloNome` 7826 · `moduloDesc` 7827
+`novaCategoriaPreco` 7961 · `notaPrestador` 8081 · `notaValor` 8082 · `notaObs` 8084 · `finPeriodo` 8132
+`finHierarquiaCard` 8144 · `tNome` 8248 · `tUid` 8252 · `modCardSplit` 8257 · `tSplit` 8258
+`modCardVrf` 8263 · `tVrf` 8264 · `conviteCodigoInput` 8448 · `curOverlay` 8675 · `tourBackdrop` 9020
+`tourSpot` 9021 · `tourCard` 9022 · `oCliente` 9111 · `clientesList` 9112 · `oEndereco` 9113 · `oTipo` 9115
+`oTecnico` 9118 · `oData` 9121 · `oHora` 9122 · `oSplits` 9124 · `oObs` 9125 · `notaGestor` 9250
+`osValor` 9256 · `osValorStatus` 9257 · `mCliente` 9311 · `mEndereco` 9313 · `mData` 9315 · `mTecnico` 9316
+`mTipo` 9319 · `mRecorrencia` 9320 · `mObs` 9322 · `meData` 9411 · `meTipo` 9418 · `meRecorrencia` 9421
+`meEndereco` 9426 · `meObs` 9427 · `cNome` 9465 · `cEndereco` 9466 · `cContato` 9467 · `gpsLabel` 9727
+`tfNome` 10090 · `tfDesc` 10091 · `tfTec` 10092 · `tfMax` 10093 · `tfNotas` 10095 · `tarefaNota` 10187
+`btnTarefaCheckin` 10198 · `tarefaCamInput` 10211 · `coordMapaBox` 10328 · `equipPanelArea` 10425
+`checklistArea` 10432 · `sigCanvas` 10439 · `pendConcluir` 10443 · `btnConcluir` 10444 · `pubLinkInput` 11018
+`pubZoom` 11303 · `pubZoomImg` 11303
 
 ## Classes CSS (onde são declaradas)
 

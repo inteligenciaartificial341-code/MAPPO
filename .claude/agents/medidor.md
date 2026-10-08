@@ -35,3 +35,16 @@ e essa confusão já custou horas neste projeto.
 
 Os números, o comando exato que os produziu, e **o que não foi medido**. Nada de interpretação
 longa nem de arquivo inteiro — quem decide é quem te chamou.
+
+## Restauração: NUNCA `git checkout` enquanto o trabalho não está commitado
+
+Incidente real em 08/10/2026: uma camada de revisão restaurou o `index.html` com
+`git checkout -- index.html` depois de mutar, esquecendo que a entrega em revisão **ainda
+não tinha commit**. Isso apagou a mudança inteira. Só foi recuperada porque havia uma cópia
+byte-idêntica feita antes.
+
+Enquanto o trabalho não estiver commitado, a restauração é:
+
+1. `cp arquivo copia.ok` **antes** de mutar, e guardar o `sha256sum`;
+2. `cp copia.ok arquivo` para restaurar;
+3. conferir que o `sha256sum` voltou ao valor de antes — e **dizer isso no relatório**.
