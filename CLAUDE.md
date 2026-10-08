@@ -301,6 +301,18 @@ O que vale agora:
 - Commit em `main` é o caminho normal — **mas nunca sem autorização explícita do
   proprietário para aquele commit.** É essa autorização, somada ao gate de supervisão, que
   substitui o fluxo de branch (mesma regra em `AGENTS.md`).
+- **A autorização do commit INCLUI publicar** (decidido pelo proprietário em 08/10/2026).
+  Até aqui eram dois pedidos — ele autorizava o commit e eu esperava uma segunda palavra para
+  o `push`. Virou ida e volta sem ganho: ele já tinha decidido nos dois casos. Um "pode" agora
+  vale para commitar **e** empurrar, na mesma ida.
+  O que **não** muda: continuo mostrando o que entra, por caminho explícito, **antes** de
+  commitar; continuo exigindo `npm test` verde; e continuo medindo que a publicação chegou ao
+  ar em vez de supor.
+- **Exceção — publicação em duas etapas.** Quando a entrega depende de algo que só o
+  proprietário faz antes (hoje: publicar `firestore.rules` no Console), **não** empurrar junto:
+  o recurso nasceria morto, com escrita negada em todo aparelho. Nesse caso, commitar, dizer o
+  que falta, e esperar a confirmação dele. Foi o caso do GPS por pessoa (`bd4bfd6`), e a regra
+  nova não o desfaz.
 - Antes de pedir a autorização: `npm test` verde.
 - O CI roda em todo push em `main` e **marca** o commit. Marcar não é impedir — veja a seção
   acima; hoje ele avisa, não bloqueia.

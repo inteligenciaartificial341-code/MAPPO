@@ -8,7 +8,7 @@
 > antes do commit + publicação. Ao final de cada publicação: mover o item de
 > `MAPPO-O-QUE-FALTA.md` para cá e registrar no histórico no fim do arquivo.
 
-**Estado:** publicado até o commit `bd4bfd6` · atualizado em 01/10/2026
+**Estado:** publicado até o commit `5a34514` · atualizado em 08/10/2026
 **Endereço:** https://inteligenciaartificial341-code.github.io/MAPPO/
 
 ---
@@ -180,7 +180,31 @@ Devolvida para revisão, o técnico vê o motivo e refaz.
 
 ---
 
-## 9. Rede anti-regressão (testes)
+## 9. Aviso de versão nova, e quando o app se atualiza
+
+O app avisa quando sai versão nova e **se atualiza sozinho** — decisão do proprietário em
+01/10/2026 — mas só em hora segura: nunca com modal aberto, foto em tela cheia, campo com
+texto não salvo, ou operação em voo (foto comprimindo, gravando no aparelho, ou subindo).
+Perder foto de serviço executado é a linha vermelha do projeto.
+
+- **O aviso é uma pílula fixa no rodapé**, na paleta da logo (petróleo), com botão "Atualizar"
+  e ícone do sistema de ícones do app. No celular ocupa a largura toda, acima da barra.
+- **Nunca aparece na página do cliente.** O link de acompanhamento é tela dele; nem o aviso
+  aparece, nem a página recarrega sozinha.
+- **O botão "Atualizar" apressa, não atropela:** mostra "Atualizando…" e recarrega assim que
+  for seguro. Quando a espera não resolve (texto não salvo), diz o motivo em vez de fingir.
+- **O `CACHE_VERSION` do `sw.js` é a impressão digital da casca** (`index.html` + os ícones).
+  O navegador só instala um Service Worker novo quando esses bytes mudam, e é essa instalação
+  que avisa as abas abertas. Publicar sem trocar o selo deixa o `npm test` vermelho, com a
+  linha pronta para colar — depender de lembrar falhou em 41 publicações seguidas.
+- **A faixa de "sem conexão" também passa pela guarda:** o toque reconecta, mas espera o que
+  estiver sendo salvo; abandona o pedido se a nuvem voltar sozinha; e recusa quando o aparelho
+  está sem rede, em vez de trocar o app pela tela de erro do navegador.
+
+A receita de origem (do SONNAR IA, escrita pelo proprietário) está em
+[RECEITA-ATUALIZACAO.md](RECEITA-ATUALIZACAO.md).
+
+## 10. Rede anti-regressão (testes)
 
 Não é funcionalidade para o usuário — é o que impede funcionalidade que já funcionava de
 parar de funcionar. Existe porque em 24/09/2026 três defeitos apareceram juntos em coisas
@@ -268,6 +292,10 @@ que já funcionavam e **não havia como perceber** antes do usuário.
 
 | Data | Commit | O que entrou |
 |---|---|---|
+| 08/10/2026 | `5a34514` | **Nenhuma recarga escapa da guarda, e a página do cliente não recarrega sozinha.** A faixa de "sem conexão" tinha `onclick=()=>location.reload()` no elemento inteiro: um toque em qualquer ponto dela recarregava por cima de foto sendo gravada — o mesmo caminho de perda que a entrega anterior veio eliminar, a um `if` de distância, e que dói mais justamente offline. E a página do cliente ainda recarregava sozinha, porque a guarda não sabia nada de modo público. A revisão de três camadas pegou um defeito que iria ao ar: a primeira versão ligava uma bandeira global que **desligava o teto anti-laço** das recargas automáticas pelo resto da vida da página — a rede contra o app piscar sem abrir. Resolvido fazendo a intenção viajar com o pedido. **Doze mutações, doze vermelhos.** Confirmado em campo pelo proprietário em 08/10/2026 |
+| 05/10/2026 | `42d2f8f` | **O aviso de versão nova ganhou a cara do MAPPO.** Usava âmbar de alerta (`#fffbeb`) e ficava no topo do layout sem `position:fixed`, sumindo de vista com a página rolada. Virou pílula fixa na paleta da logo, com ícone do próprio sistema do app. A revisão pegou duas coisas que iriam ao ar: a pílula **aparecia na página do cliente** (regressão de tirá-la de dentro do `#app` para deixá-la fixa) e, no celular, **cobria o botão "Nova OS" e roubava o toque** — medido com `elementFromPoint` |
+| 03/10/2026 | `0016f50` | **O aviso de versão nova funcionava ao contrário**, e isso foi medido, não deduzido: avisava na **primeira instalação** e ficava **mudo** em toda publicação real. O `sw.js` tinha um único commit contra 41 mudanças do `index.html` depois dele, e o navegador só instala um Service Worker novo quando esses bytes mudam. O `CACHE_VERSION` passou a ser a impressão digital da casca, com suíte guardiã. Fora do escopo, a instrumentação expôs um defeito anterior: **a migração de fotos das OS podia se marcar como concluída deixando os bytes no aparelho** — o `setInterval` de 5 s trocava o `osList` no meio do `await` e os setters escreviam num objeto órfão. Silencioso e permanente |
+| 06/10/2026 | `9b97b1a` | **Mapa do `index.html`, agentes por papel e regras de roteamento** — ferramenta, não app (`index.html` e `sw.js` intocados). Três entregas haviam gastado ~5,4 milhões de tokens e estouravam o limite de uso do proprietário; medido, a causa era cada agente varrer um arquivo de 744 KB (~213 mil tokens) para achar vinte linhas. `MAPA-INDEX.md` custa ~9 mil e diz onde cada coisa está, com guarda contra envelhecer. Seis agentes em `.claude/agents/`, os cinco que não implementam **sem permissão de editar** |
 | 01/10/2026 | `bd4bfd6` | **A posição de cada pessoa passou a ser um documento só dela.** Antes a posição de todo mundo vivia em dois blobs compartilhados cuja regra só exigia ser membro do workspace — qualquer técnico podia gravar a posição de qualquer colega, e é a prova de onde a pessoa esteve. Agora cada pessoa tem o próprio documento em `live/{uid}` e a regra só deixa o dono escrever ali; o nome exibido no mapa é resolvido por `mappo_tecnicos`, que é gestor-only, nunca por campo dentro do documento. A regra também fechou dois pontos que ninguém tinha pedido: ninguém apaga posição (nem o dono) e a leitura exige autenticação real. **Confirmado funcionando em campo pelo proprietário em 01/10/2026.** Duas rodadas de revisão de três camadas: a primeira descobriu que a entrega **não fechava o buraco** (o caminho antigo vencia o novo por ser mais recente), a segunda achou um defeito criado pela correção da primeira. Fora do escopo, a instrumentação achou um defeito anterior: a migração de fotos das OS podia se marcar como concluída **deixando as fotos no aparelho**, em silêncio e para sempre |
 | 26/09/2026 | `fc82b6a` | **Fotos de obra e de tarefa saem do aparelho, e as de tarefa ganham documento próprio.** As fotos de tarefa **nunca** tinham sido separadas na nuvem: todas as tarefas viviam num documento só e `maxFotos` vai até 20 — medido, uma tarefa com 20 fotos era **recusada inteira** pelo servidor (`recusas:1`, `nuvemKB:0`). Era o mesmo teto de 1 MiB que já parou as OS e as obras, de pé no último lugar onde cabia. A revisão de três camadas achou 21 defeitos, entre eles uma "lápide" que **apagava em silêncio** a foto readicionada, e testes que **não tocavam o código de produção** — desfazer a entrega inteira deixava a suíte verde. Os dois corrigidos e travados com teste |
 | 26/09/2026 | `c8b3043` | **Correções da revisão adversarial da rede.** Três camadas de revisão acharam 19 defeitos no que tinha acabado de entrar — o mais grave: apagar uma linha `console.log` reclassificava a suíte como diagnóstico e ela **parava de reprovar em silêncio**. Agora `teste-*.js` é suíte sempre, e sem o veredito é erro nomeado. Junto: o runner ganhou a própria suíte (ninguém testava o testador), e o `CLAUDE.md` passou a dizer com honestidade que o CI **avisa e não impede** publicação, com o passo a passo da proteção de ramo que o transformaria em impedimento |
