@@ -53,3 +53,20 @@ Enquanto o trabalho não estiver commitado, a restauração é:
 1. `cp arquivo copia.ok` **antes** de mutar, e guardar o `sha256sum`;
 2. `cp copia.ok arquivo` para restaurar;
 3. conferir que o `sha256sum` voltou ao valor de antes — e **dizer isso no relatório**.
+
+## Mutar: SEMPRE em cópia, NUNCA no arquivo vivo
+
+Incidente real em 09/10/2026: três camadas revisaram em paralelo. Uma mutava o `index.html`
+**no lugar** e restaurava; outra, ao mesmo tempo, media o mesmo arquivo. A segunda viu quatro
+checksums diferentes, pegou um estado mutado da primeira, quase relatou "suíte intermitente"
+(falso), e concluiu que o `npm test` estava vermelho — quando era o disco em movimento.
+
+Mutação vai para uma **cópia**, e a suíte roda contra ela com `MAPPO_RAIZ`:
+
+1. `mkdir raiz-copia && cp index.html sw.js raiz-copia/` no scratchpad;
+2. mutar **a cópia**;
+3. `MAPPO_RAIZ=<raiz-copia> node testes/teste-x.js`;
+4. o arquivo vivo do projeto nunca é tocado — nada a restaurar, nada a colidir.
+
+E **todo número medido vem com o `sha256sum` do arquivo medido ao lado**. Sem isso, medição
+feita enquanto outra camada trabalha vira relatório errado com cara de certo.

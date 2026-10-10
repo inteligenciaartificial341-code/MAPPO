@@ -5,9 +5,14 @@ quantas são hoje). Elas não conseguem verificar o que sai do app para outro ap
 o sistema operacional ou para o hardware do celular: o navegador automatizado ou não tem
 permissão, ou não tem o aplicativo instalado, ou não tem câmera.
 
-São **5 áreas**, com cerca de **30 caixas** no total. Não é uma lista leve: várias caixas
+São **6 áreas**, com cerca de **35 caixas** no total. Não é uma lista leve: várias caixas
 exigem um **celular físico** — e a área 4 pede especificamente um **iPhone**, porque o
 descarte de página por pressão de memória no iOS foi a origem de vários defeitos reais.
+
+A **área 6** é de outra natureza: não é hardware, é **produção**. As regras do Firestore são
+o único pedaço do app que não vive no `index.html` — elas são publicadas num servidor, e
+nenhuma suíte consegue entrar com e-mail e senha de um membro real para medir o que o
+servidor está aplicando. Ficou à mão porque a alternativa seria escrever em produção.
 
 **Não é para rodar inteira toda vez.** Confira só a área que a sua mudança tocou. Cada área
 diz, no fim, quando vale a pena.
@@ -24,6 +29,7 @@ ou se ninguém olha para ela desde que foi escrita.
 | 3. WhatsApp | — | — | — | — | nunca registrada |
 | 4. Câmera de celular | — | — | — | — | nunca registrada |
 | 5. Instalação/atualização (PWA) | — | — | — | — | nunca registrada |
+| 6. Regras do Firestore no ar | — | — | — | — | nunca registrada |
 
 Exemplo de linha preenchida:
 
@@ -167,6 +173,59 @@ aparelho do proprietário**:
 
 **Quando conferir:** se mexer em `sw.js`, no `manifest.json`, nos ícones, no `#avisoVersao`/CSS
 `.versao-nova` ou no bloco "VERSÃO NOVA" do fim do `index.html`.
+
+---
+
+## 6. As regras do Firestore que estão **no ar** (08/10/2026)
+
+**Por que o teste não cobre:** `npm run test:regras` prova o **arquivo** `firestore.rules`
+num emulador local, nos dois sentidos (a contagem de casos sai na execução — nenhum documento
+a guarda à mão). Nada nele prova que o arquivo foi **publicado**. E a CLI do Firebase
+**publica mas não lê** regras: não existe comando para baixar a regra que está no ar, nem modo
+seco. O que resta é medir **comportamento**, e é o que `testes/diag-regrasreais.js` faz — mas
+só com sessão **anônima**, que a regra barra em `isMember()` antes de chegar nas cláusulas que
+importam para um membro.
+
+**O caminho normal de publicação** (não é esta lista, é o comando):
+
+```bash
+npm run regras:publicar            # roda a suíte e só publica se ela passar
+npm run regras:publicar -- --seco  # mostra o comando que usaria, sem publicar
+                                   # (os dois traços são obrigatórios: sem eles o npm
+                                   #  engole a bandeira — o script detecta e aborta)
+MAPPO_DIAG_TOKEN=<token de um link vivo> node testes/diag-regrasreais.js
+```
+
+O publicador imprime o **`sha256` do `firestore.rules`**, o **`HEAD`** e se aquele arquivo
+está **sujo**. Registre o `sha256` na tabela, não só o commit: publicar de árvore suja publica
+o arquivo do disco, e "commit X" sozinho seria registro falso.
+
+**Confira à mão, depois de publicar** (precisa de um aparelho logado com conta **de
+membro** — é isso que nenhum script aqui pode fazer sem escrever em produção):
+
+- [ ] Com o app aberto e logado, o **mapa mostra a posição** de quem está em campo. É a
+      prova de que `workspaces/{ws}/live/{uid}` está publicado e sendo lido: a leitura e a
+      escrita da posição acendem a faixa de sincronização quando a regra falta.
+- [ ] A **faixa de sincronização não acusa** "Posições da equipe" (nem "não estou
+      conseguindo ler", nem "não está sendo salvo"). Se acusar, a regra de `live/{uid}` não
+      está no ar — e o texto da faixa diz de qual lado.
+- [ ] No **Console do Firebase → Firestore → Regras**, a aba *Regras* mostra o mesmo texto do
+      `firestore.rules` desta pasta, incluindo `isBlobPosicaoMorto`. É leitura visual, feita
+      por pessoa: é o único jeito de ver o texto publicado.
+- [ ] No Console → *Playground de regras* (ou **Rules Playground**), simular
+      `write` em `workspaces/<ws>/data/mappo_live` autenticado com o **uid de um membro**:
+      tem de dar **negado**. Esta é a cláusula que o diagnóstico automático **não** alcança.
+- [ ] Os documentos `data/mappo_locations` e `data/mappo_live` **continuam existindo** na
+      coleção `data/` desse workspace. Eles não foram apagados de propósito (dado histórico);
+      o app parou de **aplicá-los**, não de baixá-los — o pull pede a coleção inteira e os
+      descarta depois, então eles ainda descem a cada abertura do app. É o custo de não apagar,
+      e é de rede. Se tiverem desaparecido, alguém os apagou.
+- [ ] Se decidir **apagar** os dois (é decisão sua, não desta entrega): nenhuma tela do app
+      lê esses documentos hoje, e a regra já nega qualquer escrita neles. O que se perde é o
+      histórico de posição anterior a 27/09/2026, que não existe em nenhum outro lugar.
+
+**Quando conferir:** sempre que `firestore.rules` mudar e for publicado. Registre a linha 6
+da tabela com o commit publicado.
 
 ---
 

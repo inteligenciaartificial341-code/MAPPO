@@ -76,7 +76,7 @@ const ESPERA_EMULADOR_MS = Number(process.env.MAPPO_EMU_ESPERA_MS) > 0
  * Apagar um `grupo(...)` inteiro derruba a contagem e fica vermelho, em vez de passar
  * verde cobrindo um terco do que dizia cobrir. Ao acrescentar casos, suba o piso no
  * mesmo commit -- e essa a parte deliberada. */
-const PISO_CASOS = 183;
+const PISO_CASOS = 198;
 const PISO_GRUPOS = 12;
 
 const FUTURO = Date.now() + 7 * 24 * 60 * 60 * 1000;
@@ -175,6 +175,11 @@ const GESTOR_ONLY_DOCS = [
   'mappo_checklist_config', 'mappo_preco_config', 'mappo_financeiro_notas',
   'mappo_vrf_fases_config', 'mappo_modulo_config', 'mappo_vrf_obras',
 ];
+
+/* Os dois blobs de posicao que a regra passou a NEGAR a escrita em 08/10/2026. Mesmo
+ * mecanismo das outras duas listas: acrescentar um docId na regra sem acrescentar o caso
+ * aqui REPROVA, em vez de passar verde cobrindo menos do que diz. */
+const BLOBS_POSICAO_MORTOS = ['mappo_locations', 'mappo_live'];
 
 const RAMOS_RESERVADOS = [
   'constructor', 'prototype', 'tostring', 'valueof',
@@ -431,6 +436,19 @@ async function principal() {
             await setDoc(doc(d, 'workspaces/' + ws + '/data/' + id), envelope);
           }
           await setDoc(doc(d, 'workspaces/' + ws + '/data/mappo_os'), envelope);
+          /* Os blobs de posicao MORTOS continuam EXISTINDO na nuvem: a entrega de 08/10/2026
+           * nega a escrita, nao apaga o dado historico. Semeados para que o caso de LEITURA
+           * afirme conteudo em vez de virar no-op verde (defesa 3).
+           * SO EM wsA, de proposito (revisao de 09/10/2026): com os dois documentos existindo
+           * em todo workspace, TODOS os casos de escrita rodavam com resource != null, e uma
+           * regra que negasse apenas o update -- "nego so se o documento existe" -- passava a
+           * suite inteira VERDE. E o CREATE e o caso que importa mais: todo workspace NOVO
+           * nasce sem esses documentos. wsB fica sem eles para os casos de create do grupo 11. */
+          if (ws === 'wsA') {
+            for (const id of BLOBS_POSICAO_MORTOS) {
+              await setDoc(doc(d, 'workspaces/' + ws + '/data/' + id), envelope);
+            }
+          }
           await setDoc(doc(d, 'workspaces/' + ws + '/data/pub_vivo'), { json: '{}', expiraEm: FUTURO });
           await setDoc(doc(d, 'workspaces/' + ws + '/data/pub_antigo'), { json: '{}' });
           await setDoc(doc(d, 'workspaces/' + ws + '/data/pub_vencido'), { json: '{}', expiraEm: PASSADO });
@@ -564,13 +582,56 @@ async function principal() {
        0. As listas da regra e as do teste nao podem divergir
        ════════════════════════════════════════════════════════════════════ */
     await grupo('0. Espelho das listas de firestore.rules', async () => {
-      const daRegraDocs = listaDepoisDe(fonteRegras, 'return docId in');
+      /* Marcador pelo NOME da funcao, nao por 'return docId in': desde 08/10/2026 existem
+       * DUAS funcoes com esse corpo (isGestorOnlyDoc e isBlobPosicaoMorto), e a busca pelo
+       * corpo passaria a depender de qual aparece primeiro no arquivo -- reordenar a regra
+       * faria este espelho conferir a lista errada e ficar verde. */
+      const daRegraDocs = listaDepoisDe(fonteRegras, 'function isGestorOnlyDoc');
       afirmar('isGestorOnlyDoc(docId)',
         'os ' + GESTOR_ONLY_DOCS.length + ' docIds so-gestor do teste sao os mesmos da regra',
         daRegraDocs !== null && diferenca(daRegraDocs, GESTOR_ONLY_DOCS) === '',
         daRegraDocs === null
           ? 'nao achei a lista em isGestorOnlyDoc() -- a regra foi reestruturada, refaca o laco do grupo 4'
           : diferenca(daRegraDocs, GESTOR_ONLY_DOCS) + ' (acrescente o caso no grupo 4)');
+
+      /* Duas negativas diferentes chegam como o mesmo null, e confundi-las manda procurar no
+       * lugar errado: ou a FUNCAO nao existe nesta raiz (versao anterior a 08/10/2026, ou
+       * alguem a renomeou/removeu), ou ela existe e a LISTA nao foi lida (reestruturada).
+       * Mesmo padrao do espelho de isGestorOnlyDoc, logo acima. */
+      const temFuncaoBlob = fonteRegras.indexOf('function isBlobPosicaoMorto') >= 0;
+      const daRegraBlobs = listaDepoisDe(fonteRegras, 'function isBlobPosicaoMorto');
+      afirmar('isBlobPosicaoMorto(docId)',
+        'os ' + BLOBS_POSICAO_MORTOS.length + ' blobs de posicao mortos do teste sao os mesmos da regra',
+        daRegraBlobs !== null && diferenca(daRegraBlobs, BLOBS_POSICAO_MORTOS) === '',
+        !temFuncaoBlob
+          ? 'a funcao isBlobPosicaoMorto() NAO EXISTE em ' + ARQ_REGRAS + '. Duas leituras'
+            + ' possiveis, e elas pedem acoes opostas: (1) MAPPO_RAIZ aponta para antes de'
+            + ' 08/10/2026 -- esta reprovacao E o controle esperado, la a escrita do blob era'
+            + ' PERMITIDA a qualquer membro; (2) a raiz e o proprio repositorio -- a funcao foi'
+            + ' renomeada ou removida, e entao a regra AFROUXOU: confira o allow write de'
+            + ' data/{docId} antes de mexer neste espelho'
+          : daRegraBlobs === null
+            ? 'a funcao isBlobPosicaoMorto() existe, mas nao achei a lista [...] dentro dela:'
+              + ' a regra foi reestruturada -- refaca este espelho e os casos do grupo 11'
+            : diferenca(daRegraBlobs, BLOBS_POSICAO_MORTOS) + ' (acrescente o caso no grupo 11)');
+
+      /* A suite le RAIZ/firestore.rules direto; quem publica (npm run regras:publicar ->
+       * firebase deploy) publica o caminho que o firebase.json aponta. Se os dois divergirem,
+       * a rede prova um arquivo e o servidor recebe outro -- verde provando a coisa errada,
+       * que e a falha mais cara que existe aqui. Um assert, e o buraco fecha. */
+      let apontado = null, erroFb = null;
+      try {
+        apontado = ((JSON.parse(fs.readFileSync(ARQ_FIREBASE, 'utf8')).firestore) || {}).rules || null;
+      } catch (e) { erroFb = (e.code || '?') + ' - ' + e.message; }
+      afirmar('firebase.json -> firestore.rules',
+        'o arquivo de regras que esta suite leu e o MESMO que o deploy publica',
+        apontado !== null && path.resolve(RAIZ, apontado) === path.resolve(ARQ_REGRAS),
+        erroFb !== null
+          ? 'nao consegui ler ' + ARQ_FIREBASE + ': ' + erroFb
+          : apontado === null
+            ? 'firebase.json nao tem firestore.rules -- o deploy nao sabe o que publicar'
+            : 'firebase.json publica ' + path.resolve(RAIZ, apontado) + ', esta suite leu '
+              + path.resolve(ARQ_REGRAS) + ' -- a rede prova um arquivo e o servidor recebe outro');
 
       const daRegraRamos = listaDepoisDe(fonteRegras, 'ramo.lower() in');
       afirmar('ramoValido(ramo)',
@@ -1205,7 +1266,10 @@ async function principal() {
        exige isMember -- QUALQUER tecnico podia gravar a posicao de QUALQUER colega. E a
        prova de onde a pessoa esteve, e ela era falsificavel. O caso 'tecA grava a posicao de
        sobra' e PERMITIDO na regra anterior e NEGADO nesta: e ele que mede a correcao.
-       O nome nao esta dentro do documento de proposito -- ver o comentario da regra. */
+       O nome nao esta dentro do documento de proposito -- ver o comentario da regra.
+       E EM 08/10/2026 o grupo ganhou o fechamento: a escrita dos DOIS blobs antigos passou a
+       ser NEGADA a qualquer um (isBlobPosicaoMorto), e o [GAP ACEITO] que afirmava o
+       contrario virou garantia. Os casos estao no fim deste grupo. */
     await grupo('11. Posicao por pessoa (live/{uid})', async () => {
       await negado(R_LIVE + ' -- allow create, update: request.auth.uid == uid',
         'tecA tenta GRAVAR a posicao de sobra -- falsificar onde o colega esteve (no blob '
@@ -1302,17 +1366,113 @@ async function principal() {
         + 'faz; negar list deixaria o mapa vazio com a regra "verde"',
         () => getDocs(collection(db.gestorA, 'workspaces/wsA/live')), temItens);
 
-      /* A honestidade da entrega: o buraco NAO esta fechado por completo enquanto o blob
-       * antigo continuar sendo lido. Este caso fixa o risco residual para que ele nao seja
-       * esquecido -- e para que remover a leitura do blob (passo separado, registrado em
-       * MAPPO-O-QUE-FALTA.md) tenha um caso aqui esperando por ele. */
-      await permitido(R_DATA + ' -- allow write: isMember(wsId) && !isGestorOnlyDoc(docId)',
-        '[GAP ACEITO] tecA ainda ESCREVE o blob antigo data/mappo_live com a posicao de OUTRA '
-        + 'pessoa -- na transicao o app continua LENDO esse documento (celular na versao '
-        + 'antiga ainda escreve nele), entao a falsificacao so fecha de vez quando essa '
-        + 'leitura sair; e passo separado, registrado em MAPPO-O-QUE-FALTA.md',
+      /* ─── O FECHAMENTO DO BLOCO 2 (08/10/2026) ───
+       * Ate 07/10/2026 havia aqui um [GAP ACEITO] afirmando que tecA ESCREVIA o blob antigo
+       * data/mappo_live com a posicao de OUTRA pessoa: era PERMITIDO, porque o app ainda LIA
+       * esse documento (celular na versao antiga escrevia nele) e negar a escrita apagaria a
+       * posicao de quem nao tinha atualizado. O proprietario confirmou em 08/10/2026 que so o
+       * aparelho dele usa o app; o index.html parou de APLICAR o blob (saiu de SYNC_KEYS) e a
+       * regra passou a negar a escrita A TODOS. O gap virou garantia -- e a contagem de gaps
+       * aceitos caiu junto, que e a unica forma honesta de registrar isso. */
+      await negado(R_DATA + ' -- allow write: !isBlobPosicaoMorto(docId)',
+        'tecA tenta ESCREVER o blob morto data/mappo_live com a posicao de OUTRA pessoa -- '
+        + 'era o ultimo caminho de falsificacao de COORDENADA que restava (o de NOME em '
+        + 'mappo_localizacao_historico continua aberto, ver o gap aceito no fim deste grupo)',
         () => setDoc(doc(db.tecA, 'workspaces/wsA/data/mappo_live'),
           { json: '{"Jorge":{"atual":{"lat":0,"lng":0,"ts":9}}}' }));
+
+      await negado(R_DATA + ' -- allow write: !isBlobPosicaoMorto(docId)',
+        'tecA tenta ESCREVER o blob morto data/mappo_locations com a PROPRIA posicao -- nem a '
+        + 'propria: o caminho esta morto, quem recebe posicao e live/{uid}',
+        () => setDoc(doc(db.tecA, 'workspaces/wsA/data/mappo_locations'),
+          { json: '{"Paulo":{"lat":0,"lng":0,"ts":9}}' }));
+
+      /* Negado A TODOS, nao restringido a gestor: um caminho de escrita vivo num documento
+       * que ninguem le guarda dado que nunca sai -- parece salvo e nao esta. */
+      await negado(R_DATA + ' -- allow write: !isBlobPosicaoMorto(docId)',
+        'o GESTOR tenta ESCREVER data/mappo_live -- nem ele; nao e gestor-only, e morto',
+        () => setDoc(doc(db.gestorA, 'workspaces/wsA/data/mappo_live'),
+          { json: '{"Jorge":{"atual":{"lat":0,"lng":0,"ts":9}}}' }));
+
+      await negado(R_DATA + ' -- allow write: !isBlobPosicaoMorto(docId)',
+        'o GESTOR tenta ESCREVER data/mappo_locations',
+        () => setDoc(doc(db.gestorA, 'workspaces/wsA/data/mappo_locations'),
+          { json: '{"Paulo":{"lat":0,"lng":0,"ts":9}}' }));
+
+      /* A LEITURA continua: os documentos que ja existem na nuvem nao foram apagados, e o app
+       * simplesmente deixou de olhar para eles. Negar a leitura nao protegeria nada a mais.
+       * ANTES do caso de delete de proposito: se o delete passasse (e e exatamente o que
+       * acontece com MAPPO_RAIZ na versao anterior), este caso leria um documento ja apagado e
+       * a falha apontaria para o lugar errado. */
+      await leu(R_DATA + ' -- allow read: isMember(wsId)',
+        'tecA ainda LE data/mappo_live -- dado historico preservado; quem parou de APLICAR foi o '
+        + 'app (_ehChaveDeSync), nao a regra',
+        () => getDoc(doc(db.tecA, 'workspaces/wsA/data/mappo_live')));
+
+      /* "write" inclui delete: sem este caso, negar a escrita e deixar o delete passar
+       * apagaria o dado historico que a decisao foi justamente NAO apagar. */
+      await negado(R_DATA + ' -- allow write: !isBlobPosicaoMorto(docId)',
+        'tecA tenta APAGAR data/mappo_live -- o dado historico fica, nao se apaga por cliente',
+        () => deleteDoc(doc(db.tecA, 'workspaces/wsA/data/mappo_live')));
+
+      await leu(R_DATA + ' -- allow read: isMember(wsId)',
+        'tecA ainda LE data/mappo_locations -- a outra metade do par; sem este caso a leitura'
+        + ' preservada estava afirmada para UMA das duas chaves so',
+        () => getDoc(doc(db.tecA, 'workspaces/wsA/data/mappo_locations')));
+
+      await negado(R_DATA + ' -- allow write: !isBlobPosicaoMorto(docId)',
+        'tecA tenta APAGAR data/mappo_locations -- a outra metade do par',
+        () => deleteDoc(doc(db.tecA, 'workspaces/wsA/data/mappo_locations')));
+
+      /* ─── CREATE: o caso que faltava (revisao de 09/10/2026) ───
+       * Todos os casos acima rodam em wsA, onde a semeadura CRIOU os dois documentos: eram
+       * updates, com resource != null. Uma variante plausivel da regra -- negar so quando o
+       * documento existe -- deixava a suite inteira verde e REABRIA a escrita do blob em todo
+       * workspace NOVO, que nasce sem esses documentos. wsB nao os tem; aqui a escrita e um
+       * CREATE de verdade. */
+      await leu(R_DATA + ' -- allow read: isMember(wsId)',
+        'CONTROLE POSITIVO: em wsB o documento data/mappo_live NAO existe -- e o que faz dos'
+        + ' dois casos seguintes um CREATE, e nao mais um update',
+        () => getDoc(doc(db.tecB, 'workspaces/wsB/data/mappo_live')), naoExiste);
+
+      await negado(R_DATA + ' -- allow write: !isBlobPosicaoMorto(docId)',
+        'tecB tenta CRIAR data/mappo_live em wsB, onde o documento nao existe',
+        () => setDoc(doc(db.tecB, 'workspaces/wsB/data/mappo_live'),
+          { json: '{"Jorge":{"atual":{"lat":0,"lng":0,"ts":9}}}' }));
+
+      await negado(R_DATA + ' -- allow write: !isBlobPosicaoMorto(docId)',
+        'tecB tenta CRIAR data/mappo_locations em wsB, onde o documento nao existe',
+        () => setDoc(doc(db.tecB, 'workspaces/wsB/data/mappo_locations'),
+          { json: '{"Jorge":{"lat":0,"lng":0,"ts":9}}' }));
+
+      await permitido(R_DATA + ' -- allow write: isMember(wsId) && !isGestorOnlyDoc(docId)',
+        'CONTROLE POSITIVO: tecB CRIA data/mappo_tarefas em wsB (documento que tambem nao'
+        + ' existia) -- prova que o que nega os dois acima e o blob morto, nao "create e negado"',
+        () => setDoc(doc(db.tecB, 'workspaces/wsB/data/mappo_tarefas'), { json: '{"t9":{}}' }));
+
+      /* ─── O RESIDUO QUE SOBRA, nomeado (revisao de 09/10/2026) ───
+       * Fechar o blob de posicao NAO fecha toda falsificacao de identidade em campo:
+       * mappo_localizacao_historico continua em SYNC_KEYS, e APPEND_LISTS, nao e gestor-only
+       * nem blob morto -- e cada item carrega 'prestador: session.nome', nome DECLARADO pelo
+       * cliente (ver registrarHistoricoLocalizacao em index.html), que renderHistoricoLocalizacao
+       * mostra na tela do mapa. Nao falsifica COORDENADA; falsifica o registro de quem esteve
+       * em servico. E pre-existente e o proprietario nao pediu aperto agora -- fica fixado aqui
+       * para nao mudar sozinho, nem ser esquecido. */
+      await permitido(R_DATA + ' -- allow write: isMember(wsId) && !isGestorOnlyDoc(docId)',
+        '[GAP ACEITO] tecA ESCREVE data/mappo_localizacao_historico com prestador "Jorge" -- '
+        + 'o nome vem do cliente e vai para a tela do mapa; a posicao por uid fechou a '
+        + 'falsificacao de COORDENADA, nao a de QUEM esteve em servico',
+        () => setDoc(doc(db.tecA, 'workspaces/wsA/data/mappo_localizacao_historico'),
+          { json: '[{"prestador":"Jorge","data":"2026-10-09","hora":"08:00:00","tipo":"fixo"}]' }));
+
+      /* CONTROLE POSITIVO da clausula nova: um vizinho que NAO e blob morto nem gestor-only
+       * continua escrevivel por tecnico. Sem isto, uma clausula errada que negasse data/
+       * inteiro passaria verde -- todas as negativas acima continuariam negando. */
+      await permitido(R_DATA + ' -- allow write: isMember(wsId) && !isGestorOnlyDoc(docId)',
+        'CONTROLE POSITIVO: tecA continua ESCREVENDO data/mappo_tarefas -- a negacao do blob '
+        + 'morto nao vazou para o resto da colecao data/',
+        () => setDoc(doc(db.tecA, 'workspaces/wsA/data/mappo_tarefas'),
+          { json: '{"t1":{"nota":"ok"}}' }));
 
       /* Antes desta iteracao a regra era um `allow write` unico, e write COBRE delete: o
        * tecnico podia apagar o proprio rastro. Posicao e prova de onde a pessoa esteve --

@@ -58,7 +58,14 @@ const MAX_SAIDA = 200000;
 /* Batem no site publicado (github.io) e no Firestore real: dependem de rede, de
  * producao e do estado da conta do proprietario. Ficam FORA da execucao normal e
  * fora do CI. Rodam so a mao, com --com-producao, quando o dono pedir. */
-const FORA_DO_CI = ['diag-difer.js', 'diag-linkreal.js', 'diag-pubreal.js', 'diag-swcache.js'];
+const FORA_DO_CI = [
+  'diag-difer.js', 'diag-linkreal.js', 'diag-pubreal.js', 'diag-swcache.js',
+  /* diag-regrasreais.js abre sessao ANONIMA no Firebase real e tenta ler o que as regras
+   * publicadas devem negar. Nada disso pode rodar no CI: depende de rede, do projeto de
+   * producao e do login anonimo estar ligado na conta do proprietario. Quem prova que ele
+   * esta FORA da execucao normal e o CHECK 12 de teste-runner.js. */
+  'diag-regrasreais.js',
+];
 
 const IGNORAR = ['executar.js'];
 

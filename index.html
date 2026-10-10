@@ -1265,10 +1265,48 @@ const SYNC_KEYS=[
      escreve nela mais, mas continuar sincronizando-a é o próprio plano de rollback -- se o
      commit for revertido, o código antigo espera achar essa chave fresca no localStorage. */
   'mappo_vrf_obra','mappo_vrf_obras','mappo_vrf_progresso','mappo_vrf_fotos','mappo_vrf_notas',
-  'mappo_vrf_relatorios','mappo_vrf_checkins','mappo_vrf_fotos_meta','mappo_locations','mappo_tarefas','mappo_live',
+  'mappo_vrf_relatorios','mappo_vrf_checkins','mappo_vrf_fotos_meta','mappo_tarefas',
   'mappo_checklist_config','mappo_preco_config','mappo_financeiro_notas','mappo_vrf_fases_config',
   'mappo_localizacao_historico','mappo_avatares','mappo_modulo_config'
 ];
+
+/* ── BLOBS DE POSIÇÃO: CHAVES SÓ LOCAIS (08/10/2026) ──
+   mappo_locations e mappo_live SAÍRAM de SYNC_KEYS: nada mais APLICA nem escreve
+   data/mappo_locations e data/mappo_live. A posição de cada pessoa vive em
+   workspaces/{ws}/live/{uid} desde 27/09/2026, e o firestore.rules agora NEGA escrita nos
+   dois blobs — ninguém escreve num caminho morto. Os documentos que já existem lá ficam
+   onde estão (dado histórico não se apaga sem decisão do proprietário).
+
+   O QUE "NÃO APLICA" NÃO QUER DIZER (medido em 09/10/2026, CHECK 6 de teste-gpspessoa.js):
+   os dois documentos CONTINUAM sendo BAIXADOS. fbPullAll pede a coleção data/ inteira e
+   filtra depois, em _ehChaveDeSync — então eles descem a cada boot e a cada sincronização
+   manual, e o log diz "aplicados de total" com dois documentos de diferença para sempre.
+   É o custo de não apagar, e ele é de rede, não de dado. Apagá-los é decisão do
+   proprietário, não desta entrega.
+
+   A FORMA LOCAL NÃO MUDA: as duas chaves continuam no localStorage como sempre,
+   mappo_locations[nome] e mappo_live[nome]. É o formato que as ~10 leituras do app esperam
+   (renderMapa, getTecnicoLoc, atualizarMarcadores, o mapa do VRF, o painel do mapa).
+
+   POR QUE UMA LISTA PRÓPRIA, e não simplesmente apagá-las de tudo: o monitor LOCAL é o que
+   dispara o envio da minha posição, e é _doPush('mappo_live') que chega em
+   _pushMinhaPosicao(). Tirar as chaves de TODA lista mataria o envio do GPS: o documento por
+   uid pararia de ser atualizado e a pessoa sumiria do mapa dos colegas sem nenhum erro na
+   tela. Sincronizar na NUVEM é SYNC_KEYS; vigiar o APARELHO é KEYS_VIGIADAS.
+
+   SÃO SETE os pontos que passaram a usar KEYS_VIGIADAS (a revisão de 09/10/2026 mediu que
+   este comentário dizia seis, e que quatro deles não tinham teste nenhum — mutados juntos,
+   npm test ficava 30/30). Cada um com o teste que o pega hoje:
+     1. interceptor de setItem ................. CHECK 20(a) de teste-gpspessoa.js
+     2. vigilância contínua de 3 s ............. CHECK 20(b)
+     3. _testInterceptor (a sonda do auto-teste) CHECK 21(a)
+     4. referência inicial do _snapshot ........ CHECK 21(b)
+     5. laço do syncManual ..................... CHECK 21(c)
+     6. limpeza na troca de workspace .......... CHECK 21(d)
+     7. tabela de espaço (renderDiagTamanhos) .. CHECK 19
+   Mexer em qualquer um deles sem mexer no teste correspondente reprova. */
+const POSICAO_KEYS=['mappo_locations','mappo_live'];
+const KEYS_VIGIADAS=SYNC_KEYS.concat(POSICAO_KEYS);
 
 /* ── Estado do monitor de alterações ── */
 let _quietWrite=false;      // true durante gravações vindas da nuvem (não re-sobe)
@@ -1568,6 +1606,10 @@ const NOMES_DOC={
   mappo_manut:'Manutenções', mappo_tecnicos:'Equipe', mappo_tarefas:'Tarefas',
   mappo_vrf_obras:'Obras VRF', mappo_vrf_progresso:'Progresso das obras',
   mappo_vrf_notas:'Notas das obras', mappo_vrf_relatorios:'Relatórios das obras',
+  /* mappo_locations e mappo_live são chaves SÓ do aparelho desde 08/10/2026 (POSICAO_KEYS):
+     o recurso da nuvem é 'mappo_posicoes', logo abaixo. Os rótulos ficam porque _nomeAmigavel
+     é o tradutor de qualquer chave do localStorage -- cair no fallback mostraria "locations"
+     e "live" para o dono do app. */
   mappo_vrf_checkins:'Check-ins das obras', mappo_locations:'Localizações',
   mappo_localizacao_historico:'Histórico de localização', mappo_live:'GPS ao vivo',
   mappo_preco_config:'Tabela de preço', mappo_financeiro_notas:'Notas de adiantamento',
@@ -2599,7 +2641,7 @@ function _avisarMemoriaCheia(){
     Storage.prototype.setItem=function(k,v){
       let sync=false,antes=null;
       try{
-        sync=(this===window.localStorage&&!_quietWrite&&_bootDone&&SYNC_KEYS.includes(k));
+        sync=(this===window.localStorage&&!_quietWrite&&_bootDone&&KEYS_VIGIADAS.includes(k));
         if(sync)antes=localStorage.getItem(k);
       }catch(e){sync=false;}
       /* A gravação de verdade. Até 2026-09-16 rodava sem proteção nenhuma: com a memória
@@ -2632,10 +2674,10 @@ let _interceptorOk=false;
 function _testInterceptor(){
   try{
     _lastPushKey=null;
-    SYNC_KEYS.push('__mappo_probe__');
+    KEYS_VIGIADAS.push('__mappo_probe__');
     localStorage.setItem('__mappo_probe__','1');
     localStorage.removeItem('__mappo_probe__');
-    SYNC_KEYS.pop();
+    KEYS_VIGIADAS.pop();
     delete _localTouch['__mappo_probe__'];delete _snapshot['__mappo_probe__'];
     _interceptorOk=(_lastPushKey==='__mappo_probe__');
     fbLog(_interceptorOk?'Monitor automático ativo':'Monitor direto inativo neste navegador — vigilância contínua assumindo','info');
@@ -2649,7 +2691,9 @@ function _startPolling(){
   if(_pollTimer)return;
   _pollTimer=setInterval(()=>{
     if(!fbReady)return;
-    SYNC_KEYS.forEach(key=>{
+    /* KEYS_VIGIADAS, não SYNC_KEYS: a posição não é mais um documento da nuvem, mas é aqui
+       (e no interceptor) que um ping novo do GPS vira _doPush → _pushMinhaPosicao. */
+    KEYS_VIGIADAS.forEach(key=>{
       const raw=localStorage.getItem(key);
       if(raw!==null&&raw!==_snapshot[key]){
         const antes=_snapshot[key];
@@ -2787,7 +2831,12 @@ function _aplicarSessaoResolvida(info){
     // repetidas vezes conforme o app cresceu (só 6 das ~21 chaves estavam nela). Recarregar a
     // página é a única garantia que cobre TODA variável, inclusive as que ainda não existem
     // hoje -- a sessão do Firebase persiste, então o boot re-resolve tudo sozinho, limpo.
-    SYNC_KEYS.forEach(k=>{try{localStorage.removeItem(k);}catch(e){}});
+    /* KEYS_VIGIADAS: a posição da equipe ANTERIOR mora em mappo_locations/mappo_live, que
+       não estão mais em SYNC_KEYS -- sem isto a equipe da empresa anterior continuaria no
+       mapa da empresa nova, que é exatamente o defeito que esta limpeza existe para evitar. */
+    KEYS_VIGIADAS.forEach(k=>{try{localStorage.removeItem(k);}catch(e){
+      console.warn('[MAPPO] não consegui limpar '+k+' na troca de workspace: '+((e&&e.name)||'?')+' — '+(e&&e.message));
+    }});
     try{localStorage.removeItem('mappo_touch');}catch(e){}
     try{localStorage.setItem('mappo_last_ws',info.workspaceId);}catch(e){}
     // code review (2026-09-01): se o setItem acima falhar silenciosamente (quota/private
@@ -3167,9 +3216,14 @@ async function _consumirConviteTecnico(nomeParam,codigoParam){
 const _pushTimers={};
 /* chaves que são listas append-only: merge por conteúdo, nunca sobrescreve */
 const APPEND_LISTS=['mappo_vrf_checkins','mappo_vrf_relatorios','mappo_financeiro_notas','mappo_localizacao_historico'];
-/* chaves que são mapas por técnico: merge por pessoa, a entrada mais recente vence
-   (permite vários técnicos compartilhando localização ao mesmo tempo sem conflito) */
-const MERGE_MAPS=['mappo_locations','mappo_live','mappo_avatares'];
+/* chaves que são mapas por técnico: merge por pessoa, a entrada mais recente vence.
+   mappo_locations e mappo_live saíram daqui em 08/10/2026 junto com a saída de SYNC_KEYS:
+   sem documento na nuvem, nenhum dos dois usos de MERGE_MAPS (o 'mesclar' de _doPushAgora e
+   o ramo de fbApply) é alcançável para elas -- as duas são desviadas antes, por nome. Deixar
+   as chaves numa lista que não governa mais nada é a classe de mentira que esconde defeito.
+   O merge por pessoa continua existindo para a posição, só que direto: _remontarPosicoes e
+   _pushMinhaPosicao chamam _mergeMapa. */
+const MERGE_MAPS=['mappo_avatares'];
 /* chaves críticas: sobem na hora, sem delay */
 const IMMEDIATE_KEYS=['mappo_vrf_checkins','mappo_vrf_relatorios','mappo_vrf_progresso','mappo_vrf_fotos','mappo_vrf_notas','mappo_vrf_fotos_meta','mappo_os','mappo_manut','mappo_tarefas','mappo_localizacao_historico'];
 
@@ -3226,9 +3280,15 @@ async function _gravarMesclado(ref,mesclar){
    regra, e IGNORA 'by' por completo. 'by' é diagnóstico. No dia em que alguém renderizar a
    partir dele, o técnico volta a poder reivindicar o nome de outro e isto vira teatro.
 
-   TRANSIÇÃO: escreve SÓ por uid e LÊ os dois (por uid e o blob antigo, que continua em
-   SYNC_KEYS). Um celular ainda na versão antiga segue aparecendo no mapa — mas a junção NÃO
-   é por data: ver _supremaciaPorUid, que é o que impede o blob falsificável de vencer.
+   TRANSIÇÃO ENCERRADA EM 08/10/2026: escreve SÓ por uid e LÊ só por uid. O blob antigo saiu
+   de SYNC_KEYS (virou POSICAO_KEYS, chave só do aparelho) e o firestore.rules passou a NEGAR
+   escrita em data/mappo_locations e data/mappo_live — ninguém escreve num caminho morto, e
+   nada mais o APLICA: _ehChaveDeSync() descarta o documento que ainda exista na nuvem. Ele
+   continua sendo BAIXADO pelo pull da coleção data/ (o custo de não apagar, ver POSICAO_KEYS).
+   Os dois documentos que já estão lá NÃO foram apagados (dado histórico não se apaga sem
+   decisão).
+   O que autorizou fechar: o proprietário confirmou em 08/10/2026 que só o aparelho dele usa
+   o app, então não há celular na versão antiga para sumir do mapa.
    ══════════════════════════════════════════════════════════════════════ */
 
 /* Posições como vieram da nuvem, por uid. Guardar o cru é o que permite remontar quando a
@@ -3288,14 +3348,14 @@ function _meuCorpoPosicao(){
   });
 }
 
-/* ═══════════ A SUPREMACIA DO DOCUMENTO POR UID (28/09/2026) ═══════════
-   Na transição o blob compartilhado continua em SYNC_KEYS e a regra dele continua a de
-   sempre: QUALQUER membro escreve nele. Se a junção fosse por data — o critério de
-   _mergeMapa — um colega gravaria locs['Jorge'] com ts de agora e a posição FALSA venceria a
-   legítima do documento de Jorge no mapa de TODO MUNDO. O caminho novo rodaria ao lado do
-   falsificável e o falsificável ganharia: segurança de fachada, que é exatamente o que esta
-   entrega existe para não ser. Então, para as OUTRAS pessoas, o documento por uid GANHA
-   SEMPRE, sem comparar data.
+/* ═══ O DOCUMENTO POR UID É A ÚNICA FONTE DA POSIÇÃO DOS OUTROS (28/09/2026) ═══
+   Nasceu como "supremacia": enquanto o blob compartilhado ainda era lido, e qualquer membro
+   podia escrevê-lo, uma junção por data (o critério de _mergeMapa) deixaria um colega gravar
+   locs['Jorge'] com ts de agora e a posição FALSA venceria a legítima no mapa de TODO MUNDO —
+   segurança de fachada. Desde 08/10/2026 não há mais disputa: o blob não é lido nem
+   escrito. Esta função CONTINUA sendo o caminho por onde a posição dos colegas entra no
+   localStorage, e continua igual — para as OUTRAS pessoas o documento por uid é a única
+   fonte, sem comparar data.
 
    Exceção: o MEU próprio uid. salvarPosicao() grava locs[session.nome] AQUI antes de subir,
    então para o meu nome o local precisa poder vencer — senão meu ping mais novo seria
@@ -3366,6 +3426,8 @@ function _remontarPosicoes(){
    as posições por-uid dos colegas, que NUNCA estão no blob — então a condição virou
    permanentemente verdadeira, e cada escrita de blob de um aparelho na versão antiga agendava
    uma transação no meu documento, a cada 5-8 s, sem nunca convergir. Queima de cota silenciosa.
+   Esse caminho de blob não existe mais (08/10/2026), e a função CONTINUA sendo necessária: é
+   ela que _remontarPosicoes chama como único retry de um ping local que ainda não subiu.
    `_bootDone`: antes do boot terminar quem sobe a minha posição é o fbSeedFromLocal,
    explicitamente; agendar aqui também só disputaria a _naFilaSync com pull, seed e as duas
    migrações de foto. */
@@ -4084,6 +4146,11 @@ function _aplicarNaMemoria(key,val){
    aparelho de TODOS os usuários, em todo boot, pra sempre — desperdiçando justamente o
    recurso que mais falta aqui, e crescendo sem parar. Nada no app lê essas chaves do
    aparelho: a página pública busca direto do Firestore. */
+/* SYNC_KEYS, nunca KEYS_VIGIADAS: é justamente aqui que data/mappo_locations e
+   data/mappo_live, que continuam existindo na nuvem, param de ser aplicados. As duas chaves
+   seguem no localStorage (POSICAO_KEYS), mas o documento da nuvem é descartado como qualquer
+   documento que não é nosso. Note o lugar: o documento JÁ DESCEU quando chega aqui — o pull
+   pede a coleção inteira. Esta função economiza dado local e processamento, não rede. */
 function _ehChaveDeSync(id){
   return SYNC_KEYS.includes(id)||_ehDocDeFotos(id);
 }
@@ -4266,27 +4333,23 @@ function fbApply(key,jsonStr,remoteMs){
       if(mudouLocal){fbLog('Recebido: '+nice,'pull');fbOnRemoteChange(key);}
       return;
     }
-    // Mapas por técnico (localização/ao vivo): merge por pessoa, o mais recente vence
+    // Mapas por técnico (hoje só os avatares): merge por pessoa, o mais recente vence
     if(MERGE_MAPS.includes(key)){
       let remoto={};try{remoto=JSON.parse(jsonStr);}catch(e){}
       let local={};try{local=JSON.parse(atual||'{}');}catch(e){}
-      /* A SUPREMACIA vale aqui também, e é aqui que ela mais importa: este é o caminho por
-         onde o blob compartilhado (escrevível por qualquer membro) chega em tempo real. Sem
-         esta linha, um blob falsificado com ts fresco sobrepõe a posição legítima do
-         documento por uid — o buraco continuaria aberto com o caminho novo no ar. */
-      const merged=_supremaciaPorUid(key,_mergeMapa(remoto,local));
+      /* POSIÇÃO NÃO PASSA MAIS POR AQUI (08/10/2026): mappo_locations/mappo_live saíram de
+         SYNC_KEYS e de MERGE_MAPS, e a guarda _ehChaveDeSync no topo desta função descarta o
+         blob antigo que ainda exista na nuvem. Por isso saíram daqui a chamada a
+         _supremaciaPorUid e o desvio de agendamento que existiam para elas: eram código
+         inalcançável, e código morto com comentário dizendo que roda é pior que nenhum.
+         Quem remonta a posição é _remontarPosicoes, pelo documento por uid. */
+      const merged=_mergeMapa(remoto,local);
       const mergedStr=JSON.stringify(merged);
       const mudouLocal=(mergedStr!==(atual||''));
       _setLocalQuiet(key,mergedStr);
       _aplicarNaMemoria(key,merged);
-      /* Posição: a condição genérica `mergedStr!==jsonStr` é permanentemente VERDADEIRA desde
-         a supremacia (o mapa local tem as posições por-uid dos colegas, que nunca estão no
-         blob), e usá-la aqui agendava uma transação no meu documento a cada blob que chegasse,
-         para sempre. Quem decide para estas duas chaves é a divergência do MEU documento.
-         mappo_avatares (a outra MERGE_MAPS) segue exatamente como era. */
-      if(key==='mappo_locations'||key==='mappo_live')_agendarEnvioDaMinhaPosicao();
-      else if(mergedStr!==jsonStr){setTimeout(()=>{if(fbReady)_doPush(key);},400);}
-      if(mudouLocal)fbOnRemoteChange(key); // sem log: localização atualiza o tempo todo
+      if(mergedStr!==jsonStr){setTimeout(()=>{if(fbReady)_doPush(key);},400);}
+      if(mudouLocal)fbOnRemoteChange(key); // sem log: troca de avatar não é evento para a faixa
       return;
     }
     // Listas de registros (OS, tarefas, manutenções, clientes, técnicos)
@@ -4507,10 +4570,9 @@ async function fbSeedFromLocal(){
     /* as ordens também não: mandar o array cru aqui reintroduziria exatamente o estouro de
        1 MiB que separou as fotos em documentos próprios. Quem sobe é o _pushOSSemFotos. */
     if(key==='mappo_os')continue;
-    /* posição não tem mais documento compartilhado: semear o blob aqui gravaria a posição de
-       TODA a equipe num documento que a regra nova nem governa. Quem sobe é _pushMinhaPosicao,
-       no fim desta função, e só a minha. */
-    if(key==='mappo_locations'||key==='mappo_live')continue;
+    /* Posição não aparece neste laço desde 08/10/2026: as duas chaves saíram de SYNC_KEYS
+       (ver POSICAO_KEYS). O desvio explícito que havia aqui virou código inalcançável e saiu.
+       Quem sobe a minha posição é _pushMinhaPosicao, no fim desta função, e só a minha. */
     const raw=localStorage.getItem(key);
     if(raw!==null){
       try{
@@ -4538,7 +4600,10 @@ async function fbSeedFromLocal(){
 async function initSync(){
   // referência inicial ANTES de baixar — inclusive das coleções ainda vazias,
   // senão uma primeira gravação feita aqui não seria reconhecida como nossa
-  SYNC_KEYS.forEach(k=>{_snapshot[k]=localStorage.getItem(k);});
+  /* KEYS_VIGIADAS: sem a referência inicial das duas chaves de posição, a vigilância de 3 s
+     e _detectarMudancasNaoVistas ficariam sem base para elas (_snapshot[k]===undefined) e o
+     primeiro ping do GPS gravado aqui não seria reconhecido como nosso. */
+  KEYS_VIGIADAS.forEach(k=>{_snapshot[k]=localStorage.getItem(k);});
   _limparPubVazados();    // 0. devolve o espaço que o vazamento de pub_* já ocupou aqui
   await fbPullAll();      // 1. baixa o que já existe na nuvem
   await fbSeedFromLocal();// 2. sobe o que só existe local
@@ -4633,7 +4698,9 @@ function renderDiagTamanhos(){
   if(!alvo)return;
   const linhas=[];
   let posicaoMedida=false;
-  SYNC_KEYS.forEach(k=>{
+  /* KEYS_VIGIADAS: a linha "Minha posição no servidor" mede workspaces/{ws}/live/{meuUid},
+     que continua sendo enviado — só o blob da nuvem morreu, não o documento por pessoa. */
+  KEYS_VIGIADAS.forEach(k=>{
     /* Posição: desde 27/09/2026 o que vai pro servidor é UM DOCUMENTO POR PESSOA
        (workspaces/{ws}/live/{uid}), não o mapa inteiro que fica no aparelho. Medir o blob
        local mediria a soma da equipe contra um teto que não é o dele — com equipe grande
@@ -4779,7 +4846,10 @@ async function syncManual(){
   try{
     // 1. ENVIA primeiro tudo que mudou localmente (nunca perde nada)
     let enviados=0;
-    for(const key of SYNC_KEYS){
+    /* KEYS_VIGIADAS: _doPush('mappo_live'/'mappo_locations') é o que chama
+       _pushMinhaPosicao. Fora desta lista, o botão de sincronizar deixaria de enviar a
+       posição deste aparelho. */
+    for(const key of KEYS_VIGIADAS){
       const raw=localStorage.getItem(key);
       if(raw===null)continue;
       const mudouForaDoMonitor=(raw!==_snapshot[key]);

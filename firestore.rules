@@ -39,6 +39,21 @@ service cloud.firestore {
         'mappo_vrf_fases_config','mappo_modulo_config','mappo_vrf_obras'
       ];
     }
+    /* Blobs de posição MORTOS (2026-10-08). A posição de cada pessoa vive em
+       workspaces/{ws}/live/{uid} desde 2026-09-27, e desde 2026-10-08 o app não APLICA mais
+       data/mappo_locations nem data/mappo_live (saíram de SYNC_KEYS no index.html; o pull da
+       coleção data/ continua baixando-os e os descarta em _ehChaveDeSync -- "não aplica" não
+       é "não baixa", e o custo residual é de rede).
+       Aqui a escrita é negada A TODOS -- não restringida a gestor. Restringir ao gestor
+       ainda deixaria um caminho de escrita vivo num documento que ninguém lê: dado que
+       entra e nunca sai é pior que erro, porque parece ter sido salvo. Não é gestor-only
+       nem nunca foi: a razão é o caminho estar morto, não o papel de quem escreve.
+       LEITURA continua permitida a membro: os dois documentos que já existem na nuvem NÃO
+       foram apagados (dado histórico não se apaga sem decisão do proprietário), e negar a
+       leitura não protegeria nada que a escrita negada já não proteja. */
+    function isBlobPosicaoMorto(docId) {
+      return docId in ['mappo_locations','mappo_live'];
+    }
     /* Espelha só a parte de SEGURANÇA de _ramoCustomInvalido() (index.html) -- digitar uma
        chave herdada de Object.prototype (constructor, toString, etc.) como Ramo customizado
        fazia RAMO_TEMPLATES[ramo] resolver pra uma FUNÇÃO em vez de undefined, quebrando o
@@ -170,6 +185,9 @@ service cloud.firestore {
        isGestorOnlyDoc() trava escrita de config/cadastro/financeiro/vocabulário a
        gestor -- essas telas já eram gestor-only na UI, agora também na regra
        (auditoria de 2026-09-01). mappo_os fica fora de propósito, ver a função.
+       isBlobPosicaoMorto() nega a escrita de data/mappo_locations e data/mappo_live a
+       QUALQUER UM (2026-10-08) -- é o que fecha o Bloco 2: enquanto esse blob fosse
+       escrevível por qualquer membro, a posição de qualquer colega era falsificável.
        Membro de workspace pendente autentica e vê o próprio status (isMember, acima)
        mas não lê nem grava nenhum dado até o dono do projeto aprovar. */
     match /workspaces/{wsId}/data/{docId} {
@@ -180,7 +198,9 @@ service cloud.firestore {
         (docId.matches('pub_.*') && (resource==null || !('expiraEm' in resource.data) || resource.data.expiraEm > request.time.toMillis())) ||
         isMember(wsId)
       );
-      allow write: if isMember(wsId) && isAtivo(wsId) && (!isGestorOnlyDoc(docId) || isGestor(wsId));
+      // isBlobPosicaoMorto(docId) vem ANTES de tudo: nem gestor escreve num caminho morto.
+      allow write: if isMember(wsId) && isAtivo(wsId) && !isBlobPosicaoMorto(docId)
+        && (!isGestorOnlyDoc(docId) || isGestor(wsId));
     }
 
     /* ── Posição de cada pessoa: um documento por uid (2026-09-27) ──

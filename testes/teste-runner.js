@@ -197,6 +197,92 @@ function rodarRunner(pasta, args, timeoutMs) {
     assert(!/MARCA-MEDICAO/.test(r.saida), 'nada foi executado');
   }
 
+  console.log('\n=== CHECK 12: os diagnosticos que batem em PRODUCAO ficam fora da execucao normal ===');
+  /* Os CHECKs acima rodam numa pasta de mentira, com nomes escolhidos a dedo. Nenhum deles
+     prova nada sobre os arquivos de VERDADE desta pasta -- e e nela que um diagnostico novo
+     entra. Sem este check, acrescentar um diag que fala com o Firestore real e esquecer de
+     listar em FORA_DO_CI o colocaria dentro do `npm test` e do CI: rede, projeto de producao e
+     a conta do proprietario no caminho de cada push, com falha intermitente ensinando todo
+     mundo a ignorar o vermelho.
+     Roda o runner com --lista na PASTA REAL: classifica e nao executa nada. */
+  {
+    const r = await rodarRunner(__dirname, ['--lista']);
+    assert(r.codigo === 0, '--lista na pasta real sai com codigo 0');
+
+    const marcados = (r.saida.match(/^\s{2}(\S+)\s+\[fora do CI: producao\]$/gm) || [])
+      .map((l) => l.trim().split(/\s+/)[0]).sort();
+    console.log('   marcados como producao: ' + marcados.join(', '));
+
+    /* CONTROLE POSITIVO da propria busca: se o formato da linha de --lista mudar, o regex
+       acima casaria zero e o check viraria "nenhum marcado" -- um verde sem medicao. Os
+       diagnosticos de producao que ja existiam TEM que aparecer. */
+    ['diag-linkreal.js', 'diag-pubreal.js', 'diag-swcache.js', 'diag-difer.js'].forEach((n) => {
+      assert(marcados.indexOf(n) >= 0, 'CONTROLE POSITIVO: ' + n + ' aparece marcado como producao');
+    });
+
+    assert(marcados.indexOf('diag-regrasreais.js') >= 0,
+      'diag-regrasreais.js (sondas contra o Firestore real) esta marcado como fora do CI');
+    assert(/Fora da execucao normal \(batem em producao\):[^\n]*diag-regrasreais\.js/.test(r.saida),
+      'e e nomeado na linha "Fora da execucao normal"');
+
+    /* E do lado contrario: uma suite de verdade NAO pode estar marcada como producao, senao
+       bastaria um nome na lista errada para ela sair do CI em silencio. */
+    assert(marcados.indexOf('teste-regras.js') < 0,
+      'CONTROLE NEGATIVO: teste-regras.js (suite do Emulator) NAO esta marcada como producao');
+
+    const linhaDiag = r.saida.split('\n').find((l) => l.indexOf('diag-regrasreais.js') === 0
+      || /^\s{2}diag-regrasreais\.js/.test(l));
+    assert(!!linhaDiag, 'o arquivo aparece na classificacao');
+
+    /* ── A VARREDURA POR CONTEUDO (revisao de 09/10/2026) ──
+       Os asserts acima conferem NOMES que ja estao escritos aqui: eles pegam alguem tirando um
+       nome de FORA_DO_CI, mas nao pegam um diagnostico NOVO que fale com producao e nunca
+       tenha sido listado -- e era isso que o README afirmava estar coberto. Esta varredura
+       fecha a diferenca: todo diag- ou controle- cujo CODIGO fale com o site publicado ou com o
+       Firebase real tem de estar em FORA_DO_CI.
+       So os diagnosticos (diag- e controle-): teste-regras.js tambem importa 'firebase/firestore', mas fala com
+       o Emulator local (projeto demo-), e e suite, nao diagnostico. */
+    const FALA_COM_PRODUCAO = /github\.io|signInAnonymously|require\('firebase\/|firestore\.googleapis/;
+    const foraDoCiDeclarado = (r.saida.match(/Fora da execucao normal \(batem em producao\): ([^\n]*)/) || [])[1];
+    assert(!!foraDoCiDeclarado, 'o runner imprime a lista de FORA_DO_CI (e dela que esta varredura parte)');
+    const declarados = foraDoCiDeclarado.split(',').map((s) => s.trim()).filter(Boolean);
+
+    const candidatos = fs.readdirSync(__dirname)
+      .filter((n) => /^(diag|controle)-.*\.js$/.test(n));
+    assert(candidatos.length >= 10, 'achei os diagnosticos da pasta (' + candidatos.length + ')');
+    const falam = candidatos.filter((n) => FALA_COM_PRODUCAO.test(fs.readFileSync(path.join(__dirname, n), 'utf8')));
+    console.log('   falam com producao (por conteudo): ' + falam.join(', '));
+
+    /* CONTROLE POSITIVO da varredura: o padrao TEM que achar os que sabidamente falam com
+       producao. Um regex que nao casa com nada devolve lista vazia, e lista vazia passaria
+       este check sem medir nada -- e o erro que o CLAUDE.md descreve em "resultado negativo
+       exige controle positivo". */
+    ['diag-linkreal.js', 'diag-pubreal.js', 'diag-swcache.js', 'diag-regrasreais.js'].forEach((n) => {
+      assert(falam.indexOf(n) >= 0, 'CONTROLE POSITIVO da varredura: ' + n + ' casou por conteudo');
+    });
+    /* CONTROLE NEGATIVO: um diagnostico que roda so local NAO pode casar, senao o padrao
+       marcaria tudo e a exigencia viraria ruido. */
+    assert(falam.indexOf('controle-fotosobra.js') < 0,
+      'CONTROLE NEGATIVO: um diagnostico local (controle-fotosobra.js) nao casa');
+
+    const naoListados = falam.filter((n) => declarados.indexOf(n) < 0);
+    assert(naoListados.length === 0,
+      'todo diagnostico que fala com producao esta em FORA_DO_CI de executar.js'
+      + (naoListados.length ? ' -- FALTAM: ' + naoListados.join(', ') : ''));
+
+    /* E o outro lado: nome em FORA_DO_CI que nao existe mais como arquivo e exclusao
+       decorativa -- o arquivo foi renomeado e voltou para o CI em silencio. */
+    const fantasmas = declarados.filter((n) => !fs.existsSync(path.join(__dirname, n)));
+    assert(fantasmas.length === 0,
+      'nenhum nome em FORA_DO_CI aponta para arquivo inexistente'
+      + (fantasmas.length ? ' -- FANTASMAS: ' + fantasmas.join(', ') : ''));
+    const corteSuites = r.saida.indexOf('SUITES (');
+    const corteDiag = r.saida.indexOf('DIAGNOSTICOS (');
+    const posArquivo = r.saida.indexOf('diag-regrasreais.js');
+    assert(corteSuites >= 0 && corteDiag > corteSuites && posArquivo > corteDiag,
+      'e esta na secao DIAGNOSTICOS, nao na de SUITES (diagnostico mede, nunca reprova)');
+  }
+
   fs.rmSync(raizTmp, { recursive: true, force: true });
 
   console.log('\nTODOS OS CHECKS PASSARAM.');

@@ -7,16 +7,25 @@
  * QUALQUER colega. E a prova de onde a pessoa esteve, e ela era falsificavel: o unico item do
  * Bloco 2 em que falsificar tem consequencia real.
  *
- * E IMPEDE TAMBEM A CORRECAO DE FACHADA: na transicao o blob continua sendo LIDO (celular na
- * versao antiga so escreve lá). Se a juncao fosse por data -- o critério de _mergeMapa -- um
- * blob falsificado com ts de agora venceria a posicao legitima do documento por uid, e o
- * caminho novo rodaria ao lado do falsificavel com o falsificavel ganhando. O CHECK 7 e o que
- * mede isso.
+ * E IMPEDE TAMBEM A CORRECAO DE FACHADA: enquanto o blob continuou sendo LIDO (celular na
+ * versao antiga so escrevia lá), uma juncao por data -- o critério de _mergeMapa -- faria um
+ * blob falsificado com ts de agora vencer a posicao legitima do documento por uid: o caminho
+ * novo rodaria ao lado do falsificavel com o falsificavel ganhando. O CHECK 7 mede isso.
+ *
+ * 08/10/2026 -- O BLOCO 2 FECHOU: o blob nao e mais APLICADO nem escrito (continua sendo
+ * BAIXADO pelo pull da colecao data/, e descartado -- o CHECK 6 mede isso). As duas chaves sairam
+ * de SYNC_KEYS (viraram POSICAO_KEYS, so do aparelho) e o firestore.rules passou a NEGAR a
+ * escrita em data/mappo_locations e data/mappo_live. O CHECK 6, que antes afirmava que o blob
+ * CONTINUAVA sendo lido, afirma agora o contrario -- e o CHECK 20 guarda o risco que a
+ * remocao criou: tirar as chaves de toda lista mataria o envio do GPS em silencio.
  *
  * O QUE FOI OBSERVADO NA VERSAO ANTERIOR (`MAPPO_RAIZ` apontando para d58536b): a suite para
  * no primeiro assert, e o que se observou de fato foi o CHECK 1 -- o envio ainda grava
  * data/mappo_locations e data/mappo_live, e nenhum documento por uid. Os checks seguintes nao
  * chegam a rodar lá, entao esta suite nao afirma nada sobre eles naquela versao.
+ * CONTRA 825b233 (a versao imediatamente anterior ao fechamento) o que falha e o CHECK 6: lá
+ * o blob antigo AINDA e lido, e a posicao falsificada de um colega sem documento por uid
+ * entra no aparelho.
  */
 const { chromium } = require('playwright');
 const path = require('path'), http = require('http'), fs = require('fs');
@@ -44,10 +53,35 @@ function chavesDoEnvelopeNaRegra() {
   return m[1].split(',').map((x) => x.trim().replace(/^'|'$/g, '')).filter(Boolean);
 }
 
+/* Os docIds que a regra passou a NEGAR a escrita em 08/10/2026, LIDOS do proprio
+   firestore.rules -- mesmo princípio de chavesDoEnvelopeNaRegra() acima. Sem isto o fake
+   continuaria aceitando escrita no blob, e uma escrita RESSUSCITADA no caminho morto passaria
+   verde aqui e morreria com permission-denied em producao. */
+function blobsMortosNaRegra() {
+  const fonte = fs.readFileSync(path.join(RAIZ, 'firestore.rules'), 'utf8');
+  const i = fonte.indexOf('function isBlobPosicaoMorto');
+  if (i < 0) {
+    /* MAPPO_RAIZ apontando para antes de 08/10/2026: lá a escrita do blob era PERMITIDA a
+       qualquer membro, e o fake tem de refletir a regra DAQUELA raiz -- senao o controle
+       acusaria o defeito errado. */
+    console.log('  (aviso) firestore.rules desta raiz nao tem isBlobPosicaoMorto: o fake nao');
+    console.log('          negara escrita de blob -- e o que a regra daquela versao fazia.');
+    return [];
+  }
+  const m = fonte.slice(i).match(/\[([^\]]*)\]/);
+  if (!m) throw new Error('isBlobPosicaoMorto existe mas nao achei a lista [...] -- regra reestruturada, refaca esta amarra');
+  return m[1].split(',').map((x) => x.trim().replace(/^'|'$/g, '')).filter(Boolean);
+}
+
 function montarFake(CFG) {
   /* O fake NEGA o que a regra negaria. Sem isto o fake era mais permissivo que produção: um
      quarto campo no envelope passava aqui e morria no servidor. */
   window.__chavesEnvelope = CFG.chavesEnvelope;
+  window.__blobsMortos = CFG.blobsMortos;
+  /* Toda tentativa de escrita/apagamento no blob morto fica registrada ANTES de ser negada:
+     uma escrita ressuscitada que alguem engula num try/catch (syncManual tem um) nao pode
+     desaparecer do teste. */
+  window.__tentouBlob = [];
   /* Nuvem falsa com CAMINHO, nao so nome de documento: a diferenca entre 'data/mappo_live' e
      'live/u-paulo' e justamente o que esta entrega muda, e um fake que ignora a colecao nao
      enxergaria o defeito. */
@@ -61,7 +95,16 @@ function montarFake(CFG) {
     e.code = 'permission-denied';
     throw e;
   };
+  /* data/mappo_locations e data/mappo_live: escrita e delete NEGADOS a todos
+     (isBlobPosicaoMorto no firestore.rules, 08/10/2026). */
+  const negarBlob = (k) => {
+    const id = k.indexOf('data/') === 0 ? k.slice(5) : null;
+    if (!id || window.__blobsMortos.indexOf(id) < 0) return;
+    window.__tentouBlob.push(k);
+    negar('isBlobPosicaoMorto: ' + id + ' e caminho morto, ninguem escreve nem apaga');
+  };
   const negarEscrita = (k, d) => {
+    negarBlob(k);
     if (k.indexOf('live/') !== 0) return;              // a regra governa só este caminho
     if (window.__negarLive) negar('regra nao publicada');
     // hasOnly([...]) e json is string, exatamente como firestore.rules exige
@@ -75,7 +118,7 @@ function montarFake(CFG) {
       __k: k,
       get: async () => ({ exists: window.__nuvem[k] !== undefined, data: () => ({ json: window.__nuvem[k] }) }),
       set: async (d) => { negarEscrita(k, d); window.__nuvem[k] = d.json; },
-      delete: async () => { delete window.__nuvem[k]; },
+      delete: async () => { negarBlob(k); delete window.__nuvem[k]; },
       onSnapshot: () => () => {},
     };
   };
@@ -135,6 +178,7 @@ function montarFake(CFG) {
   window.docsData = () => Object.keys(window.__nuvem).filter((k) => k.indexOf('data/') === 0).sort();
   window.zerar = () => {
     window.__nuvem = {}; window.__negarLive = false; window.__negarLeitura = false;
+    window.__tentouBlob = [];
     window.__cbs = {}; window.__errs = {};
     _pend = {}; _localTouch = {}; _falhasEnvio = {}; _falhasLeitura = {}; _chavesQuaseCheias = {};
     // cancela envios agendados por checks anteriores (mesmo motivo do zerar de teste-fototarefa)
@@ -197,7 +241,10 @@ function montarFake(CFG) {
   pg.on('dialog', (d) => d.accept());
   await pg.goto('http://localhost:' + srv.address().port + '/', { waitUntil: 'load' });
   await pg.waitForTimeout(400);
-  await pg.evaluate(montarFake, { chavesEnvelope: chavesDoEnvelopeNaRegra() });
+  await pg.evaluate(montarFake, {
+    chavesEnvelope: chavesDoEnvelopeNaRegra(),
+    blobsMortos: blobsMortosNaRegra(),
+  });
 
   linha(); console.log('=== CHECK 1: O CASO VIVO -- o envio vai para live/{uid}, NAO para o blob ===');
   const r1 = await pg.evaluate(async () => {
@@ -280,18 +327,81 @@ function montarFake(CFG) {
   assert(r5.paulo === -16.60, 'e nada existente foi alterado');
   assert(r5.escritas.length === 0, 'nem apagado na nuvem -- o documento desconhecido fica onde esta');
 
-  linha(); console.log('=== CHECK 6: TRANSICAO -- o blob antigo continua sendo lido ===');
+  linha(); console.log('=== CHECK 6: O FECHAMENTO -- o blob antigo NAO e mais APLICADO ===');
+  /* Este check afirmava o CONTRARIO ate 07/10/2026 ("o blob antigo continua sendo lido"), e
+     com razao: um celular na versao antiga so escrevia lá, e tirar a leitura o faria sumir do
+     mapa. O proprietario confirmou em 08/10/2026 que so o aparelho dele usa o app, entao a
+     leitura saiu. E AQUI que o fechamento se mede, e e este check que falha contra 825b233.
+     Mede COMPORTAMENTO, nao a grafia da lista: o blob entregue pelos dois caminhos reais
+     (fbApply em tempo real e fbPullAll no boot) nao entra no aparelho -- e a posicao do colega
+     continua chegando, pelo documento por uid. */
   const r6 = await pg.evaluate(async () => {
     zerar();
-    await fbApply('mappo_locations', JSON.stringify({ Jorge: posDe(-16.70) }), Date.now());
-    await fbApply('mappo_live', JSON.stringify({ Jorge: liveDe(-16.70, null, 2) }), Date.now());
-    return { temLoc: !!getLocs()['Jorge'], temLive: !!getLives()['Jorge'], leituraReal: getTecnicoLoc('Jorge') !== null };
+    // (a) o blob chegando pelo caminho de tempo real: ignorado
+    await fbApply('mappo_locations', JSON.stringify({ Jorge: posDe(-99.99) }), Date.now());
+    await fbApply('mappo_live', JSON.stringify({ Jorge: liveDe(-99.99, null, 2) }), Date.now());
+    const porFbApply = { locs: Object.keys(getLocs()), lives: Object.keys(getLives()) };
+
+    /* (b) o blob que AINDA EXISTE na nuvem (ninguem apagou dado historico) nao e aplicado no
+       pull inicial -- e, ao lado dele, o documento por uid do MESMO colega e aplicado. */
+    zerar();
+    window.__nuvem['data/mappo_locations'] = JSON.stringify({ Jorge: posDe(-99.99) });
+    window.__nuvem['data/mappo_live'] = JSON.stringify({ Jorge: liveDe(-99.99, null, 2) });
+    window.__nuvem['live/u-jorge'] = JSON.stringify({ pos: posDe(-16.70), live: liveDe(-16.70, null, 2) });
+    await fbPullAll();
+    const pull = {
+      lat: (getLocs()['Jorge'] || {}).lat,
+      live: ((getLives()['Jorge'] || {}).atual || {}).lat,
+      leituraReal: getTecnicoLoc('Jorge') !== null,
+      blobsNaNuvem: docsData().filter((k) => k === 'data/mappo_locations' || k === 'data/mappo_live').sort(),
+      /* O CUSTO DE NAO APAGAR, medido em vez de afirmado: fbPullAll pede a colecao data/
+         INTEIRA e filtra depois (_ehChaveDeSync), entao os dois blobs continuam descendo a
+         cada boot e a cada sincronizacao manual -- param de ser APLICADOS, nao de ser
+         baixados. O log do app conta "aplicados de total", e e essa diferenca que fica. */
+      logDoPull: ultimosLogs(4),
+    };
+
+    /* (c) estrutura, com controle positivo: sincronizar na NUVEM e SYNC_KEYS; vigiar o
+       APARELHO e KEYS_VIGIADAS. A diferenca entre as duas e exatamente o blob de posicao.
+       typeof: na versao anterior KEYS_VIGIADAS/POSICAO_KEYS nem existem, e um ReferenceError
+       aqui esconderia o que o check mede atras de um erro de pagina. */
+    const soPos = (lista) => lista.filter((k) => k === 'mappo_locations' || k === 'mappo_live').sort();
+    const listas = {
+      sync: soPos(SYNC_KEYS),
+      syncTemOutras: SYNC_KEYS.indexOf('mappo_os') >= 0,
+      vigiadas: typeof KEYS_VIGIADAS === 'undefined' ? null : soPos(KEYS_VIGIADAS),
+      ehDeSync: [_ehChaveDeSync('mappo_locations'), _ehChaveDeSync('mappo_live'), _ehChaveDeSync('mappo_os')],
+      merge: MERGE_MAPS.slice().sort(),
+    };
+    return { porFbApply, pull, listas };
   });
   console.log('  ', JSON.stringify(r6));
-  assert(r6.temLoc === true && r6.temLive === true, 'quem ainda usa o blob antigo continua chegando');
-  assert(r6.leituraReal === true, 'e continua visivel no mapa');
+  assert(r6.porFbApply.locs.length === 0 && r6.porFbApply.lives.length === 0,
+    'o blob entregue a fbApply foi IGNORADO: nada entrou no aparelho');
+  assert(r6.pull.lat === -16.70, 'no pull inicial, a posicao do colega vem do documento por uid (-16.70), nao do blob (-99.99)');
+  assert(r6.pull.live === -16.70, 'e o rastro ao vivo tambem');
+  assert(r6.pull.leituraReal === true, 'o mapa ve a posicao -- NADA sumiu do mapa com a remocao');
+  assert(r6.pull.blobsNaNuvem.length === 2,
+    'os dois blobs CONTINUAM na nuvem (dado historico nao se apaga): ' + r6.pull.blobsNaNuvem.join(','));
+  assert(/0 de 2 documentos/.test(r6.pull.logDoPull),
+    'e continuam sendo BAIXADOS e descartados: o pull leu 2 documentos e aplicou 0 -- '
+    + 'nao apagar tem este custo, de rede, a cada boot: ' + r6.pull.logDoPull);
+  assert(r6.listas.sync.length === 0, 'as duas chaves sairam de SYNC_KEYS: ' + r6.listas.sync.join(','));
+  assert(r6.listas.syncTemOutras === true, 'CONTROLE POSITIVO: SYNC_KEYS continua existindo e com as outras chaves');
+  assert(r6.listas.vigiadas !== null && r6.listas.vigiadas.length === 2,
+    'mas continuam VIGIADAS no aparelho (KEYS_VIGIADAS): ' + JSON.stringify(r6.listas.vigiadas));
+  assert(r6.listas.ehDeSync[0] === false && r6.listas.ehDeSync[1] === false,
+    '_ehChaveDeSync nega as duas -- e por aqui que o documento da nuvem e descartado');
+  assert(r6.listas.ehDeSync[2] === true, 'CONTROLE POSITIVO: _ehChaveDeSync continua aceitando mappo_os');
+  assert(r6.listas.merge.join(',') === 'mappo_avatares', 'MERGE_MAPS ficou so com os avatares: ' + r6.listas.merge.join(','));
 
-  linha(); console.log('=== CHECK 7: O BLOCO DA FACHADA -- blob falsificado NAO vence o documento por uid ===');
+  linha(); console.log('=== CHECK 7: blob falsificado NAO vence o documento por uid (hoje nem entra) ===');
+  /* (a) e (b) nasceram para medir a SUPREMACIA, quando o blob ainda era lido e uma juncao por
+     data deixaria a falsificacao ganhar. Desde 08/10/2026 o blob nem e aplicado (CHECK 6), e
+     os dois casos seguem valendo pelo mesmo veredito nas duas ordens de chegada: o que o mapa
+     mostra e o documento por uid, e o blob nao muda nada. (c) e (d) nunca foram sobre o blob:
+     sao o MEU ping local contra o MEU documento, e continuam sendo a metade que nao pode
+     quebrar. */
   const r7 = await pg.evaluate(async () => {
     const velho = Date.now() - 120000;   // documento legitimo de Jorge, de 2 min atras
     const agora = Date.now();            // blob falsificado, com ts de AGORA
@@ -661,7 +771,11 @@ function montarFake(CFG) {
   /* Defeito criado pela propria supremacia: a condicao generica do ramo MERGE_MAPS
      (mergedStr!==jsonStr) virou permanentemente verdadeira, porque o mapa local passou a ter as
      posicoes por-uid dos colegas, que NUNCA estao no blob. Cada escrita de blob de um aparelho
-     antigo agendava uma transacao no MEU documento, a cada 5-8 s, sem nunca convergir. */
+     antigo agendava uma transacao no MEU documento, a cada 5-8 s, sem nunca convergir.
+     Desde 08/10/2026 o blob nem chega a ser aplicado, entao este check passou a medir duas
+     coisas de uma vez: o blob nao agenda envio nenhum E nao entra no aparelho (o Jorge que
+     aparece vem do documento por uid, nao do blob). Continua no ar porque a queima de cota
+     volta facil -- qualquer caminho futuro que agende envio por divergencia generica. */
   const r16d = await pg.evaluate(async () => {
     zerar();
     // meu documento e o meu local em PERFEITO acordo: nao ha nada meu para subir
@@ -872,6 +986,172 @@ function montarFake(CFG) {
   assert(r19.minha.length === 1, 'uma linha: o MEU documento, que e o unico que este aparelho de fato envia');
   assert(r19.deOutros.length === 0, 'nenhuma linha medindo a copia parcial do documento de outra pessoa');
   assert(r19.blob.length === 0, 'e nenhuma medindo o blob da equipe inteira');
+
+  linha(); console.log('=== CHECK 20: o monitor LOCAL continua disparando o envio da MINHA posicao ===');
+  /* O RISCO QUE A REMOCAO DE 08/10/2026 CRIOU, e a razao de KEYS_VIGIADAS existir. Tirar
+     mappo_locations/mappo_live de SYNC_KEYS tira as duas, de uma vez, do interceptor de
+     setItem, da vigilancia de 3 s, do _snapshot inicial e do botao de sincronizar -- e e
+     _doPush('mappo_live') que chega em _pushMinhaPosicao(). Sem as chaves em lista nenhuma, o
+     GPS pararia de subir SEM NENHUM erro na tela: o documento por uid simplesmente deixaria de
+     ser atualizado e a pessoa sairia do mapa dos colegas.
+     ESTE CHECK PASSA NAS DUAS VERSOES DE PROPOSITO -- na anterior as chaves estavam em
+     SYNC_KEYS, que era a lista vigiada. Ele nao mede o fechamento (quem mede e o CHECK 6):
+     mede que o fechamento foi feito SEM matar o envio.
+     E ELE NAO E O PRIMEIRO DA FILA: a mutacao obvia (tirar as duas chaves de KEYS_VIGIADAS)
+     e pega ANTES pelo CHECK 6 (que afirma a lista) e pelo CHECK 19 (a linha "Minha posicao no
+     servidor" sai da tabela). O que SO este check pega e o caso perigoso: KEYS_VIGIADAS certa
+     e UM call site esquecido em SYNC_KEYS -- foi o mutante 2 do relatorio de 08/10/2026.
+     Nao afrouxe o CHECK 6 achando que este cobre o mesmo. */
+  const r20 = await pg.evaluate(async () => {
+    zerar();
+    _bootDone = true;
+    /* (a) O INTERCEPTOR de setItem: uma gravacao como a de salvarPosicao() faz -- direta, sem
+       _quietWrite -- tem que ser reconhecida como alteracao nossa e agendar o envio. */
+    const atrasos = [];
+    const orig = window.setTimeout;
+    _lastPushKey = null;
+    window.setTimeout = (f, ms) => { atrasos.push(ms); return orig(f, ms); };
+    try {
+      localStorage.setItem('mappo_live', JSON.stringify({ Paulo: liveDe(-16.68, Date.now(), 2) }));
+    } finally { window.setTimeout = orig; }
+    const interceptor = { chave: _lastPushKey, atrasos };
+    return { interceptor };
+  });
+  console.log('   INTERCEPTOR:', JSON.stringify(r20.interceptor));
+  assert(r20.interceptor.chave === 'mappo_live',
+    'o interceptor viu a gravacao da minha posicao e chamou fbPush: ' + r20.interceptor.chave);
+  assert(r20.interceptor.atrasos.indexOf(5000) >= 0,
+    'com o debounce de 5 s de sempre: ' + JSON.stringify(r20.interceptor.atrasos));
+
+  /* (b) A VIGILANCIA CONTINUA de 3 s -- a camada que assume quando o interceptor nao dispara
+     (iPhone/Safari). Grava com _quietWrite (sem interceptor) e espera a ronda de verdade. */
+  await pg.evaluate(() => {
+    zerar();
+    _bootDone = true;
+    _quietWrite = true;
+    localStorage.setItem('mappo_locations', JSON.stringify({ Paulo: posDe(-16.68, Date.now()) }));
+    _quietWrite = false;
+    _snapshot['mappo_locations'] = '{}';     // a ronda ainda nao viu esta gravacao
+    window.__vistoNaRonda = null;
+    _lastPushKey = null;
+    _startPolling();
+  });
+  await pg.waitForTimeout(3600);             // a ronda e de 3 s
+  const r20b = await pg.evaluate(() => {
+    const r = { chave: _lastPushKey, docs: docsLive() };
+    if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
+    return r;
+  });
+  console.log('   VIGILANCIA:', JSON.stringify(r20b));
+  assert(r20b.chave === 'mappo_locations' || r20b.chave === 'mappo_live',
+    'a ronda de 3 s viu a posicao gravada fora do interceptor e chamou fbPush: ' + r20b.chave);
+
+  linha(); console.log('=== CHECK 21: os OUTROS call sites que trocaram de lista ===');
+  /* SETE pontos passaram de SYNC_KEYS para KEYS_VIGIADAS em 08/10/2026. O interceptor e a
+     vigilancia de 3 s estao no CHECK 20; os outros quatro estavam SEM TESTE NENHUM, e a
+     revisao de 09/10/2026 mediu: mutados isoladamente ficavam verdes, e os quatro juntos
+     passavam 30/30. O de maior consequencia e a limpeza na troca de workspace -- sem ela a
+     equipe da empresa ANTERIOR continua no mapa da nova, que e dado de cliente, nao estetica. */
+  const r21 = await pg.evaluate(async () => {
+    const out = {};
+
+    /* (a) _testInterceptor: a sonda e empurrada para a lista vigiada e lida pelo interceptor.
+       Se os dois lados nao forem a MESMA lista, o auto-teste diz "monitor direto inativo" e o
+       app passa a depender so da ronda de 3 s -- degradacao silenciosa. */
+    zerar();
+    _bootDone = true;
+    _interceptorOk = false;
+    _testInterceptor();
+    out.interceptor = { ok: _interceptorOk, sobrou: KEYS_VIGIADAS.indexOf('__mappo_probe__') };
+
+    /* (b) initSync: a referencia inicial do _snapshot. Sem ela, _detectarMudancasNaoVistas
+       nao tem base para as duas chaves (_snapshot[k] === undefined faz a funcao RETORNAR) e
+       um ping gravado antes do primeiro envio nao e reconhecido como nosso.
+       fbReady=false de proposito: a PRIMEIRA versao deste caso mediu nada: initSync chama
+       fbSeedFromLocal -> _pushMinhaPosicao, que tambem grava _snapshot[k], e o mutante
+       (SYNC_KEYS no lugar de KEYS_VIGIADAS) passava verde. Com fbReady desligado, fbPullAll e
+       fbSeedFromLocal retornam na primeira linha e o UNICO a tocar o _snapshot e o laco que
+       este caso mede. */
+    zerar();
+    fbReady = false;
+    setLocs({ Paulo: posDe(-16.68) });
+    delete _snapshot['mappo_locations']; delete _snapshot['mappo_live']; delete _snapshot['mappo_os'];
+    await initSync();
+    out.initSync = {
+      locations: _snapshot['mappo_locations'] !== undefined,
+      live: _snapshot['mappo_live'] !== undefined,
+      controle: _snapshot['mappo_os'] !== undefined,   // uma chave de SYNC_KEYS: o laco roda
+    };
+    fbReady = true;
+    if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
+
+    /* (c) syncManual -- o botao de sincronizar. Era um orgao inteiro sem teste (grep
+       syncManual testes/ = zero). Duas coisas de uma vez: ele AINDA envia a minha posicao, e
+       NAO ressuscita escrita no blob morto (o fake registra a tentativa antes de negar). */
+    zerar();
+    _bootDone = true;
+    setLocs({ Paulo: posDe(-16.68) });
+    setLives({ Paulo: liveDe(-16.68, Date.now(), 2) });
+    _snapshot['mappo_locations'] = '{}'; _snapshot['mappo_live'] = '{}';   // "mudou fora do monitor"
+    await syncManual();
+    out.syncManual = {
+      meuDoc: docsLive(),
+      blobsEscritos: docsData().filter((k) => k === 'data/mappo_locations' || k === 'data/mappo_live'),
+      tentouBlob: window.__tentouBlob.slice(),
+    };
+    if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
+
+    /* (d) troca de workspace no mesmo aparelho: a limpeza tem de levar as duas chaves de
+       posicao. O reload fica fora do caminho pela MESMA trava de seguranca do app (uma
+       tentativa por aba, em sessionStorage) -- nao e um atalho do teste, e o ramo que o
+       proprio app toma quando o reload ja foi tentado. */
+    zerar();
+    sessionStorage.setItem('mappo_reload_ws_tentado', '1');
+    localStorage.setItem('mappo_last_ws', 'ws-antigo');
+    setLocs({ Jorge: posDe(-16.70) });
+    setLives({ Jorge: liveDe(-16.70, null, 2) });
+    _quietWrite = true;
+    localStorage.setItem('mappo_os', '[{"id":"os-da-empresa-antiga"}]');
+    _quietWrite = false;
+    const app = document.getElementById('app');
+    if (app) app.classList.add('active');      // nao reabrir a tela inteira no meio do teste
+    const antes = {
+      locs: Object.keys(getLocs()).length,
+      lives: Object.keys(getLives()).length,
+      os: localStorage.getItem('mappo_os') !== null,
+    };
+    _aplicarSessaoResolvida({ workspaceId: 'ws-novo', role: 'gestor', nome: 'Outra', uid: 'u-outra', status: 'ativo' });
+    out.trocaWs = {
+      antes,
+      locs: localStorage.getItem('mappo_locations'),
+      lives: localStorage.getItem('mappo_live'),
+      os: localStorage.getItem('mappo_os'),      // controle: chave de SYNC_KEYS, ja era limpa
+    };
+    if (_pollTimer) { clearInterval(_pollTimer); _pollTimer = null; }
+    return out;
+  });
+  console.log('   INTERCEPTOR:', JSON.stringify(r21.interceptor));
+  console.log('   initSync   :', JSON.stringify(r21.initSync));
+  console.log('   syncManual :', JSON.stringify(r21.syncManual));
+  console.log('   troca de ws:', JSON.stringify(r21.trocaWs));
+  assert(r21.interceptor.ok === true,
+    '(a) _testInterceptor: a sonda entra na MESMA lista que o interceptor consulta');
+  assert(r21.interceptor.sobrou === -1, '(a) e a sonda nao ficou para tras na lista');
+  assert(r21.initSync.controle === true, '(b) CONTROLE POSITIVO: initSync referenciou mappo_os');
+  assert(r21.initSync.locations === true && r21.initSync.live === true,
+    '(b) initSync referenciou as duas chaves de posicao no _snapshot');
+  assert(r21.syncManual.meuDoc.length === 1 && r21.syncManual.meuDoc[0] === 'live/u-paulo',
+    '(c) syncManual enviou a MINHA posicao, no meu documento: ' + r21.syncManual.meuDoc.join(','));
+  assert(r21.syncManual.tentouBlob.length === 0,
+    '(c) e NAO tentou escrever no blob morto (o fake nega como a regra nega): '
+    + r21.syncManual.tentouBlob.join(','));
+  assert(r21.syncManual.blobsEscritos.length === 0, '(c) nada foi escrito nos blobs');
+  assert(r21.trocaWs.antes.locs === 1 && r21.trocaWs.antes.lives === 1,
+    '(d) antes da troca havia posicao da equipe anterior no aparelho');
+  assert(r21.trocaWs.os === null, '(d) CONTROLE POSITIVO: a limpeza rodou (mappo_os saiu)');
+  assert(r21.trocaWs.locs === null && r21.trocaWs.lives === null,
+    '(d) e levou as duas chaves de posicao -- a equipe da empresa ANTERIOR nao fica no mapa da nova: '
+    + JSON.stringify([r21.trocaWs.locs, r21.trocaWs.lives]));
 
   linha(); console.log('=== erros de pagina ==='); console.log(erros.length ? erros : '(nenhum)');
   assert(erros.length === 0, 'nenhum erro de pagina');

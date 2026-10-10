@@ -129,16 +129,29 @@ em documento vira mentira na primeira suíte nova.
 
 ## Os que não rodam sozinhos
 
-`diag-difer`, `diag-linkreal`, `diag-pubreal` e `diag-swcache` batem no **site publicado**
-(`github.io`) e no **Firestore real**. Dependem de rede, de produção e do estado da conta do
-proprietário — então não rodam no `npm test` nem no CI. Só à mão, quando o dono pedir:
+`diag-difer`, `diag-linkreal`, `diag-pubreal`, `diag-swcache` e `diag-regrasreais` batem no
+**site publicado** (`github.io`) e no **Firestore real**. Dependem de rede, de produção e do
+estado da conta do proprietário — então não rodam no `npm test` nem no CI. Só à mão, quando o
+dono pedir:
 
 ```bash
 npm run test:producao
 ```
 
 A exclusão vale em **duas camadas**: o runner os deixa de fora por padrão, e o workflow do
-CI não passa nenhuma flag que os inclua. Não depende de o CI lembrar.
+CI não passa nenhuma flag que os inclua. Não depende de o CI lembrar. E tem **rede**: o
+CHECK 12 de `teste-runner.js` roda `--lista` na pasta de verdade e faz duas coisas —
+
+1. reprova se um desses **nomes** sair de `FORA_DO_CI` (ou se um nome listado não existir mais
+   como arquivo: exclusão decorativa depois de um rename);
+2. **varre o conteúdo** de todo `diag-*.js`/`controle-*.js` procurando `github.io`,
+   `signInAnonymously`, `require('firebase/…')` e `firestore.googleapis` — quem casa tem de
+   estar em `FORA_DO_CI`.
+
+É a (2) que cobre o diagnóstico **novo**: criar um que fale com produção e esquecer de listá-lo
+reprova, em vez de entrar no CI em silêncio. A varredura tem controle positivo (os quatro
+diagnósticos de produção já existentes **têm** que casar) e negativo (um diagnóstico local
+**não** pode casar) — um regex que não casasse com nada passaria verde medindo nada.
 
 Todos eles são **diagnósticos**: medem, não reprovam. Por isso `test:producao` liga
 `--mostrar-diagnosticos` — sem isso o comando imprimiria só "diagnostico (medido)" e
@@ -267,7 +280,8 @@ estas quatro defesas saíram dela. Se você mexer no arquivo, **não remova nenh
 
 ### Gap aceito não é garantia — e a contagem separa os dois
 
-A contagem final é assim, de propósito:
+A contagem final é assim, de propósito (os números abaixo são **ilustração de formato** —
+o atual sai na execução, e nenhum documento o guarda à mão):
 
 ```
 160 verificacoes de regra, nos dois sentidos, em 11 grupos.
@@ -320,6 +334,85 @@ Fazer isso numa cópia, e não no arquivo versionado, é de propósito: esta ent
 as regras, não as corrige. Se um teste e uma regra discordarem, o teste descreve o que a
 regra faz **hoje** e a divergência vai ao proprietário — mudar a regra para o teste passar
 é a única coisa que essa rede não pode deixar acontecer.
+
+### Publicar as regras — e por que a suíte verde não basta (08/10/2026)
+
+A suíte verde prova o **arquivo**. Ela não prova que o arquivo está **no ar**: a regra só
+chega ao Firestore por um `firebase deploy`, e até 08/10/2026 esse passo não existia em lugar
+nenhum do projeto — nem script, nem CI, nem documento. Dava para ter `npm test` verde, CI
+verde, e produção aplicando uma regra de duas semanas atrás.
+
+```bash
+npm run regras:publicar            # roda a suíte e SÓ publica se ela passar
+npm run regras:publicar -- --seco  # roda a suíte e mostra o comando, sem publicar nada
+```
+
+O script é `ferramentas/publicar-regras.js`, e ele **tem suíte própria**:
+`testes/teste-publicarregras.js`. Ela monta uma raiz de mentira numa pasta temporária (com um
+`firebase` falso que grava os argumentos em vez de publicar), copia o publicador para dentro e
+confere portão, lista branca e modo seco. O CHECK 7 dela é o controle positivo: muta a cópia
+invertendo o portão e confirma que a cópia mutada **publica** com a suíte vermelha — sem isso,
+o CHECK 2 poderia estar medindo um script que simplesmente nunca publica.
+
+O que o publicador garante, e o que não:
+
+- **Suíte vermelha → não publica, e sai com código diferente de zero.** A saída da suíte
+  aparece inteira, nomeando o caso que falhou.
+- **Lista branca de argumentos.** `argv` tem de ser exatamente vazio ou `['--seco']`; qualquer
+  outra coisa aborta nomeando o argumento, antes de ler arquivo e antes de rodar a suíte. Veio
+  de um susto real em 09/10/2026: `--secco` e `--dry-run` caíam no caminho de **publicar**, e
+  uma revisão provocou isso sem querer. Mesmo princípio do `flagsRuins` de `executar.js`.
+- **Bandeira engolida pelo npm também aborta.** `npm run regras:publicar --seco` (sem o `--`)
+  não passa argumento nenhum: o npm consome a bandeira e deixa `npm_config_seco` no ambiente.
+  O script detecta qualquer `npm_config_*` booleana que não seja do próprio npm e para — antes,
+  ele publicaria de verdade com quem digitou convencido de estar em modo seco.
+- **Registra o que publicou:** `sha256` do `firestore.rules`, o `HEAD` curto e se aquele
+  arquivo está **sujo**. Publicar de árvore suja publica o arquivo do **disco**, não o do
+  commit — anotar só "commit X" na área 6 do `VERIFICACAO-MANUAL.md` seria registro falso.
+- **Publica `--only firestore:rules`**, nunca os índices. `firestore.indexes.json` não tem
+  rede de teste nenhuma neste projeto (está escrito no `CLAUDE.md`); publicar junto esconderia
+  isso atrás de um comando verde.
+- **O projeto de destino é lido do `index.html`** (`projectId` do `firebaseConfig`) e passado
+  explícito em `--project`. "Projeto selecionado" é estado invisível da CLI; publicar regra no
+  projeto errado é estrago silencioso.
+- **Recusa rodar com `MAPPO_RAIZ` definida**: com ela ligada a suíte testaria outra pasta e a
+  publicação sairia desta — "testei lá, publiquei daqui" é o engano que o script existe para
+  impedir.
+- **Não prova que a regra publicada é esta.** A CLI do Firebase publica mas **não lê** regras:
+  não há comando para baixar o que está no ar, nem modo seco. Quem mede produção é o
+  diagnóstico abaixo, por comportamento.
+
+### `diag-regrasreais.js` — medir produção por comportamento
+
+```bash
+node testes/diag-regrasreais.js
+```
+
+Abre uma sessão **anônima** no Firebase real e **tenta** o que as regras devem negar. Sonda que
+**passa** significa que produção divergiu do arquivo testado. Fica fora do `npm test` e do CI.
+
+Três coisas a saber antes de ler o resultado:
+
+1. **Não escreve nada no Firestore** por padrão. A única sonda de escrita fica atrás de
+   `MAPPO_DIAG_SONDA_ESCRITA=1` e mira um `docId` que o app não usa — escrever em produção é
+   decisão do proprietário, não de um diagnóstico. **Com um asterisco:** o login anônimo cria
+   uma conta real no Firebase Auth. Ela é apagada no fim (`deleteUser`), e se o apagamento
+   falhar o diagnóstico diz o `uid` para você apagar no Console.
+2. **Controle positivo em duas camadas, e é ele que dá sentido ao verde.** Um caminho que não
+   existe responde `permission-denied` a *tudo*: seria um verde perfeito medindo nada. O
+   controle A (a sessão anônima **lê** o próprio `userWorkspaces/{uid}`, que a regra permite)
+   prova que o arnês alcança o motor de regras; sem ele o diagnóstico para e não conclui — e
+   se alguma sonda tiver **passado**, ele grita "PRODUÇÃO ABERTA" em vez de culpar a rede. O
+   controle B (ler um `data/pub_{token}` vivo) prova que o **workspace sondado existe**.
+   **`MAPPO_DIAG_TOKEN` não tem padrão**, de propósito: o token que estava embutido no arquivo
+   já nasceu morto (voltou `permission-denied` na primeira execução contra produção, em
+   08/10/2026 — e o `diag-linkreal.js` aponta para esse mesmo link morto). Sem token, as sondas
+   dentro de `workspaces/{ws}/...` saem marcadas **SEM ÂNCORA** e não contam como medição:
+   `MAPPO_DIAG_TOKEN=<token de um link vivo> node testes/diag-regrasreais.js`.
+3. **A cláusula `isBlobPosicaoMorto` não é medida lá.** Ela só é alcançada por sessão de
+   **membro**; para um anônimo, `isMember()` nega antes. Quem a prova é `npm run test:regras`,
+   no Emulator. Em produção, é caixa da área 6 de `VERIFICACAO-MANUAL.md` (Rules Playground do
+   Console, com o uid de um membro).
 
 ---
 
