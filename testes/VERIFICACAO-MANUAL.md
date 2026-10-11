@@ -5,7 +5,7 @@ quantas são hoje). Elas não conseguem verificar o que sai do app para outro ap
 o sistema operacional ou para o hardware do celular: o navegador automatizado ou não tem
 permissão, ou não tem o aplicativo instalado, ou não tem câmera.
 
-São **6 áreas**, com cerca de **35 caixas** no total. Não é uma lista leve: várias caixas
+São **7 áreas**, com cerca de **42 caixas** no total. Não é uma lista leve: várias caixas
 exigem um **celular físico** — e a área 4 pede especificamente um **iPhone**, porque o
 descarte de página por pressão de memória no iOS foi a origem de vários defeitos reais.
 
@@ -30,6 +30,7 @@ ou se ninguém olha para ela desde que foi escrita.
 | 4. Câmera de celular | — | — | — | — | nunca registrada |
 | 5. Instalação/atualização (PWA) | — | — | — | — | nunca registrada |
 | 6. Regras do Firestore no ar | — | — | — | — | nunca registrada |
+| 7. App de mapas (Maps/Waze) | — | — | — | — | nunca registrada |
 
 Exemplo de linha preenchida:
 
@@ -226,6 +227,44 @@ membro** — é isso que nenhum script aqui pode fazer sem escrever em produçã
 
 **Quando conferir:** sempre que `firestore.rules` mudar e for publicado. Registre a linha 6
 da tabela com o commit publicado.
+
+---
+
+## 7. O botão "Abrir no mapa" chega no app de mapas (10/10/2026)
+
+**O que o app faz:** no detalhe da OS (gestor) e na tela de execução (técnico), o botão
+"Abrir no mapa" abre `window.open(url,'_blank')` — ou o link de mapa que o gestor colou no
+endereço, ou a busca `google.com/maps/search/?api=1&query=<endereço escrito>`.
+
+**Por que o teste não cobre:** `teste-mapaos.js` espiona `window.open` e mede a URL, o
+`_blank`, a ausência de features, o `opener` anulado e o hit-test em 320×568. O que ele não
+alcança começa onde o navegador entrega a URL ao **sistema operacional**: quem decide abrir
+o app do Google Maps, o do Waze ou mais uma aba do navegador é o aparelho, não a página. E
+no PWA instalado (iOS, standalone) o `window.open` tem histórico de ser engolido em silêncio
+— é justamente o modo em que o técnico usa o app em campo.
+
+**Confira à mão, com celular de verdade:**
+- [ ] Android, Chrome, OS com endereço **sem link**: o botão abre a busca do Maps e o
+      endereço escrito aparece na barra de pesquisa (não "endereço não encontrado").
+- [ ] Android, OS com link `maps.app.goo.gl` colado no endereço: abre o **app do Google
+      Maps** com o pino no lugar certo, não uma aba de navegador.
+- [ ] Android, OS com link do **Waze**: abre o app do Waze (se instalado) ou o site, e
+      começa a rota.
+- [ ] iPhone, Safari: os dois casos acima. No iPhone, link do **Apple Maps**
+      (`maps.apple.com`) hoje **cai na busca do Google** de propósito — confirme que cai na
+      busca e não em erro.
+- [ ] **PWA instalado (iOS, standalone):** o botão abre a aba/app, ou mostra o aviso
+      "O navegador bloqueou a aba do mapa". O que **não** pode é o toque não fazer nada e
+      não dizer nada — foi esse o defeito da rodada anterior.
+- [ ] PWA instalado (Android, standalone): mesma coisa.
+- [ ] Toque **repetido** (dois toques rápidos, com o dedo mesmo): abre **uma** vez, não duas
+      abas nem dois pulos para o app de mapas.
+- [ ] Endereço com apóstrofo no link (`.../place/D'Avila+Comercio`): chega no lugar certo,
+      com a URL inteira — o truncamento era silencioso e o técnico ia para o lugar errado
+      confiando no botão.
+
+**Quando conferir:** sempre que mexer em `abrirMapaDaOS`, em `_ehHostDeMapa`,
+em `urlDeMapaNoTexto` ou no `window.open` desse botão.
 
 ---
 

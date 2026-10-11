@@ -5982,6 +5982,110 @@ function _parseMoeda(raw){
 function escapeHtml(s){
   return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
+/* escapeHtml é o certo para TEXTO e o ERRADO para uma string JS dentro de um atributo:
+   ele vira ' em &#39;, e o parser de HTML desfaz a entidade ANTES de o JavaScript ler o
+   atributo -- aí o apóstrofo de "Sant'Ana" fecha a string no meio e o onclick morre com
+   SyntaxError (cartão do cliente sem reação ao toque, medido em 10/10/2026).
+   Aqui o JSON.stringify produz o literal JS já com as aspas e com \ e " escapados, e só
+   então o escapeHtml protege o atributo. A chamada NÃO leva aspas à mão:
+   onclick="f(${escJsAttr(nome)})". Use só neste caso; para texto, continua escapeHtml. */
+function escJsAttr(s){return escapeHtml(JSON.stringify(String(s==null?'':s)));}
+/* O endereço é um campo de texto só, e o gestor costuma colar nele o link de mapa que o
+   cliente mandou pelo WhatsApp. A URL é caçada no texto e validada pelo HOSTNAME, nunca
+   por substring: "https://evil.com/?x=maps.google.com" contém "maps.google" e NÃO é mapa.
+   Host que não é de mapa não sequestra o botão -- cai na busca pelo endereço escrito. */
+/* Lista EXPLÍCITA de domínios do Google. "Parece google" não serve: `google.<2 ou 3 letras>`
+   aceitava google.lol, google.xyz, google.top e google.ws, que são TLDs que qualquer pessoa
+   registra -- e um deles com /maps viraria "Abrir no mapa" apontando para onde o dono quiser.
+   Acrescentar TLD aqui é decisão consciente, nunca regex esperta. */
+const _TLD_GOOGLE=['com','com.br','co.uk','pt','es','fr','de','it','com.ar','com.mx'];
+function _ehHostDeMapa(host,caminho){
+  const h=String(host||'').toLowerCase().replace(/\.$/,''),p=String(caminho||'');
+  /* maps.app.goo.gl é o link curto do próprio Maps. `goo.gl` solto é ENCURTADOR GENÉRICO:
+     o destino é arbitrário, então só passa com caminho /maps. E nada de sufixo solto --
+     "evilgoo.gl" e "notwaze.com" são domínios compráveis, por isso é igualdade de hostname. */
+  if(h==='maps.app.goo.gl')return true;
+  if(h==='goo.gl')return /^\/maps(\/|$)/.test(p);
+  if(h==='waze.com'||h==='www.waze.com')return true;             // nada de *.waze.com
+  const g=h.match(/^(?:(maps|www)\.)?google\.(.+)$/);
+  if(!g||!_TLD_GOOGLE.includes(g[2]))return false;               // "google.evil.com" não passa
+  if(g[1]==='maps')return true;                                  // maps.google.<tld>
+  return /^\/maps(\/|$)/.test(p);                                // google.<tld>/maps
+}
+/* Pontuação de fim de frase colada na URL é lixo e sai sempre. Fecha-parêntese, colchete e
+   chave só saem quando estão DESBALANCEADOS: "(https://maps.app.goo.gl/abc)." perde o ")."
+   porque o "(" ficou fora da URL, mas ".../place/Bar+(Centro)" guarda o ")" -- ele tem o par
+   dele dentro da URL, e podar ali mandava o técnico para o lugar errado.
+   Aspas e apóstrofo seguem a MESMA regra de equilíbrio, e por medição: com eles dentro do
+   conjunto da URL (ver abaixo) alguém que escreve `Endereço: "https://maps.app.goo.gl/abc"`
+   passou a abrir `.../abc%22`, que não existe. Aspas em número ÍMPAR no fim é delimitador de
+   quem escreveu e sai; em número par é parte do endereço e fica ('place/Loja_"Centro"'). O
+   apóstrofo de "place/D'Avila+Comercio" não é o último caractere, então nada o toca. */
+function _podarFimDaUrl(u){
+  let s=String(u==null?'':u);
+  for(;;){
+    const antes=s;
+    s=s.replace(/[.,;:!?»]+$/,'');
+    const f=s.slice(-1),par={')':'(',']':'[','}':'{'}[f],n=s.split(f).length-1;
+    if(par&&n>(s.split(par).length-1))s=s.slice(0,-1);
+    else if((f==='"'||f==="'")&&n%2===1)s=s.slice(0,-1);
+    if(s===antes)return s;
+  }
+}
+/* Devolve a 1ª URL de mapa escrita no texto, ou '' se não houver nenhuma. Só http/https
+   entram no padrão, então javascript:, data:, vbscript: e file: nunca são consideradas. */
+function urlDeMapaNoTexto(txt){
+  /* `'` e `"` ficam DENTRO da URL: ela só chega ao window.open, nunca a um atributo, e
+     excluí-los truncava "https://www.google.com/maps/place/D'Avila+Comercio" em ".../place/D"
+     -- o técnico ia para o lugar errado sem aviso nenhum. `<` e `>` continuam fora: são o que
+     impediria a URL de atravessar o HTML em volta se algum dia ela voltar para a tela. */
+  const s=String(txt==null?'':txt),re=/https?:\/\/[^\s<>]+/gi;
+  let m;
+  while((m=re.exec(s))!==null){
+    const bruta=_podarFimDaUrl(m[0]);
+    let u;
+    try{u=new URL(bruta);}
+    catch(e){console.warn('[mapa] URL no endereço não entendida:',e.code||e.name,e.message);continue;}
+    if(u.protocol!=='http:'&&u.protocol!=='https:')continue;
+    if(_ehHostDeMapa(u.hostname,u.pathname))return u.href;
+  }
+  return '';
+}
+/* Recebe o ID da OS, NUNCA o texto do endereço: texto digitado dentro de um onclick é
+   exatamente o defeito que o escJsAttr acima corrige. O endereço se resolve aqui dentro,
+   lendo de execOS (tela do técnico) ou de osList (detalhe do gestor). */
+let _ultimoMapaId='',_ultimoMapaEm=0;        // guarda de repique do botão (ver abaixo)
+function abrirMapaDaOS(id){
+  /* O dedo repica no celular: três toques rendiam três abas (ou três pulos para o app de
+     mapas). 500 ms de carência no MESMO botão resolve sem travar um segundo toque de verdade
+     em outra OS. A marca só é gravada quando algo de fato abre. */
+  const agora=Date.now();
+  if(id===_ultimoMapaId&&agora-_ultimoMapaEm<500)return;
+  const os=(execOS&&execOS.id===id)?execOS
+          :(Array.isArray(osList)?osList.find(o=>o&&o.id===id):null);
+  if(!os){toast('Não achei essa ordem de serviço','warn');return;}
+  const end=String(os.endereco||'').trim();
+  if(!end){toast('Essa OS não tem endereço','warn');return;}
+  const url=urlDeMapaNoTexto(end)||('https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(end));
+  /* SEM string de features -- é o idioma dos outros window.open do app. Passar features faz
+     o navegador tratar como POPUP, e popup bloqueado NÃO lança: o catch não pegava, o aviso
+     era inalcançável e o técnico tocava sem nada acontecer. Sem features o retorno é
+     confiável, então `!w` é o bloqueio, e `opener=null` segue fechando a brecha do noopener. */
+  let w=null;
+  try{w=window.open(url,'_blank');}
+  catch(e){console.error('[mapa] não abriu:',e.code||e.name,e.message);toast('Não consegui abrir o mapa','error');return;}
+  if(!w){toast('O navegador bloqueou a aba do mapa','warn');return;}
+  _ultimoMapaId=id;_ultimoMapaEm=agora;
+  try{w.opener=null;}
+  catch(e){console.warn('[mapa] não deu para anular o opener:',e.code||e.name,e.message);}
+}
+/* Endereço vazio ou só espaço -> o botão não existe (não renderizar desabilitado).
+   O id vai pelo escJsAttr: hoje `os.id` nasce 'os_'+Date.now(), mas a OS também chega da
+   nuvem, e id com apóstrofo quebraria este onclick igual ao do cartão do cliente. */
+function _btnMapaOS(os,estilo,classe){
+  if(!os||!String(os.endereco||'').trim())return '';
+  return `<button class="btn btn-ghost ${classe||''}" style="${estilo||'margin-top:8px'}" onclick="abrirMapaDaOS(${escJsAttr(os.id)})">${svgIco('mapa','ico-sm')} Abrir no mapa</button>`;
+}
 function hoje(){return new Date().toISOString().split('T')[0];}
 /* Aceita a <img> clicada, além da src pronta. Uma foto que o pintor ainda não preencheu tem
    src vazia, e abrir o lightbox em branco parece foto perdida: aqui o clique espera a foto.
@@ -6346,7 +6450,9 @@ function renderClientes(){
   ${lista.length?`<div class="os-grid">${lista.map(c=>{
     const total=c.visitas.length;
     const conc=c.visitas.filter(v=>v.status==='concluida').length;
-    return `<div class="os-card" onclick="openHistoricoCliente('${escapeHtml(c.nome)}')">
+    /* escJsAttr, não escapeHtml: aqui o nome entra DENTRO de uma string JS. Ver o comentário
+       do escJsAttr -- com escapeHtml, "Sant'Ana" deixava o cartão sem reação ao toque. */
+    return `<div class="os-card" onclick="openHistoricoCliente(${escJsAttr(c.nome)})">
       <div class="os-card-top">
         <div><div class="os-client">${escapeHtml(c.nome)}</div><div class="os-addr">📍 ${escapeHtml(c.endereco||'Sem endereço')}</div></div>
         <span class="badge b-concluida">${total} visita${total!==1?'s':''}</span>
@@ -8154,7 +8260,7 @@ function renderFinanceiroNotas(){
     <div class="fg"><label>Observação</label><input type="text" id="notaObs" placeholder="Ex: adiantamento em dinheiro"></div>
     <button class="btn btn-primary btn-sm" onclick="adicionarNotaFinanceira()">${svgIco('plus','ico-sm')} Registrar nota</button>
   </div>
-  ${notas.length?notas.map(n=>`<div class="set-row"><div class="set-info"><div class="st">${escapeHtml(n.prestador)} — ${fmtMoeda(n.valor)}</div><div class="sd">${fmtDate(n.data)} ${n.hora||''}${n.obs?' · '+escapeHtml(n.obs):''}${n.responsavel?' · registrado por '+escapeHtml(n.responsavel):''}</div></div><button class="btn btn-ghost btn-sm" title="Excluir nota" onclick="removerNotaFinanceira('${escapeHtml(n.data)}','${escapeHtml(n.hora||'')}','${escapeHtml(n.prestador)}',${Number(n.valor)||0})">${svgIco('trash','ico-sm')}</button></div>`).join(''):'<p style="font-size:14px;color:var(--gray-400);padding:8px 0">Nenhuma nota registrada.</p>'}
+  ${notas.length?notas.map(n=>`<div class="set-row"><div class="set-info"><div class="st">${escapeHtml(n.prestador)} — ${fmtMoeda(n.valor)}</div><div class="sd">${fmtDate(n.data)} ${n.hora||''}${n.obs?' · '+escapeHtml(n.obs):''}${n.responsavel?' · registrado por '+escapeHtml(n.responsavel):''}</div></div><button class="btn btn-ghost btn-sm" title="Excluir nota" onclick="removerNotaFinanceira(${escJsAttr(n.data)},${escJsAttr(n.hora||'')},${escJsAttr(n.prestador)},${Number(n.valor)||0})">${svgIco('trash','ico-sm')}</button></div>`).join(''):'<p style="font-size:14px;color:var(--gray-400);padding:8px 0">Nenhuma nota registrada.</p>'}
   <p style="font-size:12px;color:var(--gray-400);margin-top:10px">📌 Notas de adiantamento são só registro manual — nunca entram na soma de pago/a pagar por OS acima.</p>`;
 }
 /* Excluir uma nota de adiantamento. NÃO remove do array: mappo_financeiro_notas é
@@ -9340,6 +9446,13 @@ function openDetalhe(id){
     </div>
     <div class="modal-foot">
       <button class="btn btn-danger" onclick="excluirOS('${os.id}')">🗑 Excluir</button>
+      ${/* O botão do mapa mora AQUI, e não junto do Endereço, porque o .modal-foot é
+            position:sticky;bottom:0 com fundo opaco: dentro do corpo do modal, o
+            elementFromPoint no centro do botão devolvia DIV.modal-foot em 375×667, 360×640
+            e 320×568 -- o rodapé ficava na frente e o toque não chegava. No rodapé, que é a
+            parte sempre visível, ele recebe o toque em qualquer tamanho, e nenhuma CSS
+            compartilhada precisou mudar. */''}
+      ${_btnMapaOS(os,'margin:0')}
       <button class="btn btn-ghost" onclick="gerarLinkOS('${os.id}')">${svgIco('mapa','ico-sm')} ${os.pubToken?'Ver link do cliente':'Gerar link do cliente'}</button>
       ${podeRevisar?`<button class="btn btn-gold" onclick="revisarOS('${os.id}')">↩ Enviar p/ revisão</button>`:''}
       ${os.status==='concluida'?`<button class="btn btn-ghost" onclick="exportarPDFos('${os.id}')">📄 PDF para o cliente</button>`:''}
@@ -10207,7 +10320,7 @@ function verTarefaDetalhe(id){
         ${(t.checkins&&t.checkins.length)?`<span>${svgIco('pin','ico-sm')} ${t.checkins.length} check-in${t.checkins.length!==1?'s':''}</span>`:`<span>${svgIco('pin','ico-sm')} Sem check-in ainda</span>`}
       </div>
       ${(t.checkins&&t.checkins.length)?`<div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--gray-400);margin-bottom:8px">Presença na obra</div>
-      <div class="tf-checkin-hist" style="margin-bottom:14px">${t.checkins.slice().reverse().map(c=>`<div class="tf-checkin-dia">${svgIco('pin','ico-sm')} ${fmtDate(c.data)} — ${c.hora}${c.lat?` · <span style="color:var(--petrol);cursor:pointer" onclick="abrirMapaCoord(${c.lat},${c.lng},'${escapeHtml(t.tecnico||'Técnico')} — ${fmtDate(c.data)}')">ver no mapa</span>`:' <span style="color:var(--gray-400)">(sem GPS)</span>'}</div>`).join('')}</div>`:''}
+      <div class="tf-checkin-hist" style="margin-bottom:14px">${t.checkins.slice().reverse().map(c=>`<div class="tf-checkin-dia">${svgIco('pin','ico-sm')} ${fmtDate(c.data)} — ${c.hora}${c.lat?` · <span style="color:var(--petrol);cursor:pointer" onclick="abrirMapaCoord(${c.lat},${c.lng},${escJsAttr((t.tecnico||'Técnico')+' — '+fmtDate(c.data))})">ver no mapa</span>`:' <span style="color:var(--gray-400)">(sem GPS)</span>'}</div>`).join('')}</div>`:''}
       <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--gray-400);margin-bottom:8px">Fotos (${nf}/${t.maxFotos})</div>
       ${nf?`<div class="tf-fotos-grid">${t.fotos.map(f=>`<div class="tf-foto">${imgFoto(f,'onclick="openLightbox(this)"')}</div>`).join('')}</div>`:'<p style="font-size:13px;color:var(--gray-400)">Nenhuma foto enviada ainda.</p>'}
       ${t.temNotas?`<div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--gray-400);margin:14px 0 8px">Notas do prestador</div>
@@ -10478,7 +10591,7 @@ function renderExecucao(){
   const c=document.getElementById('contentArea');
   c.innerHTML=`
     <button class="btn btn-ghost btn-sm" style="margin-bottom:16px" onclick="voltarExec()">${svgIco('back','ico-sm')} Voltar</button>
-    <div class="page-head"><div><div class="page-title">${escapeHtml(os.cliente)}</div><div class="page-desc">📍 ${escapeHtml(os.endereco)} · ${vrf?`❄️ ${os.qtdSplits||1} split${(os.qtdSplits||1)>1?'s':''}`:`📷 ${os.qtdSplits||1} ${(os.qtdSplits||1)>1?'itens':'item'}`}</div></div></div>
+    <div class="page-head"><div><div class="page-title">${escapeHtml(os.cliente)}</div><div class="page-desc">📍 ${escapeHtml(os.endereco)} · ${vrf?`❄️ ${os.qtdSplits||1} split${(os.qtdSplits||1)>1?'s':''}`:`📷 ${os.qtdSplits||1} ${(os.qtdSplits||1)>1?'itens':'item'}`}</div>${_btnMapaOS(os,'margin-top:10px','btn-sm')}</div></div>
 
     <!-- 1 CHECK-IN -->
     <div class="card" style="margin-bottom:16px"><div class="card-pad">
