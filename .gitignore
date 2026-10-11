@@ -20,3 +20,16 @@ node_modules/
 /firebase-debug.log
 /firestore-debug.log
 /ui-debug.log
+
+# Planejamento, auditoria e configuracao de agentes: NAO entram no repositorio.
+# Isto era disciplina ("nunca git add -A") e virou mecanismo em 10/10/2026, depois de
+# medir que 213 arquivos nao rastreados estavam a um `git add -A` de serem publicados --
+# entre eles a auditoria de seguranca do app, que esta no ar com dados reais de cliente.
+# O acidente ja aconteceu uma vez (22 documentos varridos para dentro de um commit).
+# Ignorar NAO despublica o que ja foi commitado antes disto; so impede que cresca.
+_bmad-output/
+_audit/
+.agents/
+.claude/skills/
+skills-lock.json
+.vscode/

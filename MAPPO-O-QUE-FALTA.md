@@ -8,11 +8,11 @@
 > `MAPPO-O-QUE-TEM.md` (seção do recurso + linha no histórico). Um item só existe em um
 > dos dois arquivos, nunca nos dois.
 
-**Atualizado em:** 26/09/2026 · publicado até `fc82b6a`
+**Atualizado em:** 11/10/2026 · publicado até `1d7118f`
 
-**Próximo combinado:** o GPS/localização por pessoa está **construído e ainda não publicado** —
-a regra vai ao Console **antes** do código (ver as seções do Bloco 2). Depois disso, os cinco
-pontos de 25/09.
+**Próximo combinado:** os três pontos de 25/09/2026, na ordem acordada em 10/10/2026 —
+**link do mapa na OS**, **editar cliente** e, por último, **o histórico do mapa por**
+**prestador**. O Bloco 2 fechou em `d23f1d7`.
 
 ---
 
@@ -37,10 +37,11 @@ string JSON** — ela só sabe dizer "é membro?", nunca "esse técnico pode mex
 
 A Etapa B (fotos por andar) provou que essa divisão funciona neste app — o caminho existe e
 é trabalho conhecido, não pesquisa. **A localização era a prioridade** (o único onde falsificar
-tem consequência real: é a prova de onde o técnico esteve) e **está entregue em `bd4bfd6`,
-publicada e confirmada em campo em 01/10/2026** — ver `MAPPO-O-QUE-TEM.md`. O que resta dela
-está nas seções abaixo, que são resíduo, não o item; o avatar, que
-era a outra metade da mesma linha, virou item separado porque a consequência dele é muito menor.
+tem consequência real: é a prova de onde o técnico esteve) e **está encerrada** — entregue em
+`bd4bfd6`, confirmada em campo em 01/10/2026, e fechada em `d23f1d7`, quando o caminho antigo
+saiu de circulação e passou a ser negado na regra. Ver `MAPPO-O-QUE-TEM.md`. O que ficou nas
+seções abaixo é resíduo dela, não o item; o avatar, que era a outra metade da mesma linha,
+virou item separado porque a consequência dele é muito menor.
 **Os dois itens de obra/OS seguem sendo próximo combinado com o proprietário.**
 
 ### Mostrar a versão do app em Configurações → Sincronização 🟡
@@ -60,24 +61,6 @@ o que a pessoa lê no aparelho.
 `sw.js` além da linha da versão, e a verificação da entrega exigia que o `git diff sw.js`
 mostrasse só isso. O caminho alternativo — a tela buscar `./sw.js` e extrair a linha — são umas
 8 linhas, mas pede teste próprio e novo selo de versão. É entrega pequena e separada.
-
-### Remover a leitura do blob antigo de posição — é o que encerra o item 🟠
-
-**Ainda pendente**, e é a parte que falta para o item de GPS/localização acima poder ser
-considerado resolvido de verdade. `data/mappo_locations` e `data/mappo_live` continuam em
-O caminho antigo permanece em `SYNC_KEYS` durante a transição e mantém a regra antiga, mais
-frouxa que a nova. Enquanto ele for lido, a garantia da regra nova vale para quem já atualizou,
-não para todos. **O detalhe técnico está no spec local** (`_bmad-output/implementation-artifacts/`,
-fora do repositório de propósito: este repositório é público).
-
-**Por que não sai agora:** um celular ainda na versão antiga só escreve lá, e essa leitura é o
-que mantém essa pessoa visível no mapa. Remover só **depois que todos os aparelhos abrirem a
-versão nova** — e isso é decisão do proprietário, não dedução minha.
-
-**O que já está de pé:** o risco residual está fixado como caso `[GAP ACEITO]` no grupo 11 de
-`testes/teste-regras.js`, esperando por esse dia. E o documento por-uid já **tem precedência** sobre
-o caminho antigo, então quem atualizou passa a contar com a garantia nova desde já; quem ainda não
-atualizou segue visível, sob a garantia antiga.
 
 ### Fora do escopo do GPS por pessoa, de propósito
 
@@ -148,37 +131,27 @@ Google** ao concluir a OS — é um link configurável e um botão de WhatsApp, 
 
 ---
 
-## Achado em 26/09/2026 — a rede de regras prova o arquivo, não o que está no ar 🟠
+## Combinado em 25/09/2026 — a fila de agora
 
-A suíte de regras (`9d99f3c`) carrega o `firestore.rules` **do repositório** e prova que ele
-nega o que deve negar. Mas **nada liga esse arquivo às regras que o Firestore está aplicando**
-em produção: não existe passo de publicação em lugar nenhum — nem script, nem CI, nem
-documento. Publicar sempre foi ato manual do proprietário.
-
-Dois jeitos de o verde mentir:
-
-- Editar as regras, a suíte fica verde, commitar — e **esquecer de publicar**. Produção segue
-  com as regras antigas.
-- Alguém colar uma correção direto no Console e o arquivo nunca ser atualizado. Produção
-  diverge do que está testado.
-
-Nos dois casos `npm test` passa e o CI fica verde enquanto produção aplica outra coisa.
-
-**A saída mais barata:** um `npm run regras:publicar` que só publica **depois** da suíte passar,
-mais uma linha no `VERIFICACAO-MANUAL.md` para conferir no Console de tempos em tempos. Não
-elimina erro humano, mas tira o "esqueci de publicar" do caminho.
-
-Levantado pela revisão adversarial de 26/09/2026. É o mesmo vício de "regra sem mecanismo",
-um nível acima — e por isso entra aqui em vez de ficar só no `deferred-work.md`.
-
----
-
-## Combinado em 25/09/2026 — fazer DEPOIS do GPS (Bloco 2)
-
-> Três pontos ainda abertos dos cinco levantados pelo proprietário (D e E foram entregues). Cada um já foi **verificado no código** e tem a
-> decisão técnica fechada — não são ideias soltas, é trabalho pronto para começar.
-> **Ordem acordada:** só depois do Bloco 2 (GPS) estar pronto. Os testes anti-regressão, que
-> também vinham antes destes cinco, já foram entregues em 25/09/2026.
+> Três pontos ainda abertos dos cinco levantados pelo proprietário (D e E foram entregues).
+> Cada um já foi **verificado no código** e tem a decisão técnica fechada — não são ideias
+> soltas, é trabalho pronto para começar.
+>
+> **A espera acabou:** vinham depois do Bloco 2 (GPS), que fechou em `d23f1d7`, e depois dos
+> testes anti-regressão, entregues em 25/09/2026. Os dois saíram.
+>
+> **Ordem em execução, aprovada pelo proprietário em 10/10/2026: B → C → A.** O **B saiu**
+> em 11/10/2026 — ver `MAPPO-O-QUE-TEM.md`. Resta **C (editar cliente)** e depois **A**.
+> O motivo da ordem não ser a das letras: **hoje só o proprietário usa o app** (confirmado por
+> ele em 08/10/2026). O que justifica o A é "pode ter empresa com 200 prestadores — 40
+> check-ins cobrem menos de dois dias"; com uma pessoa, 40 eventos são semanas. O A é a
+> mudança mais cara e arriscada das três para resolver uma dor que ainda não existe.
+> das letras, e o motivo é que **hoje só o proprietário usa o app** (confirmado por ele em
+> 08/10/2026). O que justifica o A é "pode ter empresa com 200 prestadores — 40 check-ins
+> cobrem menos de dois dias"; com uma pessoa, 40 eventos são semanas. O A é a mudança mais
+> cara e mais arriscada das três (troca a estratégia de sincronização de uma chave, mexe em
+> regra, pede caso novo na suíte de regras) para resolver uma dor que ainda não existe. O B e
+> o C resolvem atrito de hoje.
 
 ### A. Mapa do gestor: histórico por prestador, não uma lista corrida 🟠
 
@@ -209,28 +182,16 @@ Dois caminhos, ambos já provados neste app:
 **Recomendação: o caminho 1.** Resolve os dois problemas (a lista gigante e o crescimento sem
 fim) com um mecanismo que já existe e já tem teste.
 
-### B. Link do mapa dentro da OS 🟢
-
-**O problema:** o técnico lê o endereço escrito e precisa abrir o mapa e digitar à mão. O gestor
-já recebe do cliente, pelo WhatsApp, um link pronto do Google Maps.
-
-**Verificado:** o endereço é texto escapado em 5 lugares (`os-addr`, detalhe da OS, tela de
-execução, PDF, payload do link público). Não há link em nenhum.
-
-**Decisão — um campo só, sem cadastro novo.** Nada de campo separado "link do mapa": seria mais
-um campo para preencher e mais um para esquecer. O app passa a **reconhecer sozinho**:
-- Se o texto do endereço **contém uma URL** de mapa (`maps.google`, `goo.gl/maps`,
-  `maps.app.goo.gl`, `waze.com`) → botão **"Abrir no mapa"** usando essa URL.
-- Se **não contém** → o mesmo botão abre a busca pelo endereço escrito
-  (`https://www.google.com/maps/search/?api=1&query=<endereço>`).
-
-Assim funciona nos dois casos e nada muda no jeito de cadastrar.
-
-**Cuidados:** a URL vem de texto digitado — aceitar só `http`/`https` (nunca `javascript:`),
-escapar no atributo e abrir com `rel="noopener"`. Mostrar o botão na tela do técnico (onde ele
-precisa) e no detalhe do gestor.
-
 ### C. Editar cliente 🔴
+
+> **Achado em 11/10/2026, pela revisão do botão de mapa, e que pertence a este item:**
+> um cliente chamado **`__proto__`**, `constructor` ou `toString` **derruba a tela de Clientes
+> inteira** (`TypeError: Cannot read properties of undefined`), porque `renderClientes()`
+> agrupa as visitas num objeto comum (`mapC={}`) e esses nomes colidem com o protótipo.
+> Medido igual nas duas versões, então é **anterior** e não foi causado pela entrega. A
+> correção é uma linha (`Object.create(null)` ou `Map`) e cabe aqui, porque este item é
+> justamente sobre nome de cliente.
+
 
 **O problema, nas palavras dele:** "posso ter salvo um nome errado e não consigo mais editar.
 Se for um cliente que eu já fiz mais de cinco visitas, é perda ter que apagar e refazer."
@@ -249,6 +210,24 @@ fazia ele perder as tarefas dele).
 - Ao renomear, **arrastar o nome** em `mappo_os` e `mappo_manut`, no mesmo padrão de `da03885`.
 - Impedir renomear para um nome que já existe (mesmo guard de `salvarTecnico`/`vrfSalvarObra`).
 - **Teste obrigatório:** cliente com 5 OS é renomeado → as 5 continuam ligadas a ele.
+
+## Decisões abertas pelo botão "Abrir no mapa" (11/10/2026) 🟡
+
+A entrega do botão está publicada e funcionando. Estas quatro ficaram de fora **de propósito**,
+porque são decisão do proprietário, não dedução minha:
+
+- **Link do Apple Maps é ignorado.** `maps.apple.com` e `g.co/kgs/...` caem na busca pelo
+  endereço em vez de abrir. Cliente de iPhone manda link do Apple Maps.
+- **A lista de TLDs do Google é fechada:** `com`, `com.br`, `co.uk`, `pt`, `es`, `fr`, `de`,
+  `it`, `com.ar`, `com.mx`. É o preço de não aceitar `google.lol` (TLD de 3 letras é
+  registrável por terceiro). Link de `google.co.in` ou `google.com.co` cai na busca.
+  Acrescentar TLD é uma linha.
+- **Manutenção tem endereço e não ganhou o botão**, embora `criarOSdeManut` copie esse mesmo
+  endereço para uma OS que ganha. Assimetria real.
+- **O endereço virou o lugar oficial de colar link, e três telas mostram ele cru:** a página
+  pública do cliente (ele vê a URL solta), o cartão do técnico (corta em 30 caracteres, então
+  vira `Rua X, 10 — https://maps.a`) e o `location=` do evento do Google Agenda. É
+  consequência da decisão "um campo só".
 
 ## Receita do mecanismo de atualização (SONNAR IA)
 

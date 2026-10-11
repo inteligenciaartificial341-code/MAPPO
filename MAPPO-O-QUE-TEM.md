@@ -8,7 +8,7 @@
 > antes do commit + publicação. Ao final de cada publicação: mover o item de
 > `MAPPO-O-QUE-FALTA.md` para cá e registrar no histórico no fim do arquivo.
 
-**Estado:** publicado até o commit `5a34514` · atualizado em 08/10/2026
+**Estado:** publicado até o commit `1d7118f` · atualizado em 11/10/2026
 **Endereço:** https://inteligenciaartificial341-code.github.io/MAPPO/
 
 ---
@@ -110,6 +110,25 @@ Equipe (cadastro, convite, módulos, obras VRF, remoção) · Checklist de Insta
 Checklist VRF · Nome do módulo · Notificações · Google Agenda · Sincronização (forçar sync,
 diagnóstico).
 
+### Abrir no mapa, a partir do endereço
+No detalhe da OS (rodapé do modal) e na tela de execução do técnico há um botão
+**Abrir no mapa**. **Não existe campo novo para preencher:** o app lê o endereço que já está
+cadastrado e decide sozinho.
+
+- Se o endereço **contém um link de mapa** — daqueles que o cliente manda pelo WhatsApp —
+  o botão abre **aquele link**. Vale para `maps.app.goo.gl`, `goo.gl/maps`, `maps.google.*`,
+  `google.*/maps` e `waze.com`.
+- Se **não contém**, o botão abre a busca do Google Maps pelo endereço escrito.
+- **O link é conferido pelo endereço real do site (hostname), nunca por pedaço de texto.**
+  `evil.com/?x=maps.google.com` contém "maps.google" e não é mapa; `google.evil.com`,
+  `evilgoo.gl` e `notwaze.com` também não passam. O que não for mapa **não sequestra o botão**:
+  cai na busca pelo endereço. Só `http` e `https` abrem.
+- **Apóstrofo e parêntese dentro do link não cortam mais o endereço.** Um link de
+  `.../place/D'Avila+Comercio` abre inteiro; antes abriria `.../place/D` — levando o técnico
+  ao lugar errado **sem avisar**, que é pior que não ter botão.
+- Toque repetido abre **uma** vez; se o navegador bloquear a aba, o app **avisa** em vez de
+  ficar mudo.
+
 ## 5. Funções do técnico
 
 ### Execução de uma OS — 4 passos
@@ -148,6 +167,9 @@ Devolvida para revisão, o técnico vê o motivo e refaz.
 - Login real por e-mail e senha; isolamento total entre empresas
 - Dados sensíveis (equipe, preços, financeiro, checklists, obras) só o gestor altera
 - Localização só com consentimento; GPS ao vivo expira sozinho
+- **A posição de cada pessoa é um documento só dela** (`live/{uid}`): só o dono escreve,
+  ninguém apaga — nem ele — e o caminho antigo, que era compartilhado, está **negado a**
+  **todos**, inclusive ao gestor. Posição é a prova de onde o técnico esteve
 - Links públicos expiram em 30 dias e são revogáveis; convites de acesso expiram em 7 dias
 - **Técnico removido perde o acesso na hora**, sem precisar recarregar a página
 - Escape de conteúdo digitado (XSS) e verificação de integridade das bibliotecas externas (SRI)
@@ -251,6 +273,18 @@ que já funcionavam e **não havia como perceber** antes do usuário.
   Emulator" existia desde sempre sem suíte versionada: as verificações de `c56d38b` (19), da
   auditoria de 01/09 (50) e do ponteiro de workspace (9) foram rodadas à mão e
   **descartadas**. Agora é `npm run test:regras`, e entra sozinha no `npm test`
+- **Publicar as regras deixou de ser ato de memória** (`npm run regras:publicar`): o comando
+  roda a suíte de regras **primeiro** e só publica se ela passar; no fim imprime o sha256 do
+  arquivo publicado, o commit e se a árvore estava suja, para sobrar com o que conferir
+  depois. Antes não existia passo de publicação em lugar nenhum — editar as regras, ficar
+  verde, commitar e **esquecer de publicar** deixava produção com as regras antigas e o
+  `npm test` verde do mesmo jeito. O comando tem suíte própria (`teste-publicarregras.js`),
+  porque ele é o único ponto que decide "pode publicar"
+- **E dá para medir o que produção de fato aplica** (`diag-regrasreais.js`, fora do
+  `npm test`): a ferramenta do Firebase publica regras mas **não consegue ler de volta**, então
+  o diagnóstico não compara texto — ele **tenta operações que as regras devem negar** e acusa
+  qualquer uma que passe. Rodado em 10/10/2026, logo depois da primeira publicação por esse
+  caminho: **0 sondas passaram**
 - **A suíte de regras nunca toca em produção:** projeto `demo-mappo-regras` no emulador
   local — o prefixo `demo-` é a garantia do próprio Firebase de que nem o SDK nem o emulador
   falam com um projeto real. Sem credencial, sem `firebase login`, sem rede. Custo zero,
@@ -272,8 +306,9 @@ que já funcionavam e **não havia como perceber** antes do usuário.
 - **Artefatos da falha guardados:** quando o CI fica vermelho, as capturas de tela e os PDFs
   gerados pelas suítes ficam anexados à execução por 7 dias, em vez de morrerem com o runner
 - **Os que batem em produção ficam fora** do `npm test` e do CI (`diag-difer`,
-  `diag-linkreal`, `diag-pubreal`, `diag-swcache` — quantos são, em `npm run test:lista`): dependem de rede, do site publicado e do estado da
-  conta do proprietário. Rodam só à mão, com `npm run test:producao`
+  `diag-linkreal`, `diag-pubreal`, `diag-swcache`, `diag-regrasreais` — quantos são, em
+  `npm run test:lista`): dependem de rede, do site publicado e do estado da conta do
+  proprietário. Rodam só à mão, com `npm run test:producao`
 - **Timeout de 5 minutos por suíte:** suíte travada é abortada, contada como falha e
   nomeada — nunca deixa o CI pendurado
 - **Regra escrita em `CLAUDE.md`:** todo defeito relatado **vira teste antes de virar
@@ -292,6 +327,9 @@ que já funcionavam e **não havia como perceber** antes do usuário.
 
 | Data | Commit | O que entrou |
 |---|---|---|
+| 11/10/2026 | `1d7118f` | **Abrir no mapa a partir do endereço, e nome com apóstrofo volta a funcionar.** Duas metades. (1) **Um cliente chamado `Sant'Ana` tinha o histórico inalcançável**, e isso foi medido no app publicado, não deduzido: o nome ia dentro de um `onclick` por `escapeHtml`, que vira `'` em `&#39;` — o parser de HTML desfaz a entidade **antes** de o JavaScript ler, e o apóstrofo fechava a string no meio (`SyntaxError`, cartão sem reação). A revisão mostrou que eu tinha varrido errado: a família era de **três** lugares, não um — também a lixeira de nota financeira e o "ver no mapa" do check-in de GPS, os dois com nome de pessoa. (2) O botão **Abrir no mapa**, sem campo novo. A revisão de três camadas achou o que as duas suítes verdes não cobriam: a extração da URL **truncava no apóstrofo** (o mesmo caractere da outra metade, reaparecendo pelo outro lado) e levava a lugar errado em silêncio; `google.lol`, `goo.gl/qualquercoisa` e qualquer subdomínio `.waze.com` passavam; o `window.open` com string de features virava popup, que é bloqueado em PWA instalado **sem lançar erro**, deixando o aviso inalcançável; e o botão **nascia atrás do rodapé grudado do modal em 375×667, 360×640 e 320×568** — medido com `elementFromPoint`, 3 de 4 telas, e resolvido movendo-o para o rodapé. **21 mutações rodadas; 7 garantias estavam sem rede** e ganharam caso. O agente **recusou uma instrução minha** do spec, com medição: tirar as aspas do conjunto da URL quebraria link colado entre aspas — virou regra de equilíbrio (aspa ímpar é delimitador, par é parte do endereço) |
+| 10/10/2026 | `d23f1d7` | **Fecha o Bloco 2, e publicar regra deixa de ser ato de memória.** Duas metades. (1) **O caminho antigo de posição saiu de circulação:** `mappo_locations` e `mappo_live` saíram de `SYNC_KEYS` — o app não aplica mais nenhum dos dois — e a regra passou a **negar escrita neles a todos, inclusive ao gestor**. Enquanto esse caminho era escrevível, qualquer membro podia falsificar onde um colega esteve, e isso é a prova do serviço; o documento por uid já tinha precedência desde `bd4bfd6`, mas a garantia só valia para quem tinha atualizado. Só pôde sair porque o proprietário confirmou em 08/10/2026 que **hoje só ele usa o app** — com alguém na versão antiga, essa pessoa sumiria do mapa. O caso `[GAP ACEITO]` que afirmava "técnico escreve o blob de outra pessoa" virou **negado**. (2) **Publicar as regras ganhou mecanismo:** `npm run regras:publicar` só publica com a suíte verde, e `diag-regrasreais.js` mede o **comportamento** de produção em vez de ler arquivo, porque a ferramenta do Firebase publica mas não lê de volta. As regras foram publicadas por esse caminho no mesmo dia, e a medição logo depois deu **0 sondas passaram** |
+| 08/10/2026 | `825b233` | **O que está pronto sai do `O-QUE-FALTA`.** O arquivo de pendências tinha 783 linhas, e 44% delas eram material de consulta — a receita de atualização do SONNAR, que virou `RECEITA-ATUALIZACAO.md` — mais seções de trabalho já publicado que nunca foram movidas. Ficou com 257. No `CLAUDE.md`, a autorização de commit passou a **incluir publicar**: eram dois pedidos para uma decisão que o proprietário já tinha tomado nas duas vezes. Continua em duas etapas só a entrega que depende de ele publicar a regra antes, senão o recurso nasce morto |
 | 08/10/2026 | `5a34514` | **Nenhuma recarga escapa da guarda, e a página do cliente não recarrega sozinha.** A faixa de "sem conexão" tinha `onclick=()=>location.reload()` no elemento inteiro: um toque em qualquer ponto dela recarregava por cima de foto sendo gravada — o mesmo caminho de perda que a entrega anterior veio eliminar, a um `if` de distância, e que dói mais justamente offline. E a página do cliente ainda recarregava sozinha, porque a guarda não sabia nada de modo público. A revisão de três camadas pegou um defeito que iria ao ar: a primeira versão ligava uma bandeira global que **desligava o teto anti-laço** das recargas automáticas pelo resto da vida da página — a rede contra o app piscar sem abrir. Resolvido fazendo a intenção viajar com o pedido. **Doze mutações, doze vermelhos.** Confirmado em campo pelo proprietário em 08/10/2026 |
 | 05/10/2026 | `42d2f8f` | **O aviso de versão nova ganhou a cara do MAPPO.** Usava âmbar de alerta (`#fffbeb`) e ficava no topo do layout sem `position:fixed`, sumindo de vista com a página rolada. Virou pílula fixa na paleta da logo, com ícone do próprio sistema do app. A revisão pegou duas coisas que iriam ao ar: a pílula **aparecia na página do cliente** (regressão de tirá-la de dentro do `#app` para deixá-la fixa) e, no celular, **cobria o botão "Nova OS" e roubava o toque** — medido com `elementFromPoint` |
 | 03/10/2026 | `0016f50` | **O aviso de versão nova funcionava ao contrário**, e isso foi medido, não deduzido: avisava na **primeira instalação** e ficava **mudo** em toda publicação real. O `sw.js` tinha um único commit contra 41 mudanças do `index.html` depois dele, e o navegador só instala um Service Worker novo quando esses bytes mudam. O `CACHE_VERSION` passou a ser a impressão digital da casca, com suíte guardiã. Fora do escopo, a instrumentação expôs um defeito anterior: **a migração de fotos das OS podia se marcar como concluída deixando os bytes no aparelho** — o `setInterval` de 5 s trocava o `osList` no meio do `await` e os setters escreviam num objeto órfão. Silencioso e permanente |
