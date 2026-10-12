@@ -6434,12 +6434,27 @@ function osCardHTML(os){
 /* ═══════════ CLIENTES ═══════════ */
 function renderClientes(){
   // agrega clientes das OS
-  const mapC={};
+  /* Object.create(null), nunca {}: cliente chamado "toString", "constructor", "valueOf",
+     "__proto__" ou "hasOwnProperty" fazia mapC[o.cliente] achar o membro HERDADO do protótipo
+     de Object, o if(!mapC[...]) logo abaixo não criava a entrada, e o .push morria com
+     "Cannot read properties of undefined (reading 'push')" -- a tela de Clientes INTEIRA caía.
+     Não são cinco nomes: é qualquer membro do protótipo. Mapa sem protótipo não herda nenhum. */
+  const mapC=Object.create(null);
   osList.forEach(o=>{
     if(!mapC[o.cliente])mapC[o.cliente]={nome:o.cliente,endereco:o.endereco,visitas:[]};
     mapC[o.cliente].visitas.push(o);
   });
-  clientes.forEach(c=>{if(!mapC[c.nome])mapC[c.nome]={...c,visitas:[]};});
+  /* O REGISTRO VENCE o que foi copiado da OS. As OS entram primeiro (acima) trazendo
+     `endereco:o.endereco`, e com um `if(!mapC[c.nome])` sozinho o endereço que o gestor acabou
+     de digitar na edição NUNCA aparecia para cliente que já tem OS -- medido gravando
+     "ENDERECO NOVO, 999" e vendo o cartão seguir com o da OS. Agora o registro preenche
+     endereço e contato também quando a chave já existe, e só quando tem valor: campo vazio no
+     registro não apaga o endereço que a OS conhece. */
+  clientes.forEach(c=>{
+    if(!mapC[c.nome]){mapC[c.nome]={...c,visitas:[]};return;}
+    if(c.endereco)mapC[c.nome].endereco=c.endereco;
+    if(c.contato)mapC[c.nome].contato=c.contato;
+  });
   const lista=Object.values(mapC);
 
   return `
@@ -6454,13 +6469,23 @@ function renderClientes(){
        do escJsAttr -- com escapeHtml, "Sant'Ana" deixava o cartão sem reação ao toque. */
     return `<div class="os-card" onclick="openHistoricoCliente(${escJsAttr(c.nome)})">
       <div class="os-card-top">
-        <div><div class="os-client">${escapeHtml(c.nome)}</div><div class="os-addr">📍 ${escapeHtml(c.endereco||'Sem endereço')}</div></div>
+        <div><div class="os-client">${escapeHtml(c.nome)}</div><div class="os-addr">📍 ${escapeHtml(c.endereco||'Sem endereço')}</div>${c.contato?`<div class="os-addr" style="margin-top:3px">📞 ${escapeHtml(c.contato)}</div>`:''}</div>
         <span class="badge b-concluida">${total} visita${total!==1?'s':''}</span>
       </div>
       <div class="os-meta">
         <div class="os-meta-i"><span>✅</span>${conc} concluídas</div>
         <div class="os-meta-i"><span>🔄</span>${c.visitas.filter(v=>v.status!=='concluida').length} em aberto</div>
       </div>
+      <!-- event.stopPropagation(): o cartão inteiro tem onclick de abrir o histórico, e sem
+           isto o toque no botão abriria os dois. escJsAttr pelo mesmo motivo do cartão. -->
+      <!-- GEOMETRIA DO ALVO, medida em celular (12/10/2026), nos quatro tamanhos:
+           o max-width de 100% menos 60px tira o botão de baixo do FAB "Nova OS" (posição fixa,
+           right 16px, 52px, z-index 71): a ponta direita devolvia button.fab no hit-test, então
+           mirar ali abria openModalOS() em vez de editar. 28 px eram roubados em 390/375/360/320.
+           O min-height de 44px é o mínimo de alvo do iOS -- a classe btn-sm dá 34 px. O padding de
+           11px sozinho NÃO chega a 44: o "Novo cliente", que usa esse padding, mede 40 px (medido).
+           Estilo LOCAL de propósito: btn-sm é compartilhado com o app inteiro. -->
+      <button class="btn btn-ghost btn-sm" style="width:100%;max-width:calc(100% - 60px);margin-top:10px;min-height:44px;padding:11px" onclick="event.stopPropagation();openModalCliente(${escJsAttr(c.nome)})">${svgIco('edit','ico-sm')} Editar cliente</button>
     </div>`;
   }).join('')}</div>`:emptyState('clientes','Nenhum cliente ainda','Os clientes aparecem aqui conforme você cria ordens de serviço.')}`;
 }
@@ -9640,28 +9665,311 @@ function criarOSdeManut(id){
 }
 function agendarProximaManut(osId){const os=osList.find(o=>o.id===osId);if(!os)return;closeModal();openModalManut({cliente:os.cliente,endereco:os.endereco,tecnico:os.tecnico,dataAgendada:''});}
 
-/* NOVO CLIENTE */
-function openModalCliente(){
-  showModal(`
-    <div class="modal-head"><h2>🏢 Novo cliente</h2></div>
-    <div class="modal-body">
-      <div class="fg"><label>Nome / Razão social</label><input type="text" id="cNome" placeholder="Prefeitura Municipal de..."></div>
-      <div class="fg"><label>Endereço</label><input type="text" id="cEndereco" placeholder="Endereço completo"></div>
-      <div class="fg"><label>Contato</label><input type="text" id="cContato" placeholder="Telefone / responsável"></div>
-    </div>
-    <div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="criarCliente()">✓ Salvar</button></div>`);
+/* NOVO CLIENTE / EDITAR CLIENTE
+   A tela de Clientes mostra a UNIÃO de `clientes` com os nomes que aparecem nas OS: um cliente
+   pode estar lá sem nunca ter tido registro próprio. Por isso tanto o preenchimento do modal de
+   edição quanto a guarda de nome repetido olham as duas fontes -- checar só `clientes` deixaria
+   um rename juntar dois históricos em silêncio. */
+function _clienteUniao(nome){
+  const reg=clientes.find(c=>c.nome===nome);
+  const os=osList.find(o=>o.cliente===nome);
+  const mn=manutencoes.find(m=>m.cliente===nome);
+  return {
+    nome:nome,
+    endereco:(reg&&reg.endereco)||(os&&os.endereco)||(mn&&mn.endereco)||'',
+    contato:(reg&&reg.contato)||''
+  };
 }
-function criarCliente(){
-  const nome=document.getElementById('cNome').value.trim();if(!nome){toast('Informe o nome','warn');return;}
-  clientes.push({nome,endereco:document.getElementById('cEndereco').value.trim(),contato:document.getElementById('cContato').value.trim()});
-  saveClientes();closeModal();renderView(currentView);toast('Cliente salvo','success');
+/* Normalização SÓ PARA COMPARAR. O nome é GUARDADO como o gestor digitou (apenas `trim`) -- a
+   normalização é da comparação, nunca do dado. Sem ela passavam, medidos como aceitos contra
+   "Prefeitura Municipal" já existente: espaço duplo no meio, U+200B (largura zero) e U+00A0
+   (NBSP) no lugar do espaço. O resultado eram dois cartões idênticos na tela, cada um com parte
+   do histórico. A largura zero sai ANTES do colapso: o `\s` do JS NÃO inclui U+200B, mas inclui
+   NBSP e U+FEFF -- se o U+FEFF fosse tratado só pelo colapso viraria espaço em vez de
+   desaparecer, e um nome partido por ele nunca bateria com o mesmo nome inteiro. */
+function _normNome(s){
+  return String(s==null?'':s).replace(/[​-‍⁠﻿]/g,'').replace(/\s+/g,' ').trim().toLowerCase();
+}
+/* Devolve o nome JÁ EXISTENTE que colide, ou '' quando o nome está livre. Comparação normalizada
+   (sem diferenciar maiúscula de minúscula, igual a salvarTecnico e vrfSalvarObra). `nomeAntigo` é
+   o próprio cliente em edição: trocar só a caixa do nome dele ("joão silva" -> "João Silva") é
+   ele mesmo, não duplicata. Esta função é SÓ do caminho de EDIÇÃO -- o cadastro tem regra
+   própria e mais frouxa, em _clienteNomeEmUsoAoCriar.
+   O que esta função NÃO vê, de propósito: outra grafia do próprio nome com histórico próprio.
+   Recusar ali impediria o gestor de corrigir a caixa; quem trata esse caso é a fusão
+   confirmada em criarCliente (ver _clienteGrafias). */
+function _clienteNomeEmUso(nome,nomeAntigo){
+  const alvo=_normNome(nome);
+  const eu=_normNome(nomeAntigo);
+  const bate=(n)=>n!=null&&n!==''&&_normNome(n)===alvo&&_normNome(n)!==eu;
+  const emClientes=clientes.find(c=>bate(c.nome));
+  if(emClientes)return emClientes.nome;
+  const emOs=osList.find(o=>bate(o.cliente));
+  if(emOs)return emOs.cliente;
+  const emManut=manutencoes.find(m=>bate(m.cliente));
+  return emManut?emManut.cliente:'';
+}
+/* Todas as grafias JÁ EXISTENTES (em `clientes`, nas OS ou nas manutenções) que normalizam para
+   o mesmo nome. É o que distingue "é o meu próprio nome com outra caixa" de "é outra grafia, com
+   histórico próprio" -- e a segunda é FUSÃO de histórico de serviço executado.
+   Object.create(null), nunca {}: cliente chamado "toString" ou "__proto__" acharia o membro
+   herdado do protótipo de Object e a grafia seria perdida (mesma lição de renderClientes). */
+function _clienteGrafias(nome){
+  const alvo=_normNome(nome);
+  const vistos=Object.create(null);
+  const add=(n)=>{if(n!=null&&n!==''&&_normNome(n)===alvo)vistos[n]=true;};
+  clientes.forEach(c=>add(c.nome));
+  osList.forEach(o=>add(o.cliente));
+  manutencoes.forEach(m=>add(m.cliente));
+  return Object.keys(vistos);
+}
+/* A guarda do CADASTRO, que não é a mesma da edição -- decidido pelo proprietário em
+   12/10/2026 depois de medido contra e910054. Lá o cadastro de um cliente que existia só nas OS
+   SALVAVA; passar _clienteNomeEmUso(nome,null) aqui passou a RECUSAR, e o endereço e o telefone
+   que o gestor acabou de digitar eram perdidos. É regressão num fluxo legítimo: o cliente existe
+   só nas OS e "Novo cliente" é exatamente como ele finalmente ganha registro próprio.
+   O que continua recusando, e por quê:
+   - registro já existente em `clientes` (comparação normalizada): dois registros com o mesmo
+     nome são dado corrompido, e é o mesmo que a edição recusa;
+   - histórico numa grafia DIFERENTE da digitada. Não é burocracia: `renderClientes` agrupa por
+     nome EXATO, então cadastrar "Acme" com as OS em "ACME" criaria DOIS cartões -- um com 0
+     visitas e outro com todas, pior que a recusa. Devolvendo a grafia que já está lá, o gestor
+     usa aquela e tudo cai no mesmo cartão.
+   Grafia exatamente igual ao histórico: PERMITE. Devolve o nome que colide, ou '' se está livre. */
+function _clienteNomeEmUsoAoCriar(nome){
+  const alvo=_normNome(nome);
+  const emClientes=clientes.find(c=>c.nome!=null&&c.nome!==''&&_normNome(c.nome)===alvo);
+  if(emClientes)return emClientes.nome;
+  const grafias=_clienteGrafias(nome);
+  /* Grafia EXATA presente no histórico: PERMITE, mesmo que existam OUTRAS grafias também
+     (OS em 'Acme' e em 'ACME', gestor cadastra 'Acme'). Decidido pelo proprietário em
+     12/10/2026. Recusar aqui não protegia nada: o cartão da grafia digitada já está na tela,
+     e juntar as grafias é trabalho de 'Editar cliente', que PERGUNTA antes de fundir. */
+  if(grafias.indexOf(nome)>=0)return '';
+  const outraGrafia=grafias.filter(g=>g!==nome);
+  return outraGrafia.length?outraGrafia[0]:'';
+}
+/* `nomeAtual` é OPCIONAL: sem ele é cadastro novo, com ele é edição. A chamada sem parâmetro
+   no botão "Novo cliente" de renderClientes NÃO muda -- o minitutorial usa aquele onclick
+   LITERAL como seletor CSS de um dos passos (ver TOUR_VIEWS_GESTOR), e mexer nela faria o passo ser
+   pulado em silêncio. O botão de editar do cartão tem onclick diferente e não colide. */
+function openModalCliente(nomeAtual){
+  const editando=nomeAtual!=null&&nomeAtual!=='';
+  const c=editando?_clienteUniao(nomeAtual):{nome:'',endereco:'',contato:''};
+  showModal(`
+    <div class="modal-head"><h2>🏢 ${editando?'Editar cliente':'Novo cliente'}</h2></div>
+    <div class="modal-body">
+      <div class="fg"><label>Nome / Razão social</label><input type="text" id="cNome" value="${escapeHtml(c.nome)}" placeholder="Prefeitura Municipal de..."></div>
+      <div class="fg"><label>Endereço</label><input type="text" id="cEndereco" value="${escapeHtml(c.endereco)}" placeholder="Endereço completo"></div>
+      <div class="fg"><label>Contato</label><input type="text" id="cContato" value="${escapeHtml(c.contato)}" placeholder="Telefone / responsável"></div>
+    </div>
+    <!-- Rótulo CURTO também na edição. "✓ Salvar alterações" mede 164 px e 164+100+10 não cabe
+         nos 266 px de rodapé de um 360 nem nos 226 de um 320: o rodapé quebrava em duas linhas
+         (130 px contra 79) e jogava a ação primária ABAIXO do "Cancelar" (medido em 12/10/2026).
+         Quem diz que a edição é edição é o título do modal, logo acima. -->
+    <div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-primary" onclick="criarCliente(${editando?escJsAttr(nomeAtual):''})">✓ Salvar</button></div>`);
+}
+/* Quantas OS e quantas manutenções existem numa grafia exata. Só serve para o gestor saber o
+   TAMANHO do que vai ser juntado antes de confirmar. */
+function _clienteContagem(grafia){
+  return {os:osList.filter(o=>o.cliente===grafia).length,
+          mn:manutencoes.filter(m=>m.cliente===grafia).length};
+}
+/* FUSÃO DE HISTÓRICO: avisa e pergunta, em vez de acontecer calada.
+   Duas grafias do mesmo nome ("Acme" e "ACME") são quase sempre o mesmo cliente digitado de
+   dois jeitos, e juntar é o que o gestor quer -- recusar o impediria de corrigir a caixa. O que
+   não pode é o silêncio: histórico de serviço executado é prova de trabalho feito. `confirm` é o
+   mesmo idioma de removerTecnico, e cancelar NÃO muda nada em lugar nenhum (quem garante isso é
+   a ordem: esta pergunta vem ANTES de qualquer mutação). */
+function _confirmarFusaoCliente(nomeAntigo,nome,outras){
+  const descr=(g)=>{
+    const c=_clienteContagem(g);
+    return '• "'+g+'": '+c.os+' visita'+(c.os===1?'':'s')+' e '+c.mn+' manutenç'+(c.mn===1?'ão':'ões');
+  };
+  const linhas=[descr(nomeAntigo)].concat(outras.map(descr)).join('\n');
+  return confirm('JUNTAR DOIS HISTÓRICOS?\n\n'+
+    'Este mesmo cliente já está cadastrado escrito de outro jeito. Salvar com o nome "'+nome+
+    '" junta tudo num só cliente:\n\n'+linhas+
+    '\n\nTodo esse histórico passa a aparecer junto, sob o nome "'+nome+
+    '". Isso não se desfaz sozinho.\n\nJuntar?');
+}
+/* Gravação que falhou é dado que NÃO existe. Memória cheia é incidente documentado deste
+   projeto: o interceptor de setItem já abre o aviso bloqueante quando reconhece a cota, mas ele
+   fala do aparelho -- quem chamou é que sabe dizer O QUÊ ficou de fora. Sem esta linha a edição
+   do cliente sumia sem nenhum aviso próprio. */
+function _avisarFalhaCliente(e,oque){
+  const cod=(e&&(e.code||e.name))||'?';
+  const msg=(e&&e.message)||'?';
+  fbLog('Falha ao salvar cliente: '+cod+' — '+msg,'erro');
+  console.error('[MAPPO] falha ao salvar cliente:',cod,msg);
+  if(_ehErroDeCota(e)){
+    toast('Memória do aparelho cheia — '+oque,'warn');
+    _avisarMemoriaCheia();
+  }else toast('Não foi possível salvar — '+oque,'warn');
+}
+/* O nome do cliente é a CHAVE DE LIGAÇÃO com o histórico dele: fica guardado em `o.cliente`
+   (mappo_os) e `mn.cliente` (mappo_manut). Renomear sem arrastar o nome junto desliga o cliente
+   do próprio histórico de serviço executado -- o mesmo defeito já corrigido com técnicos em
+   da03885. Molde: _renomearTecnicoEmDados. Aqui o arraste é MENOR de propósito: não existe
+   avatar, posição de GPS nem tarefa por cliente, então nada disso é copiado.
+
+   O documento público (pub_*) da OS não é reescrito aqui -- e NÃO precisa ser: `mappo_os` está
+   em PUB_KEYS, então saveOS() -> interceptor -> _marcarAlteracaoLocal -> agendarRepublicacao()
+   e, 3 s depois, republicarAtivos() remonta o payload com `titulo:os.cliente` já corrigido.
+   Medido espionando publicarAcompanhamento: sem renomear, nenhuma publicação; depois do rename,
+   o título novo no documento. O link que o cliente já recebeu passa a mostrar o nome certo
+   sozinho, e não há nada para o gestor fazer à mão. Só com o app offline (fbReady falso) a
+   atualização fica para a próxima sincronização -- e é isso, e só isso, que o toast diz.
+
+   TUDO GRAVA OU NADA GRAVA. As três gravações (clientes, OS, manutenções) não são atômicas no
+   localStorage. Com a memória do aparelho cheia no meio do caminho, o disco ficava com o
+   registro no nome NOVO e TODO o histórico no ANTIGO; e a memória pior ainda -- `osList` já
+   renomeada e `manutencoes` não, de forma que um saveOS() posterior gravaria o rename das OS
+   deixando as manutenções órfãs para sempre. Agora cada mutação registra como se desfaz, e
+   qualquer falha volta memória E disco ao estado anterior. */
+function _aplicarCliente(nomeAntigo,nome,endereco,contato,outras){
+  const desfaz=[];           // desfaz a MEMÓRIA, executado na ordem inversa
+  const discoAntes={};       // valor no disco ANTES da primeira gravação de cada chave
+  const gravadas=[];
+  const gravar=(key,fn)=>{
+    if(!(key in discoAntes))discoAntes[key]=localStorage.getItem(key);
+    fn();
+    if(gravadas.indexOf(key)<0)gravadas.push(key);
+  };
+  let qtdOs=0,qtdManut=0,comLinkPublico=0;
+  try{
+    /* 1. o registro próprio. Cliente que só existia nas OS não tem registro em `clientes`:
+          ganha um agora, em vez de a edição ser descartada em silêncio. */
+    let reg=clientes.find(x=>x.nome===nomeAntigo);
+    if(reg){
+      const r=reg,ant={nome:reg.nome,endereco:reg.endereco,contato:reg.contato};
+      desfaz.push(()=>{r.nome=ant.nome;r.endereco=ant.endereco;r.contato=ant.contato;});
+      reg.nome=nome;reg.endereco=endereco;reg.contato=contato;
+    }else{
+      reg={nome:nome,endereco:endereco,contato:contato};
+      const novo=reg;
+      clientes.push(novo);
+      desfaz.push(()=>{const i=clientes.indexOf(novo);if(i>=0)clientes.splice(i,1);});
+    }
+    /* 2. só na fusão: os registros das OUTRAS grafias saem de `clientes`, porque dois registros
+          com o mesmo `nome` seriam dado corrompido. O que eles têm e o sobrevivente não tem é
+          aproveitado -- ausência de um lado nunca apaga o que existe do outro. */
+    const sobrev=reg;
+    for(const g of outras){
+      for(let i=clientes.length-1;i>=0;i--){
+        const x=clientes[i];
+        if(x===sobrev||x.nome!==g)continue;
+        if(!sobrev.endereco&&x.endereco){const a=sobrev.endereco;sobrev.endereco=x.endereco;desfaz.push(()=>{sobrev.endereco=a;});}
+        if(!sobrev.contato&&x.contato){const a=sobrev.contato;sobrev.contato=x.contato;desfaz.push(()=>{sobrev.contato=a;});}
+        clientes.splice(i,1);
+        const idx=i,obj=x;
+        desfaz.push(()=>{clientes.splice(idx,0,obj);});
+      }
+    }
+    /* 3. o arraste do histórico. TODAS as grafias envolvidas, não só a exata: na fusão, o
+          `o.cliente===nomeAntigo` sensível à caixa deixaria as outras grafias para trás --
+          cada uma virando um cartão órfão com um pedaço do histórico. */
+    const alvos=[nomeAntigo].concat(outras);
+    osList.forEach(o=>{
+      if(o.cliente===nome||alvos.indexOf(o.cliente)<0)return;
+      const a=o.cliente;
+      desfaz.push(()=>{o.cliente=a;});
+      o.cliente=nome;qtdOs++;
+      if(o.pubToken)comLinkPublico++;
+    });
+    manutencoes.forEach(mn=>{
+      if(mn.cliente===nome||alvos.indexOf(mn.cliente)<0)return;
+      const a=mn.cliente;
+      desfaz.push(()=>{mn.cliente=a;});
+      mn.cliente=nome;qtdManut++;
+    });
+    /* As gravações, por último e em bloco. OS e manutenções só são gravadas quando de fato
+       mudaram: `_marcarAlteracaoLocal` dispara fbPush e agendarRepublicacao sem comparar o
+       antes com o depois, então um saveOS() inútil custaria uma republicação inteira. */
+    gravar('mappo_clientes',saveClientes);
+    if(qtdOs)gravar('mappo_os',saveOS);
+    if(qtdManut)gravar('mappo_manut',saveManut);
+    return {ok:true,qtdOs:qtdOs,qtdManut:qtdManut,comLinkPublico:comLinkPublico};
+  }catch(e){
+    for(let i=desfaz.length-1;i>=0;i--){
+      try{desfaz[i]();}
+      catch(e2){fbLog('Falha ao desfazer a edição do cliente em memória: '+(e2&&(e2.code||e2.name))+' — '+(e2&&e2.message),'erro');}
+    }
+    gravadas.forEach(k=>{
+      try{
+        if(discoAntes[k]===null)localStorage.removeItem(k);
+        else localStorage.setItem(k,discoAntes[k]);
+      }catch(e2){fbLog('Falha ao desfazer a gravação de '+k+': '+(e2&&(e2.code||e2.name))+' — '+(e2&&e2.message),'erro');}
+    });
+    return {ok:false,erro:e,qtdOs:0,qtdManut:0,comLinkPublico:0};
+  }
+}
+function criarCliente(nomeAntigo){
+  const editando=nomeAntigo!=null&&nomeAntigo!=='';
+  const nome=document.getElementById('cNome').value.trim();
+  /* `trim()` não remove largura zero nem NBSP sozinho: um nome feito só de caracteres
+     invisíveis passaria pelo `!nome` e criaria um cliente sem nome visível na tela. */
+  if(!nome||!_normNome(nome)){toast('Informe o nome','warn');return;}
+  const endereco=document.getElementById('cEndereco').value.trim();
+  const contato=document.getElementById('cContato').value.trim();
+  const emUso=editando?_clienteNomeEmUso(nome,nomeAntigo):_clienteNomeEmUsoAoCriar(nome);
+  if(emUso){toast('Já existe cliente com esse nome: '+emUso,'warn');return;}
+  if(!editando){
+    const novo={nome:nome,endereco:endereco,contato:contato};
+    clientes.push(novo);
+    try{saveClientes();}
+    catch(e){const i=clientes.indexOf(novo);if(i>=0)clientes.splice(i,1);_avisarFalhaCliente(e,'o cliente NÃO foi cadastrado');return;}
+    closeModal();renderView(currentView);toast('Cliente salvo','success');
+    return;
+  }
+  const renomeou=nome!==nomeAntigo;
+  /* FUSÃO: o nome de destino já existe em OUTRA grafia (só a caixa ou os espaços diferem), com
+     histórico próprio. _clienteNomeEmUso não recusa isso de propósito; aqui o gestor vê o
+     tamanho dos dois lados e decide. Esta pergunta vem ANTES de qualquer mutação, que é o que
+     garante que cancelar não muda nada. */
+  const outras=renomeou?_clienteGrafias(nome).filter(g=>g!==nomeAntigo):[];
+  if(outras.length&&!_confirmarFusaoCliente(nomeAntigo,nome,outras))return;
+  const r=_aplicarCliente(nomeAntigo,nome,endereco,contato,outras);
+  if(!r.ok){_avisarFalhaCliente(r.erro,'NADA foi alterado: o cliente e o histórico continuam como estavam');return;}
+  closeModal();
+  renderView(currentView);
+  let msg;
+  if(outras.length){
+    const total=osList.filter(o=>o.cliente===nome).length+manutencoes.filter(m=>m.cliente===nome).length;
+    msg='Históricos juntados — '+total+' registro'+(total===1?'':'s')+' sob o nome "'+nome+'"';
+  }else if(renomeou){
+    const n=r.qtdOs+r.qtdManut;
+    msg='Cliente renomeado — '+n+' registro'+(n===1?'':'s')+' do histórico atualizado'+(n===1?'':'s');
+  }else msg='Cliente atualizado';
+  /* O link do cliente se atualiza sozinho em 3 s quando há nuvem (ver o comentário de
+     _aplicarCliente). Offline, a republicação fica para a próxima sincronização -- é a única
+     hora em que o gestor precisa saber de alguma coisa sobre o link. */
+  if(renomeou&&r.comLinkPublico>0&&!fbReady)msg+=' · os links já enviados se atualizam na próxima sincronização';
+  toast(msg,'success');
 }
 
 function openHistoricoCliente(nome){
   const visitas=osList.filter(o=>o.cliente===nome).sort((a,b)=>b.data.localeCompare(a.data));
+  /* F4 -- endereço e contato no TOPO, antes do histórico: até 11/10/2026 `contato` era campo
+     que o gestor digitava e NENHUMA tela mostrava. Resolvido por _clienteUniao, que prefere o
+     registro em `clientes` e só cai no endereço da OS quando o cliente nunca teve registro
+     próprio. O CONTATO vazio não vira rótulo órfão; o ENDEREÇO vazio, sim, diz "Sem endereço" --
+     é a mesma frase do cartão de cliente, e a ausência é informação (falta cadastrar). Até
+     12/10/2026 o cartão dizia "Sem endereço" e o detalhe não dizia nada: duas respostas para a
+     mesma pergunta na mesma sessão de uso. */
+  const c=_clienteUniao(nome);
   showModal(`
     <div class="modal-head"><h2>🏢 ${escapeHtml(nome)}</h2></div>
     <div class="modal-body">
+      <!-- min-width 0 e overflow-wrap anywhere, LOCAIS nos dois campos: os-meta é display flex, e
+           item flex não quebra palavra sozinho -- com endereço de 200 caracteres sem espaços o
+           modal-body passou a rolar na horizontal (scrollWidth 1737 contra 350/335/320/280,
+           medido nos quatro tamanhos de celular em 12/10/2026). Estilo local porque os-meta e
+           os-meta-i são do app inteiro. -->
+      <div class="os-meta" style="margin-top:0;padding-top:0;border-top:none;margin-bottom:16px">
+        <div class="os-meta-i" style="min-width:0;overflow-wrap:anywhere">📍 ${escapeHtml(c.endereco||'Sem endereço')}</div>
+        ${c.contato?`<div class="os-meta-i" style="min-width:0;overflow-wrap:anywhere">📞 ${escapeHtml(c.contato)}</div>`:''}
+      </div>
       <label style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--gray-500);display:block;margin-bottom:12px">Histórico de visitas (${visitas.length})</label>
       ${visitas.length?visitas.map(o=>{const s=statusReal(o);const lbl={pendente:'Pendente',andamento:'Em andamento',concluida:'Concluída',atrasada:'Atrasada',revisao:'Revisão'};return `<div class="os-card st-${s}" style="cursor:pointer;margin-bottom:8px" onclick="closeModal();setTimeout(()=>openDetalhe('${o.id}'),250)"><div class="os-card-top"><div><div style="font-weight:600">${escapeHtml(o.tipo)}</div><div class="os-addr">${fmtDate(o.data)} · ${escapeHtml(o.tecnico)}</div></div><span class="badge b-${s}">${lbl[s]}</span></div></div>`}).join(''):'<p style="font-size:14px;color:var(--gray-400)">Nenhuma visita registrada.</p>'}
     </div>

@@ -448,6 +448,70 @@ de opinião em fato.
 
 ---
 
+## Armadilhas de medição — as cinco que já custaram tempo de verdade
+
+Escrito em 12/10/2026. Cada uma destas fez alguém aqui **medir errado e quase relatar defeito
+que não existia** — ou ler um verde que não significava nada. Não são curiosidades: são o motivo
+de um teste de navegador mentir sem reclamar.
+
+### 1. `#loginScreen` continua recebendo toque depois de dizer que está escondido
+
+`#loginScreen` é `position:fixed;inset:0;z-index:1000` com `transition:opacity .5s, visibility .5s`
+(`index.html`, perto da linha 200). `entrarApp()` só acrescenta a classe `.hidden`.
+
+**O `getComputedStyle(l).visibility` já devolve `'hidden'` no começo da transição**, enquanto o
+elemento **continua respondendo a `document.elementFromPoint`** pelos 500 ms seguintes. Esperar
+por `visibility === 'hidden'` não resolve, e esperar 250 ms também não.
+
+Isto pegou **três medições diferentes num único dia**: duas quase viraram relato de defeito
+inexistente ("o botão não recebe o toque"), e a terceira foi numa sonda escrita de propósito para
+evitar a armadilha — com espera em cinco pontos da tela, que **passou** e ainda assim mediu o
+login no caminho.
+
+**O que funciona: remover do DOM**, exatamente como as suítes já fazem com o `splashScreen`:
+
+```js
+const s = document.getElementById('splashScreen'); if (s) s.remove();
+const lg = document.getElementById('loginScreen'); if (lg) lg.remove();
+```
+
+E, em qualquer hit-test, **acuse medição inválida em vez de contar como achado**: se o elemento
+devolvido está dentro de `#loginScreen`, a sonda não mediu nada — reprovar é melhor que devolver
+"0 roubados", que se lê como segurança.
+
+### 2. `#tourRoot` fica na frente de tudo, por desenho
+
+O minitutorial é overlay próprio com backdrop. Limpe antes de medir geometria:
+`const tr = document.getElementById('tourRoot'); if (tr) tr.innerHTML = '';`
+
+### 3. O modal é `#curOverlay`, e `closeModal()` demora 200 ms
+
+Não existe `#modalOverlay`. O modal vive em `#curOverlay` dentro de `#modalRoot`, e "aberto" é
+`ov.classList.contains('open')`. `closeModal()` tira a classe **na hora** mas só limpa o
+`#modalRoot` 200 ms depois — então o **texto** do modal anterior continua no DOM.
+**Para controle negativo, meça a classe, nunca o texto.**
+
+### 4. `startNotifChecker` troca o `osList` a cada 5 segundos
+
+`startNotifChecker` tem um `setInterval` de 5 s que **recarrega `osList` e `manutencoes` do
+`localStorage`**. Qualquer check que espere mais de 5 s tem de **gravar** o cenário antes
+(`saveOS()`, `saveManut()`, `saveClientes()`), senão o intervalo substitui a montagem em memória
+pelo que está no disco. Medido: um rename passou a arrastar **0 OS** por causa disto.
+
+### 5. Vermelho de máquina carregada não é achado
+
+Rodar duas suítes ao mesmo tempo produz falha intermitente. `teste-atualizacao.js` reprovou
+**1 vez em 3** com três revisores disputando CPU, e **5 de 5 verdes** sozinho; `teste-apostrofo.js`
+estourou o timeout de 300 s sob carga e passa sozinho. **Uma suíte por vez**, e se algo vier
+vermelho sob carga, **repita sozinho antes de concluir**.
+
+### E a regra que vale para todas
+
+**Resultado negativo exige controle positivo.** Uma sonda que não casa com nada devolve a mesma
+coisa que uma sonda que casou e não achou: zero. Em todo hit-test, afirme também que a medição
+**mediu** — quantos pontos entraram na conta, e que pelo menos um caiu na faixa perigosa. Sem
+isso, "nenhum problema" e "não consegui medir" são indistinguíveis de fora.
+
 ## Escrever uma suíte nova
 
 O padrão é **um script Node auto-contido** — sem framework, sem `describe`/`it`. Ele sobe
