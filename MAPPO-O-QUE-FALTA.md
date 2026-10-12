@@ -8,7 +8,7 @@
 > `MAPPO-O-QUE-TEM.md` (seção do recurso + linha no histórico). Um item só existe em um
 > dos dois arquivos, nunca nos dois.
 
-**Atualizado em:** 11/10/2026 · publicado até `1d7118f`
+**Atualizado em:** 12/10/2026 · publicado até `62f7086`
 
 **Próximo combinado:** os três pontos de 25/09/2026, na ordem acordada em 10/10/2026 —
 **link do mapa na OS**, **editar cliente** e, por último, **o histórico do mapa por**
@@ -140,8 +140,8 @@ Google** ao concluir a OS — é um link configurável e um botão de WhatsApp, 
 > **A espera acabou:** vinham depois do Bloco 2 (GPS), que fechou em `d23f1d7`, e depois dos
 > testes anti-regressão, entregues em 25/09/2026. Os dois saíram.
 >
-> **Ordem em execução, aprovada pelo proprietário em 10/10/2026: B → C → A.** O **B saiu**
-> em 11/10/2026 — ver `MAPPO-O-QUE-TEM.md`. Resta **C (editar cliente)** e depois **A**.
+> **Ordem acordada com o proprietário em 10/10/2026: B → C → A.** **B e C saíram** (11 e
+> 12/10/2026) — ver `MAPPO-O-QUE-TEM.md`. **Resta o A.**
 > O motivo da ordem não ser a das letras: **hoje só o proprietário usa o app** (confirmado por
 > ele em 08/10/2026). O que justifica o A é "pode ter empresa com 200 prestadores — 40
 > check-ins cobrem menos de dois dias"; com uma pessoa, 40 eventos são semanas. O A é a
@@ -182,34 +182,42 @@ Dois caminhos, ambos já provados neste app:
 **Recomendação: o caminho 1.** Resolve os dois problemas (a lista gigante e o crescimento sem
 fim) com um mecanismo que já existe e já tem teste.
 
-### C. Editar cliente 🔴
+## A porta pequena: nome de cliente nasce sem guarda nenhuma 🟠
 
-> **Achado em 11/10/2026, pela revisão do botão de mapa, e que pertence a este item:**
-> um cliente chamado **`__proto__`**, `constructor` ou `toString` **derruba a tela de Clientes
-> inteira** (`TypeError: Cannot read properties of undefined`), porque `renderClientes()`
-> agrupa as visitas num objeto comum (`mapC={}`) e esses nomes colidem com o protótipo.
-> Medido igual nas duas versões, então é **anterior** e não foi causado pela entrega. A
-> correção é uma linha (`Object.create(null)` ou `Map`) e cabe aqui, porque este item é
-> justamente sobre nome de cliente.
+**Achado em 12/10/2026 pela revisão de "editar cliente", e é a causa do que ela consertou.**
 
+Editar cliente agora recusa nome repetido, normaliza espaço invisível e NBSP, e **pergunta**
+antes de juntar duas grafias. Mas o nome do cliente **não nasce ali** — nasce em `#oCliente`
+(Nova OS) e `#mCliente` (Nova manutenção), que são **texto livre, sem guarda nenhuma**, com um
+`datalist` montado só a partir de `osList`.
 
-**O problema, nas palavras dele:** "posso ter salvo um nome errado e não consigo mais editar.
-Se for um cliente que eu já fiz mais de cinco visitas, é perda ter que apagar e refazer."
+Então o app está secando o chão com a torneira aberta: a cada OS nova o gestor pode digitar
+`Acme`, `ACME` ou `Acme ` e criar mais uma variante que a tela de Clientes mostrará como
+cartão separado — e aí a edição tem de perguntar sobre uma divisão que não precisava existir.
 
-**Verificado:** existe `openModalCliente()` e `criarCliente()`. **Não existe nenhuma função de
-edição** — o cadastro é só de ida.
+**O que fazer:** a mesma normalização e o mesmo aviso de grafia parecida nos dois campos de
+entrada, e o `datalist` montado da **união** (`clientes` + `osList` + `manutencoes`), para o
+nome já cadastrado aparecer como sugestão em vez de ser redigitado à mão.
 
-**A pegadinha técnica, e ela é séria:** o **nome do cliente é a chave de ligação**. O histórico
-é montado com `osList.filter(o => o.cliente === nome)`; manutenções e o link do cliente também
-guardam o nome. Renomear sem arrastar o nome junto **desliga o cliente do próprio histórico** —
-exatamente o defeito que já corrigimos uma vez com técnicos em `da03885` (renomear técnico
-fazia ele perder as tarefas dele).
+**Vale para mais campos que cliente:** técnico, obra, tipo de serviço e item de checklist
+provavelmente têm o mesmo furo — é entrega própria, e é a primeira área da varredura
+sistemática pedida pelo proprietário em 12/10/2026.
 
-**O que fazer:**
-- Tela de edição (nome, endereço, contato), reaproveitando o modal que já existe.
-- Ao renomear, **arrastar o nome** em `mappo_os` e `mappo_manut`, no mesmo padrão de `da03885`.
-- Impedir renomear para um nome que já existe (mesmo guard de `salvarTecnico`/`vrfSalvarObra`).
-- **Teste obrigatório:** cliente com 5 OS é renomeado → as 5 continuam ligadas a ele.
+## Não verificado, e isto não é o mesmo que seguro 🟡
+
+Registrado em 12/10/2026 para não virar silêncio que parece cobertura:
+
+- **`ITEM_LISTS['mappo_clientes']='nome'`** (`index.html`, perto da linha 1740): o merge da
+  nuvem identifica o cliente **pelo nome**, então renomear muda a identidade do registro. A
+  revisão leu `_anotarPendentes` e concluiu que o merge respeita o rename (marca `{'*':1}` nos
+  dois lados), mas **não mediu** — e `teste-doisaparelhos.js` não toca essa chave. Cobrir exige
+  caso com documento remoto simulado.
+- **Gravação parcial é um padrão, não um caso.** O defeito de memória cheia achado em editar
+  cliente (registro renomeado, histórico no nome antigo) foi corrigido ali. **Onde mais o app
+  grava duas ou três chaves em sequência sem saber desfazer?** Não varrido.
+- **Cartão estoura com texto sem espaços** (`scrollWidth` 1803 contra 320–390 de tela): medido
+  **idêntico na versão publicada**, é anterior. A correção vive em `.os-addr`, classe global
+  usada pelo app inteiro, então é entrega própria com medição em outras telas.
 
 ## Decisões abertas pelo botão "Abrir no mapa" (11/10/2026) 🟡
 

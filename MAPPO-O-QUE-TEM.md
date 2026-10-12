@@ -8,7 +8,7 @@
 > antes do commit + publicação. Ao final de cada publicação: mover o item de
 > `MAPPO-O-QUE-FALTA.md` para cá e registrar no histórico no fim do arquivo.
 
-**Estado:** publicado até o commit `1d7118f` · atualizado em 11/10/2026
+**Estado:** publicado até o commit `62f7086` · atualizado em 12/10/2026
 **Endereço:** https://inteligenciaartificial341-code.github.io/MAPPO/
 
 ---
@@ -148,6 +148,10 @@ Devolvida para revisão, o técnico vê o motivo e refaz.
   explícito e tentativa de manter a tela ativa
 - **Avatar** — como aparece no mapa do gestor
 - **Tarefas** — check-in, fotos e notas
+- **Editar cliente** — nome, endereço e contato. Renomear **arrasta o nome** pelas OS e pelas
+  manutenções, então o cliente nunca se desliga do próprio histórico. Nome repetido é recusado
+  nomeando o que já existe; duas grafias do mesmo nome o app **pergunta antes de juntar**, e
+  cancelar não muda nada. Endereço e contato aparecem no cartão e no detalhe
 - **Manutenções** — aparecem sozinhas na data
 - **VRF** — escolha da obra, check-in diário com GPS, aba Missão e abas por andar (marcar etapa,
   foto, nota), mapa e fotos da obra, envio de relatório do dia
@@ -296,6 +300,15 @@ que já funcionavam e **não havia como perceber** antes do usuário.
   porta, para o número não viver em dois arquivos
 - **Suítes x diagnósticos:** suíte reprova de verdade; diagnóstico só mede e nunca reprova
   a execução, então investigação não vira alarme falso
+- **A suíte mede geometria de celular, não só texto** (desde 12/10/2026): a rede media só
+  `textContent` num navegador de 1280×720, e foi por isso que um botão nasceu atrás do rodapé
+  grudado do modal **com a suíte verde**. Agora há casos que abrem contexto de celular em quatro
+  tamanhos (390×844, 375×667, 360×640, 320×568) e afirmam altura de alvo, sobreposição e
+  `elementFromPoint` — e que **acusam medição inválida** em vez de devolver "nada encontrado"
+  quando a tela de login ainda está no caminho
+- **As cinco armadilhas de medição estão escritas** em `testes/README.md`, com o episódio real de
+  cada uma. A da tela de login pegou três medições num único dia, e duas delas quase viraram
+  relato de defeito inexistente
 - **GitHub Actions a cada push em `main` e a cada PR** (`.github/workflows/testes.yml`):
   roda o mesmo `npm test` e **marca** o commit. Custo zero — só runner público gratuito.
   O CI não publica, não faz deploy e não toca em produção. **Marcar não é impedir:** o job
@@ -327,6 +340,7 @@ que já funcionavam e **não havia como perceber** antes do usuário.
 
 | Data | Commit | O que entrou |
 |---|---|---|
+| 12/10/2026 | `62f7086` | **Editar cliente, sem desligar o cliente do próprio histórico.** Não existia edição: o cadastro era só de ida, e o proprietário descreveu a dor assim — *"posso ter salvo um nome errado e não consigo mais editar. Se for um cliente que eu já fiz mais de cinco visitas, é perda ter que apagar e refazer."* O nome do cliente é a **chave de ligação** (`osList.filter(o=>o.cliente===nome)` e `mn.cliente`), então renomear arrasta o nome pelas OS e manutenções, no padrão provado de `da03885`; uma falha de gravação no meio **desfaz tudo**, memória e disco, em vez de deixar o registro renomeado e o histórico no nome antigo. Duas grafias do mesmo nome o app **pergunta antes de juntar** — fundir histórico é mexer em prova de serviço executado, e cancelar não muda nada. **Quatro defeitos que já estavam no app saíram de brinde:** cliente chamado `__proto__`, `toString`, `constructor`, `valueOf` ou `hasOwnProperty` **derrubava a tela de Clientes inteira**; cadastrar o mesmo nome criava **dois registros iguais**; grafias diferentes **rachavam um cliente em dois cartões**; e o botão flutuante "Nova OS" roubava 28 px do canto do cartão — medido, 30 pontos de toque errado em quatro tamanhos de tela, agora zero. Quatro rodadas de revisão, uma por dimensão: a adversarial achou 6 defeitos que o verde não cobria, a de mutação rodou **51 mutações** e provou **16 garantias sem rede** (todas ganharam caso), e a de bordas achou que a rede **media zero geometria** — e também **refutou** a minha hipótese principal, que ficou registrada. A suíte do item saiu de 0 para **364 verificações**. Dos meus seis erros de análise nesta entrega, **cinco foram pegos por um agente discordando de mim**, inclusive um spec meu que violava uma regra do próprio projeto e outro que se contradizia internamente |
 | 11/10/2026 | `1d7118f` | **Abrir no mapa a partir do endereço, e nome com apóstrofo volta a funcionar.** Duas metades. (1) **Um cliente chamado `Sant'Ana` tinha o histórico inalcançável**, e isso foi medido no app publicado, não deduzido: o nome ia dentro de um `onclick` por `escapeHtml`, que vira `'` em `&#39;` — o parser de HTML desfaz a entidade **antes** de o JavaScript ler, e o apóstrofo fechava a string no meio (`SyntaxError`, cartão sem reação). A revisão mostrou que eu tinha varrido errado: a família era de **três** lugares, não um — também a lixeira de nota financeira e o "ver no mapa" do check-in de GPS, os dois com nome de pessoa. (2) O botão **Abrir no mapa**, sem campo novo. A revisão de três camadas achou o que as duas suítes verdes não cobriam: a extração da URL **truncava no apóstrofo** (o mesmo caractere da outra metade, reaparecendo pelo outro lado) e levava a lugar errado em silêncio; `google.lol`, `goo.gl/qualquercoisa` e qualquer subdomínio `.waze.com` passavam; o `window.open` com string de features virava popup, que é bloqueado em PWA instalado **sem lançar erro**, deixando o aviso inalcançável; e o botão **nascia atrás do rodapé grudado do modal em 375×667, 360×640 e 320×568** — medido com `elementFromPoint`, 3 de 4 telas, e resolvido movendo-o para o rodapé. **21 mutações rodadas; 7 garantias estavam sem rede** e ganharam caso. O agente **recusou uma instrução minha** do spec, com medição: tirar as aspas do conjunto da URL quebraria link colado entre aspas — virou regra de equilíbrio (aspa ímpar é delimitador, par é parte do endereço) |
 | 10/10/2026 | `d23f1d7` | **Fecha o Bloco 2, e publicar regra deixa de ser ato de memória.** Duas metades. (1) **O caminho antigo de posição saiu de circulação:** `mappo_locations` e `mappo_live` saíram de `SYNC_KEYS` — o app não aplica mais nenhum dos dois — e a regra passou a **negar escrita neles a todos, inclusive ao gestor**. Enquanto esse caminho era escrevível, qualquer membro podia falsificar onde um colega esteve, e isso é a prova do serviço; o documento por uid já tinha precedência desde `bd4bfd6`, mas a garantia só valia para quem tinha atualizado. Só pôde sair porque o proprietário confirmou em 08/10/2026 que **hoje só ele usa o app** — com alguém na versão antiga, essa pessoa sumiria do mapa. O caso `[GAP ACEITO]` que afirmava "técnico escreve o blob de outra pessoa" virou **negado**. (2) **Publicar as regras ganhou mecanismo:** `npm run regras:publicar` só publica com a suíte verde, e `diag-regrasreais.js` mede o **comportamento** de produção em vez de ler arquivo, porque a ferramenta do Firebase publica mas não lê de volta. As regras foram publicadas por esse caminho no mesmo dia, e a medição logo depois deu **0 sondas passaram** |
 | 08/10/2026 | `825b233` | **O que está pronto sai do `O-QUE-FALTA`.** O arquivo de pendências tinha 783 linhas, e 44% delas eram material de consulta — a receita de atualização do SONNAR, que virou `RECEITA-ATUALIZACAO.md` — mais seções de trabalho já publicado que nunca foram movidas. Ficou com 257. No `CLAUDE.md`, a autorização de commit passou a **incluir publicar**: eram dois pedidos para uma decisão que o proprietário já tinha tomado nas duas vezes. Continua em duas etapas só a entrega que depende de ele publicar a regra antes, senão o recurso nasce morto |
