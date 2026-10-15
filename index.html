@@ -4958,6 +4958,17 @@ const ICONS={
   share:'<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>',
   star:'<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
   help:'<circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+  /* Nasceram em 13/10/2026 sob a regra "Ícone é silhueta, nunca emoji colorido": sem `fill`
+     próprio e sem cor própria, herdam a cor do contexto pelo `stroke:currentColor` do .ico.
+     Os três pontos são desenhados como LINHAS de comprimento zero (y1 === y2), não como
+     círculos: o .ico usa stroke-linecap:round, então a linha degenerada vira um ponto redondo
+     com a mesma espessura dos outros traços -- é o mesmo recurso do ícone `mobile`.
+     `alfinete` é um PERCEVEJO, de propósito diferente de `pin` (que é marcador de mapa e já
+     está em uso na linha de endereço DESTE MESMO cartão): o mesmo desenho significando
+     "endereço" e "fixado" no mesmo cartão seria ambiguidade desenhada. */
+  'tres-pontos':'<line x1="12" y1="5" x2="12" y2="5.01"/><line x1="12" y1="12" x2="12" y2="12.01"/><line x1="12" y1="19" x2="12" y2="19.01"/>',
+  telefone:'<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>',
+  alfinete:'<path d="M8 3h8"/><path d="M10 3v6l-3 4h10l-3-4V3"/><line x1="12" y1="13" x2="12" y2="21"/>',
 };
 function svgIco(name,cls){return `<svg class="ico ${cls||''}" viewBox="0 0 24 24">${ICONS[name]||''}</svg>`;}
 
@@ -6454,8 +6465,20 @@ function renderClientes(){
     if(!mapC[c.nome]){mapC[c.nome]={...c,visitas:[]};return;}
     if(c.endereco)mapC[c.nome].endereco=c.endereco;
     if(c.contato)mapC[c.nome].contato=c.contato;
+    /* `fixado` vem SÓ do registro -- a OS não conhece esse campo. Sem esta linha o cliente
+       fixado que TAMBÉM tem OS perdia o alfinete e a posição: a chave já existia no mapa
+       (criada pela OS acima) e o spread do `{...c}` nunca rodava para ele. */
+    if(c.fixado)mapC[c.nome].fixado=true;
   });
-  const lista=Object.values(mapC);
+  /* FIXADOS NO TOPO. `filter` duas vezes em vez de `sort`: o Array.prototype.sort do JS é
+     estável desde o ES2019, mas aqui a ordem entre os não fixados é a de inserção do mapa
+     (OS primeiro, registros depois) e não um critério calculável -- dois filtros preservam
+     essa ordem por construção, sem depender de estabilidade de comparador.
+     `fixado` vive no REGISTRO do cliente, nunca numa lista de nomes à parte: lista por nome
+     seria mais um lugar para arrastar no rename, que é o defeito que a entrega anterior
+     consertou. Renomear não mexe neste campo (ver _aplicarCliente). */
+  const todos=Object.values(mapC);
+  const lista=todos.filter(c=>c.fixado).concat(todos.filter(c=>!c.fixado));
 
   return `
   <div class="page-head">
@@ -6468,24 +6491,42 @@ function renderClientes(){
     /* escJsAttr, não escapeHtml: aqui o nome entra DENTRO de uma string JS. Ver o comentário
        do escJsAttr -- com escapeHtml, "Sant'Ana" deixava o cartão sem reação ao toque. */
     return `<div class="os-card" onclick="openHistoricoCliente(${escJsAttr(c.nome)})">
+      <!-- event.stopPropagation() no ⋮: o cartão inteiro tem onclick de abrir o histórico, e sem
+           isto o toque no botão abriria o menu E o histórico. escJsAttr pelo mesmo motivo do
+           cartão (o nome entra DENTRO de uma string JS; com escapeHtml, "Sant'Ana" deixava o
+           alvo sem reação).
+           GEOMETRIA DO ALVO, medida em celular (13/10/2026), nos quatro tamanhos:
+           o margin-right de 28px tira o ⋮ da COLUNA do FAB "Nova OS" (posição fixa, right 16px,
+           52px de lado, z-index 71). Medido: a borda interna direita do cartão fica em W-40 e a
+           esquerda do FAB em W-68, então os 28 px da ponta pertencem ao FAB em 390/375/360/320 --
+           é o mesmo roubo de 28 px que o botão largo de editar pagava com max-width de 100%-60px.
+           Subir o z-index do ⋮ acima do FAB resolveria o roubo INVERTENDO-O (o ⋮ comeria 28 px
+           do FAB em algumas posições de rolagem), então a separação é geométrica, não de camada.
+           O min-height/width de 44px é o mínimo de alvo do iOS -- btn-sm sozinho dá 34 px.
+           Estilo LOCAL de propósito: btn-sm, badge e os-card-top são do app inteiro.
+           O BADGE DESCEU PARA A LINHA DE NÚMEROS, e isso foi medido, não preferido: o ⋮ custa
+           44 px de alvo mais 28 px de folga do FAB, e com o badge (70 px) ainda no canto a
+           coluna de texto do cartão caía de 154 px para 74 px num 320 -- o nome quebrava em
+           TRÊS linhas e o cartão passava de 145 px para 267 px de altura. Na linha de números
+           o total fica junto do que ele soma ("10 visitas · 5 concluídas · 5 em aberto"), a
+           coluna de texto volta a 152 px e a classe .badge continua a mesma do app inteiro.
+           O min-width:0 e o overflow-wrap:anywhere da coluna de TEXTO são REGRESSÃO MEDIDA, não
+           enfeite: sem eles, nome de 120 caracteres sem espaço (ou endereço de 200) estica o item
+           flex pelo min-content e o ⋮ vai para x=1742 numa tela de 320 a 390 -- fora da tela, com
+           elementFromPoint no centro dele devolvendo null. Aquele cliente ficava SEM PORTA para
+           Editar, Fixar ou Excluir, porque o ⋮ é a única entrada do menu; o botão largo que ele
+           substituiu ficava em x=44 e recebia o toque. O estouro horizontal do cartão é anterior
+           a esta entrega; levar o CONTROLE embora não era. A guarda vai no ELEMENTO, igual à do
+           detalhe do cliente, porque .os-client e .os-addr são classes do app inteiro. -->
       <div class="os-card-top">
-        <div><div class="os-client">${escapeHtml(c.nome)}</div><div class="os-addr">📍 ${escapeHtml(c.endereco||'Sem endereço')}</div>${c.contato?`<div class="os-addr" style="margin-top:3px">📞 ${escapeHtml(c.contato)}</div>`:''}</div>
-        <span class="badge b-concluida">${total} visita${total!==1?'s':''}</span>
+        <div style="min-width:0;overflow-wrap:anywhere"><div class="os-client">${c.fixado?'<span style="margin-right:6px">'+svgIco('alfinete','ico-sm')+'</span>':''}${escapeHtml(c.nome)}</div><div class="os-addr">${svgIco('pin','ico-sm')} ${escapeHtml(c.endereco||'Sem endereço')}</div>${c.contato?`<div class="os-addr" style="margin-top:3px">${svgIco('telefone','ico-sm')} ${escapeHtml(c.contato)}</div>`:''}</div>
+        <button class="btn btn-ghost btn-sm" style="width:44px;min-width:44px;min-height:44px;padding:0;flex-shrink:0;margin-right:28px" title="Ações do cliente" aria-label="Ações do cliente" onclick="event.stopPropagation();menuCliente(${escJsAttr(c.nome)})">${svgIco('tres-pontos','ico-sm')}</button>
       </div>
       <div class="os-meta">
-        <div class="os-meta-i"><span>✅</span>${conc} concluídas</div>
-        <div class="os-meta-i"><span>🔄</span>${c.visitas.filter(v=>v.status!=='concluida').length} em aberto</div>
+        <span class="badge b-concluida">${total} visita${total!==1?'s':''}</span>
+        <div class="os-meta-i">${svgIco('check','ico-sm')}${conc} concluídas</div>
+        <div class="os-meta-i">${svgIco('refresh','ico-sm')}${c.visitas.filter(v=>v.status!=='concluida').length} em aberto</div>
       </div>
-      <!-- event.stopPropagation(): o cartão inteiro tem onclick de abrir o histórico, e sem
-           isto o toque no botão abriria os dois. escJsAttr pelo mesmo motivo do cartão. -->
-      <!-- GEOMETRIA DO ALVO, medida em celular (12/10/2026), nos quatro tamanhos:
-           o max-width de 100% menos 60px tira o botão de baixo do FAB "Nova OS" (posição fixa,
-           right 16px, 52px, z-index 71): a ponta direita devolvia button.fab no hit-test, então
-           mirar ali abria openModalOS() em vez de editar. 28 px eram roubados em 390/375/360/320.
-           O min-height de 44px é o mínimo de alvo do iOS -- a classe btn-sm dá 34 px. O padding de
-           11px sozinho NÃO chega a 44: o "Novo cliente", que usa esse padding, mede 40 px (medido).
-           Estilo LOCAL de propósito: btn-sm é compartilhado com o app inteiro. -->
-      <button class="btn btn-ghost btn-sm" style="width:100%;max-width:calc(100% - 60px);margin-top:10px;min-height:44px;padding:11px" onclick="event.stopPropagation();openModalCliente(${escJsAttr(c.nome)})">${svgIco('edit','ico-sm')} Editar cliente</button>
     </div>`;
   }).join('')}</div>`:emptyState('clientes','Nenhum cliente ainda','Os clientes aparecem aqui conforme você cria ordens de serviço.')}`;
 }
@@ -9861,6 +9902,12 @@ function _aplicarCliente(nomeAntigo,nome,endereco,contato,outras){
         if(x===sobrev||x.nome!==g)continue;
         if(!sobrev.endereco&&x.endereco){const a=sobrev.endereco;sobrev.endereco=x.endereco;desfaz.push(()=>{sobrev.endereco=a;});}
         if(!sobrev.contato&&x.contato){const a=sobrev.contato;sobrev.contato=x.contato;desfaz.push(()=>{sobrev.contato=a;});}
+        /* `fixado` entra na mesma regra: ausência de um lado não apaga o que existe do outro.
+           Fundir a grafia FIXADA numa que não estava fixada desfixaria o cliente em silêncio --
+           o gestor fixou alguma coisa e ela voltaria para o meio da lista sem ele pedir.
+           O desfazer tem de distinguir "era false" de "não existia", senão o rollback deixaria
+           um `fixado:undefined` onde antes não havia campo nenhum. */
+        if(!sobrev.fixado&&x.fixado){const a=sobrev.fixado;sobrev.fixado=x.fixado;desfaz.push(()=>{if(a===undefined)delete sobrev.fixado;else sobrev.fixado=a;});}
         clientes.splice(i,1);
         const idx=i,obj=x;
         desfaz.push(()=>{clientes.splice(idx,0,obj);});
@@ -9946,6 +9993,160 @@ function criarCliente(nomeAntigo){
      hora em que o gestor precisa saber de alguma coisa sobre o link. */
   if(renomeou&&r.comLinkPublico>0&&!fbReady)msg+=' · os links já enviados se atualizam na próxima sincronização';
   toast(msg,'success');
+}
+
+/* ═══════════ O MENU DO CARTÃO DE CLIENTE (⋮) ═══════════
+   Pedido pelo proprietário em 12/10/2026, olhando a tela no celular: o botão largo "Editar
+   cliente" no rodapé do cartão só fazia uma coisa e ocupava uma linha inteira por cliente.
+
+   É um MODAL (showModal), não um painel ancorado no ⋮. Painel ancorado exigiria cálculo de
+   posição (o cartão rola), briga de z-index com o FAB e a navbar, e corte dentro do .os-card
+   -- e este app já publicou um botão nascido atrás do rodapé grudado e outro com o FAB roubando
+   28 px do canto. O modal não tem nenhum desses riscos e é igual nos quatro tamanhos de tela. */
+function _clienteFixado(nome){
+  const reg=clientes.find(c=>c.nome===nome);
+  return !!(reg&&reg.fixado);
+}
+function menuCliente(nome){
+  const fix=_clienteFixado(nome);
+  /* escJsAttr em TODA chamada: o nome entra dentro de uma string JS no atributo onclick, e
+     "Sant'Ana" deixaria o item do menu sem reação (mesma lição do cartão).
+     Estilo LOCAL nos itens: .btn/.btn-ghost são do app inteiro, e o que esta tela precisa de
+     diferente (largura total, texto à esquerda, 48 px de alvo) não pode vazar para eles.
+     "Editar" chama closeModal() e openModalCliente() EM SEGUIDA, sem setTimeout: showModal
+     cancela o timer de limpeza pendente de propósito (ver o comentário dele), justamente para
+     fechar um modal e abrir o próximo na mesma ida. Esperar 200 ms aqui só daria uma piscada
+     branca no meio -- e um passo a mais para cronometrar em teste. */
+  const item='width:100%;justify-content:flex-start;min-height:48px;margin-bottom:8px';
+  /* O TÍTULO NÃO EMPURRA A AÇÃO PARA BAIXO DO RODAPÉ GRUDADO, e os dois números vêm de medição
+     em celular (14/10/2026), não de preferência:
+       - com nome de 120 caracteres COM espaços, o h2 de 24 px quebrava em 9 linhas (261 px de
+         cabeçalho) e a 320x568 "Selecionar várias" e "Excluir" deixavam de receber o próprio
+         toque -- elementFromPoint devolvia div.modal-foot e div.overlay. O que ficava escondido
+         era justamente a ação destrutiva, e o toque perdido no rodapé não dispara nada;
+       - com nome de 120 caracteres SEM espaços, .modal-head h2 é display:flex e item flex não
+         quebra palavra sozinho: a folha inteira rolava na horizontal (scrollWidth 2155 contra
+         clientWidth 350/335/320/280, medido nos quatro tamanhos).
+     Por isso o estilo é LOCAL no h2 e faz as duas coisas: overflow-wrap resolve o sem-espaço, e
+     o line-clamp de 2 linhas em 17 px garante cabeçalho de altura fixa (46 px) -- o nome inteiro
+     continua legível no cartão e no modal de edição. display:-webkit-box substitui o flex da
+     classe só aqui, e pode: este h2 não tem ícone ao lado, é só texto. */
+  const titulo='font-size:17px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;min-width:0';
+  showModal(`
+    <div class="modal-head"><h2 style="${titulo}">${escapeHtml(nome)}</h2></div>
+    <div class="modal-body">
+      <button class="btn btn-ghost" style="${item}" onclick="closeModal();openModalCliente(${escJsAttr(nome)})">${svgIco('edit','ico-sm')} Editar</button>
+      <button class="btn btn-ghost" style="${item}" onclick="fixarCliente(${escJsAttr(nome)})">${svgIco('alfinete','ico-sm')} ${fix?'Desafixar do topo':'Fixar no topo'}</button>
+      <button class="btn btn-ghost" style="${item}" onclick="selecionarVariosClientes()">${svgIco('check','ico-sm')} Selecionar várias</button>
+      <!-- A linha e o vermelho do Excluir são as duas características que o proprietário pediu
+           para carregar da referência visual. Vermelho aqui é COR COM SIGNIFICADO, a exceção
+           escrita na regra dos ícones: o ícone segue silhueta e herda essa cor pelo currentColor.
+           O TOM É #c53030, NÃO o --red (229,62,62), e isto foi calculado: o --red sobre branco
+           em 14 px peso 600 mede 4,13:1 de contraste -- abaixo do mínimo AA de 4,5:1, e era o
+           texto de PIOR leitura desta folha, enquanto os outros três itens medem 8,61:1. O único
+           sinal de "isto é destrutivo" não pode ser o mais difícil de ler. #c53030 mede 5,47:1,
+           continua claramente vermelho e é o tom imediatamente mais escuro da mesma família do
+           --red. A variável global fica onde está: ela é usada pelo app inteiro. -->
+      <div style="height:1px;background:var(--gray-200);margin:12px 0"></div>
+      <button class="btn btn-ghost" style="${item};margin-bottom:0;color:#c53030;border-color:#fecaca" onclick="excluirCliente(${escJsAttr(nome)})">${svgIco('trash','ico-sm')} Excluir</button>
+    </div>
+    <div class="modal-foot"><button class="btn btn-ghost" onclick="closeModal()">Fechar</button></div>`);
+}
+/* "Selecionar várias" APARECE e não faz nada ainda, de propósito: exclusão em lote é a coisa de
+   maior risco de dado deste conjunto e tem entrega própria, com rodada de revisão só dela. O que
+   ela não pode é ficar MUDA -- botão que não responde a toque se lê como app travado. */
+function selecionarVariosClientes(){
+  toast('Selecionar vários clientes vem na próxima atualização — por enquanto, um de cada vez','warn');
+}
+/* EXCLUIR APAGA O CADASTRO, NUNCA AS OS NEM AS MANUTENÇÕES.
+   O histórico é prova de serviço executado, a linha vermelha deste projeto: esta função não
+   escreve em `osList` nem em `manutencoes` por nenhum caminho, e o cliente que tem histórico
+   CONTINUA aparecendo na lista depois de excluído -- montado por renderClientes a partir das
+   OS. Por isso o aviso diz QUANTAS existem antes de perguntar, no molde de removerTecnico:
+   o gestor precisa saber que "excluir" aqui não é "sumir com tudo".
+   `confirm` vem ANTES de qualquer mutação -- é a ordem, e só ela, que garante que cancelar
+   não muda nada em memória nem no disco. */
+function excluirCliente(nome){
+  const q=_clienteContagem(nome);
+  const pend=[q.os?q.os+' OS':'',q.mn?q.mn+' manutenç'+(q.mn>1?'ões':'ão'):''].filter(Boolean).join(' e ');
+  const reg=clientes.find(c=>c.nome===nome);
+  /* Cliente que só existe nas OS não tem cadastro para apagar. Não é erro e não é silêncio:
+     apagar a OS seria apagar o serviço executado, e isso não se faz por aqui. */
+  if(!reg){
+    closeModal();
+    toast('"'+nome+'" não tem cadastro para apagar — ele aparece na lista pelo histórico ('+(pend||'nenhum registro')+'), e histórico de serviço não se apaga por aqui','warn');
+    return;
+  }
+  /* A FIXAÇÃO TAMBÉM SE PERDE, e a mensagem diz. `fixado` é campo do REGISTRO: apagar o
+     registro apaga o alfinete, e o cliente que tem OS continua na lista mas sai do topo. Medido
+     em 13/10/2026: a mensagem enumerava só "endereço e contato" e o gestor aceitava sem saber. */
+  const perdeFix=reg.fixado?' A fixação no topo também se perde.':'';
+  /* O QUE DE FATO ACONTECE, POR CASO -- e é por caso porque `renderClientes` monta a lista de
+     `osList` + `clientes`, NUNCA de `manutencoes`. Então:
+       - com OS: o cartão continua na lista, montado pelas OS;
+       - sem OS e com manutenção: o cartão SAI da lista, e a manutenção agendada continua lá.
+     Medido em 13/10/2026: a mensagem prometia "continua aparecendo na lista" nos dois casos, o
+     cartão desaparecia, e o gestor perdia endereço, contato e o caminho de volta -- aceito com
+     base numa promessa falsa. Agregar manutenções em `renderClientes` faria aparecer cliente
+     que hoje não aparece: é decisão de produto do proprietário, não correção de defeito. */
+  const msg=q.os
+    ? 'Excluir o cadastro de "'+nome+'"?\n\nEle ainda tem '+pend+' no histórico, e NADA disso é apagado — é prova de serviço executado. O cliente continua aparecendo na lista por causa desse histórico, só sem endereço e contato cadastrados.'+perdeFix+'\n\nApagar o cadastro mesmo assim?'
+    : pend
+      ? 'Excluir o cadastro de "'+nome+'"?\n\nEle tem '+pend+', e NADA disso é apagado. Mas ele não tem nenhuma OS, e a lista de clientes é montada das OS e dos cadastros: sem cadastro ele SAI DA LISTA. '+(q.mn>1?'As manutenções continuam agendadas e aparecem':'A manutenção continua agendada e aparece')+' em Manutenções.'+perdeFix+'\n\nApagar o cadastro mesmo assim?'
+      : 'Excluir o cliente "'+nome+'"?\n\nEle não tem nenhuma OS nem manutenção, então sai da lista de vez.'+perdeFix;
+  if(!confirm(msg))return;
+  const i=clientes.indexOf(reg);
+  clientes.splice(i,1);
+  try{saveClientes();}
+  catch(e){clientes.splice(i,0,reg);_avisarFalhaCliente(e,'o cliente NÃO foi excluído');return;}
+  closeModal();
+  renderView(currentView);
+  toast(q.os?'Cadastro excluído — o histórico continua lá':pend?'Cadastro excluído — saiu da lista, e '+(q.mn>1?'as manutenções continuam agendadas':'a manutenção continua agendada'):'Cliente excluído','success');
+}
+/* FIXAR NO TOPO. `fixado` vive no REGISTRO do cliente (`clientes`), nunca numa lista separada
+   de nomes: lista por nome seria mais um lugar para arrastar no rename, e desligar o cliente do
+   próprio dado por causa de um rename é exatamente o defeito que a entrega anterior consertou.
+   Como `fixado` é campo do registro e _aplicarCliente muta o registro NO LUGAR, renomear já o
+   preserva sem nenhuma linha a mais -- e o CHECK de rename afirma isso. */
+function fixarCliente(nome){
+  let reg=clientes.find(c=>c.nome===nome);
+  const criado=!reg;
+  const antes=reg?reg.fixado:undefined;
+  if(reg){
+    /* Desafixar APAGA a chave em vez de gravar false: é um campo a menos em cada registro de
+       cliente no localStorage, e todo o código lê `fixado` por verdade, nunca por presença. */
+    if(reg.fixado)delete reg.fixado;else reg.fixado=true;
+  }else{
+    /* Cliente que só existe nas OS ganha registro agora, como o "Editar cliente" já faz.
+       Endereço e contato ficam VAZIOS de propósito: renderClientes e _clienteUniao caem no
+       endereço da OS quando o registro não tem o próprio, e copiar aqui a cópia de hoje
+       CONGELARIA esse valor -- o cartão passaria a mostrar endereço velho depois de a OS mudar. */
+    /* AS MESMAS GUARDAS DO CADASTRO, porque aqui também se CRIA registro. Até 13/10/2026 este
+       era o ÚNICO caminho do app que criava cliente sem nenhuma guarda, e medido:
+       fixarCliente(nome só de caractere invisível) gravava um registro SEM NOME VISÍVEL, que
+       `criarCliente` recusa; e com registro "Acme" e OS em "ACME", fixar "ACME" deixava
+       ["Acme","ACME"] -- dois registros que normalizam igual, o que o próprio código chama de
+       dado corrompido (ver _clienteNomeEmUsoAoCriar).
+       Recusar aqui não tira nada do gestor: o menu fica ABERTO e o caminho é "Editar", que
+       pergunta antes de fundir as grafias. Fixar cliente que JÁ tem registro não passa por aqui. */
+    if(!nome||!_normNome(nome)){toast('Esse cliente não tem nome para fixar','warn');return;}
+    const emUso=_clienteNomeEmUsoAoCriar(nome);
+    if(emUso){toast('Já existe cliente com esse nome: '+emUso+' — use "Editar" para juntar as grafias','warn');return;}
+    reg={nome:nome,endereco:'',contato:'',fixado:true};
+    clientes.push(reg);
+  }
+  const fixou=!!reg.fixado;
+  try{saveClientes();}
+  catch(e){
+    if(criado){const idx=clientes.indexOf(reg);if(idx>=0)clientes.splice(idx,1);}
+    else if(antes===undefined)delete reg.fixado;
+    else reg.fixado=antes;
+    _avisarFalhaCliente(e,fixou?'o cliente NÃO foi fixado':'o cliente NÃO foi desafixado');
+    return;
+  }
+  closeModal();
+  renderView(currentView);
+  toast(fixou?'Fixado no topo da lista':'Desafixado','success');
 }
 
 function openHistoricoCliente(nome){

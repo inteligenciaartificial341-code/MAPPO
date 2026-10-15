@@ -319,6 +319,30 @@ O que vale agora:
 - Ramo separado só quando a mudança é grande ou arriscada o suficiente para o proprietário
   querer olhar antes de ela entrar em `main` — e aí ele pede.
 
+## Ícone é silhueta, nunca emoji colorido (obrigatório)
+
+Regra do proprietário, 12/10/2026, olhando a tela de Clientes no celular: *"tudo que for emoji,
+que for adicionado dentro do aplicativo, tem que ser um design que combine com o aplicativo. Uma
+silhueta com as cores do aplicativo. Sem ficar algo vermelho, verde, azul, roxo. Se for um
+telefone, só a silhueta do telefone."*
+
+- **Todo ícone sai do `ICONS` / `svgIco()`** (`index.html`, perto da linha 4927). São desenhos em
+  traço, em `viewBox="0 0 24 24"`, que **herdam a cor do contexto** — por isso combinam com
+  qualquer tela sem ninguém escolher cor.
+- **Se o ícone não existe, cria-se no `ICONS`.** Não se usa emoji "só desta vez": foi assim que o
+  app chegou a **143 emojis, 45 distintos**, medidos em 12/10/2026.
+- **Emoji colorido é proibido em elemento de interface** — rótulo, botão, cartão, aviso, linha de
+  lista. O emoji traz cor própria (vermelho, verde, azul) que não tem relação com o significado
+  na tela e briga com a paleta.
+- **A exceção é cor com significado, aplicada de propósito:** "Excluir" em vermelho porque
+  vermelho quer dizer exclusão. Isso é decisão de desenho, não cor que veio junto com um emoji.
+- Texto que o usuário digita e mensagens de WhatsApp **não** são interface: ali emoji é conteúdo,
+  e a regra não se aplica.
+
+**Débito registrado:** os 143 emojis que já estão no `index.html` saem numa varredura própria —
+58 ocorrências têm substituto direto no `ICONS` de hoje, 85 precisam de ícone novo ou decisão.
+Enquanto a varredura não acontece, **o que for escrito de novo já nasce sob a regra**.
+
 ## Padrões
 - `async/await`. Sem `.then()` solto.
 - Erros logados com `e.code` e `e.message`.

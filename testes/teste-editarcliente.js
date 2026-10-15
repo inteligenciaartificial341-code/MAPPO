@@ -2,28 +2,59 @@
    O nome do cliente é a CHAVE DE LIGAÇÃO: fica guardado em `o.cliente` (mappo_os) e
    `mn.cliente` (mappo_manut). Renomear sem arrastar o nome junto apaga o histórico de serviço
    executado da vista do gestor -- o mesmo defeito já corrigido com técnicos em da03885.
-   Contra e910054 esta suíte FALHA no CHECK 1, porque lá não existe nem botão de editar nem
-   openModalCliente(nome): o cadastro de cliente é só de ida.
-   O CHECK 0 (nome de protótipo derrubando a tela de Clientes) também falha contra e910054 --
-   é defeito anterior à edição, medido em 11/10/2026, que vive na função que esta entrega toca.
-   Os CHECKs 8 e 10 a 14 sao da RODADA DE CORRECAO (F1..F6) e falham contra a rodada 1:
-   8 = o link publico se republica sozinho (a rodada 1 abria um modal mandando regerar, e o
-   CHECK 8 de la AFIRMAVA esse texto falso); 10 = fusao de historico por caixa avisa e pede
-   confirmacao; 11 = endereco do registro vence o copiado da OS; 12 = contato aparece na tela;
-   13 = memoria cheia no meio do arraste nao parte o historico; 14 = espaco duplo, largura zero
-   e NBSP contam como duplicata.
-   O CHECK 4 foi REESCRITO na rodada final (G1): a versao anterior afirmava que cadastrar um
-   nome que existe so nas OS RECUSA, e isso era regressao contra e910054 -- teste que petrifica
-   comportamento errado. Hoje ele afirma a regra decidida pelo proprietario em 12/10/2026:
-   grafia exata permite, registro repetido e grafia diferente recusam. Por isso esta versao da
-   suite falha contra a arvore da rodada anterior, nesse check.
-   Os CHECKs 15 a 31 (G2) fecham as 16 garantias que a camada de mutacao achou SEM rede: o
-   codigo estava CERTO em todas, e uma mutacao que desfazia cada uma passava pela suite inteira.
-   Cada um desses checks nomeia, no proprio comentario, a mutacao contra a qual foi provado.
-   O CHECK 32 (V6) e a RODADA VISUAL: ate 12/10/2026 esta suite media tudo no viewport padrao do
-   Playwright (1280x720, desktop), e nenhum dos cinco defeitos de geometria em celular (V1 a V5)
-   podia ser visto por ela. Ele abre o PROPRIO contexto de celular, nos quatro tamanhos, e falha
-   contra a arvore de antes da correcao visual.
+   ─── O QUE ESTA SUÍTE FAZ EM CADA ÁRVORE: MEDIDO, não deduzido ───
+   Um rodar inteiro para no PRIMEIRO assert vermelho. Então "o CHECK N falha contra a árvore T"
+   é frase INOBSERVÁVEL num rodar inteiro: depois do primeiro vermelho, nenhum CHECK seguinte
+   chega a executar, e ninguém consegue conferir a frase rodando o comando.
+   Corrigido em 14/10/2026 (R11). A frase anterior dizia "Contra e910054 esta suíte FALHA no
+   CHECK 1" -- e isso era DEDUÇÃO escrita como medição: lá ela morre no CHECK 0, e o CHECK 1
+   nunca é alcançado. Medido em 14/10/2026, exit code lido sem pipe:
+     - contra e910054 (antes da edição de cliente): exit 1, morre no CHECK 0, no assert
+       'a tela de Clientes nao cai com o nome "__proto__"' -- defeito anterior à edição, que
+       vive na função que esta entrega toca. O CHECK 1 não é alcançado;
+     - contra 42a291d (o publicado antes do menu ⋮): exit 1, morre no CHECK 1, no assert
+       'o cartao tem o botao de acoes (menuCliente)';
+     - contra a árvore de agora: exit 0, "TODOS OS CHECKS PASSARAM".
+
+   ─── O QUE FOI MEDIDO UM POR UM ───
+   Para medir caso por caso num rodar só, a conferência usa uma cópia INSTRUMENTADA da suíte,
+   em que `assert` COLETA o vermelho em vez de interromper -- fora de `testes/`, para o runner
+   nunca a tratar como suíte. É assim que as listas abaixo foram levantadas, e cada bloco de
+   CHECKs repete a sua no próprio cabeçalho.
+     - CHECKs 8 e 10 a 14 (F1..F6, rodada de correção): 8 = o link público se republica sozinho
+       (a rodada 1 abria um modal mandando regerar, e o CHECK 8 de lá AFIRMAVA esse texto falso);
+       10 = fusão de histórico por caixa avisa e pede confirmação; 11 = endereço do registro
+       vence o copiado da OS; 12 = contato aparece na tela; 13 = memória cheia no meio do arraste
+       não parte o histórico; 14 = espaço duplo, largura zero e NBSP contam como duplicata.
+     - CHECK 4, REESCRITO na rodada G1: a versão anterior afirmava que cadastrar um nome que
+       existe só nas OS RECUSA, e isso era regressão contra e910054 -- teste que petrifica
+       comportamento errado. Hoje ele afirma a regra decidida pelo proprietário em 12/10/2026:
+       grafia exata permite, registro repetido e grafia diferente recusam.
+     - CHECKs 15 a 31 (G2) fecham as 16 garantias que a camada de mutação achou SEM rede: o
+       código estava CERTO em todas, e uma mutação que desfazia cada uma passava pela suíte
+       inteira. Cada um nomeia, no próprio comentário, a mutação contra a qual foi provado.
+     - CHECK 32 (V6) é a RODADA VISUAL: até 12/10/2026 esta suíte media tudo no viewport padrão
+       do Playwright (1280x720, desktop), e nenhum dos cinco defeitos de geometria em celular
+       (V1 a V5) podia ser visto por ela. Ele abre o PRÓPRIO contexto de celular, nos quatro
+       tamanhos.
+     - CHECKs 48 a 51 (C, 13/10/2026): 48 = o aviso de excluir não promete mais que o cliente
+       com SÓ manutenção continua na lista (ele sai); 49 = o aviso diz que a FIXAÇÃO também se
+       perde; 50 e 51 = fixar passa pelas guardas do cadastro quando cria registro. A lista de
+       asserts vermelhos na árvore anterior está no cabeçalho do bloco deles.
+     - V7 a V9 e CHECKs 52 a 57 (R, 14/10/2026) são a rodada 2 do menu ⋮. Os dois grupos têm
+       naturezas DIFERENTES, e misturá-los seria o mesmo erro de antes:
+         * V7, V8 e V9 (R1 a R4) são DEFEITO, e ficam vermelhos na árvore anterior: 41 asserts
+           vermelhos lá contra 0 na árvore de agora, medidos na cópia instrumentada. Nenhum
+           deles é CONTROLE -- os controles ficaram verdes nas duas árvores;
+         * CHECKs 52 a 57 e o fechamento do menu no CHECK 38 (R5 a R9) são LACUNA DE REDE: o
+           código já estava certo, então eles NÃO podem ficar vermelhos na árvore anterior, e
+           exigir isso deles seria exigir o impossível. A prova é por MUTAÇÃO: numa cópia com
+           as oito garantias desfeitas de propósito, a suíte anterior achou 1 vermelho (e esse
+           1 era o do R4, não mutação nenhuma) e esta achou 30.
+       Dessa rodada é também o conserto do CONTROLE do CHECK 47 (R10) e deste cabeçalho (R11).
+   Dessa mesma rodada C é a correcao da MEDICAO do CHECK 32: a varredura de rolagem reprovava
+   2 vezes em 8 sem defeito nenhum porque a faixa #syncAlerta nascia no meio dela. O defeito era
+   do controle, nao do produto, e esta explicado na armadilha 5 do cabecalho do bloco V6.
    Rodar: node testes/teste-editarcliente.js
    Contra a versão anterior: MAPPO_RAIZ=<copia de e910054> node testes/teste-editarcliente.js */
 const { chromium } = require('playwright');
@@ -36,6 +67,15 @@ const osDe = (id, cliente, data, extra) => Object.assign({
   tecnico: 'Paulo', data: data, hora: '08:00', status: 'concluida', qtdSplits: 1,
   equipamentos: [{ marca: '', modelo: '', fotoEvap: null, fotoCond: null }], checklist: []
 }, extra || {});
+
+/* Razão de contraste da WCAG 2.1, para o item "Excluir" (R4). Fica aqui, em Node, e não dentro
+   da página: o que a página devolve é a cor COMPUTADA (`rgb(...)`), e a conta tem de ser a mesma
+   que o critério AA usa -- luminância relativa com a correção de gama, nunca "parece escuro". */
+const _lumRel = (r, g, b) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+  return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
+const _contraste = (c1, c2) => { const a = _lumRel(c1[0], c1[1], c1[2]), b = _lumRel(c2[0], c2[1], c2[2]);
+  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05); };
+const _rgbDe = (s) => (String(s).match(/\d+(\.\d+)?/g) || []).slice(0, 3).map(Number);
 
 const manutDe = (id, cliente, data) => ({
   id: id, cliente: cliente, endereco: 'Rua ' + id + ', 10', dataAgendada: data,
@@ -136,12 +176,25 @@ const manutDe = (id, cliente, data) => ({
     const card = [...document.querySelectorAll('#app .os-card')]
       .find(c => ((c.querySelector('.os-client') || {}).textContent || '') === d.antigo);
     if (!card) return { achouCartao: false };
+    /* 13/10/2026: o caminho da edição passou a ser o ⋮ do canto -> item "Editar" do menu.
+       O botão largo "Editar cliente" do rodapé do cartão NÃO existe mais, e este check segue
+       o caminho que o gestor segue de verdade -- não openModalCliente() chamada à mão. */
     const btn = [...card.querySelectorAll('button')]
-      .find(x => /editar/i.test(x.textContent || ''));
+      .find(x => /menuCliente/.test(x.getAttribute('onclick') || ''));
     if (!btn) return { achouCartao: true, achouBotao: false };
-    /* O cartão inteiro tem onclick de abrir o histórico. O botão novo só serve se NÃO abrir
-       o histórico junto -- então o que se mede aqui é o título do modal que subiu. */
+    /* O cartão inteiro tem onclick de abrir o histórico. O ⋮ só serve se NÃO abrir o
+       histórico junto -- então o que se mede aqui é o título do modal que subiu. */
     btn.click();
+    const ovm = document.getElementById('curOverlay');
+    const menuAberto = !!(ovm && ovm.classList.contains('open'));
+    const menuAbriuHistorico = /Hist.rico de visitas/.test(ovm ? ovm.textContent : '');
+    const itensDoMenu = ovm ? [...ovm.querySelectorAll('.modal-body button')]
+      .map(x => x.textContent.replace(/\s+/g, ' ').trim()) : [];
+    const editar = ovm ? [...ovm.querySelectorAll('.modal-body button')]
+      .find(x => /^editar$/i.test(x.textContent.replace(/\s+/g, ' ').trim())) : null;
+    if (!editar) return { achouCartao: true, achouBotao: true, onclick: btn.getAttribute('onclick'),
+                          menuAberto, menuAbriuHistorico, itensDoMenu, achouEditar: false };
+    editar.click();
     const ov = document.getElementById('curOverlay');
     const titulo = ov ? (ov.querySelector('.modal-head') || {}).textContent || '' : '';
     const abriuHistorico = /Hist.rico de visitas/.test(ov ? ov.textContent : '');
@@ -151,18 +204,23 @@ const manutDe = (id, cliente, data) => ({
       contato: (document.getElementById('cContato') || {}).value
     };
     return { achouCartao: true, achouBotao: true, onclick: btn.getAttribute('onclick'),
+             menuAberto, menuAbriuHistorico, itensDoMenu, achouEditar: true,
              aberto: !!(ov && ov.classList.contains('open')), titulo: titulo.trim(),
              abriuHistorico, campos };
   }, { antigo: ANTIGO, os: [1, 2, 3, 4, 5].map(i => osDe('os' + i, ANTIGO, '2026-0' + i + '-10')) });
 
   assert(r1.achouCartao, 'o cartao do cliente aparece na tela de Clientes');
-  assert(r1.achouBotao, 'o cartao tem botao de EDITAR cliente');
+  assert(r1.achouBotao, 'o cartao tem o botao de acoes (menuCliente)');
   console.log('  onclick do botao:', r1.onclick);
   assert(/stopPropagation/.test(r1.onclick || ''),
-    'o botao de editar tem event.stopPropagation() (senao abriria o historico junto)');
-  assert(r1.aberto, 'o botao de editar abre um modal');
+    'o botao de acoes tem event.stopPropagation() (senao abriria o historico junto)');
+  assert(r1.menuAberto, 'o toque no botao de acoes abre um modal');
+  assert(!r1.menuAbriuHistorico, 'o botao de acoes NAO abre o historico do cliente');
+  console.log('  itens do menu:', JSON.stringify(r1.itensDoMenu));
+  assert(r1.achouEditar, 'o menu tem o item "Editar"');
+  assert(r1.aberto, 'o item "Editar" do menu abre um modal');
   console.log('  titulo do modal:', JSON.stringify(r1.titulo));
-  assert(!r1.abriuHistorico, 'o botao de editar NAO abre o historico do cliente');
+  assert(!r1.abriuHistorico, 'o modal de edicao tambem NAO e o historico do cliente');
   assert(/Editar/i.test(r1.titulo), 'o modal e o de EDICAO, nao o de novo cliente');
   console.log('  campos preenchidos:', JSON.stringify(r1.campos));
   assert(r1.campos.nome === ANTIGO, 'o campo de nome vem preenchido com o nome atual');
@@ -509,9 +567,18 @@ const manutDe = (id, cliente, data) => ({
     const quebras = [];
     const onerr = (e) => quebras.push(String(e.message || e));
     window.addEventListener('error', onerr);
+    /* O #modalRoot é LIMPO antes de medir: o CHECK anterior deixou um modal aberto, e sem esta
+       linha o `document.getElementById('cNome')` lá embaixo achava o campo do modal VELHO --
+       medido em 13/10/2026, o check passava lendo "Mercado Central" do CHECK 6. */
+    const raiz = document.getElementById('modalRoot'); if (raiz) raiz.innerHTML = '';
     const card = [...document.querySelectorAll('#app .os-card')][0];
-    const btn = [...card.querySelectorAll('button')].find(x => /editar/i.test(x.textContent || ''));
+    /* o caminho de verdade: ⋮ do cartão -> item "Editar" do menu (13/10/2026) */
+    const btn = [...card.querySelectorAll('button')]
+      .find(x => /menuCliente/.test(x.getAttribute('onclick') || ''));
     if (btn) btn.click();
+    const editar = [...document.querySelectorAll('#curOverlay .modal-body button')]
+      .find(x => /^editar$/i.test(x.textContent.replace(/\s+/g, ' ').trim()));
+    if (editar) editar.click();
     const abriuEdicao = !!document.getElementById('cNome');
     const nomeNoCampo = (document.getElementById('cNome') || {}).value;
     /* o onclick do botao de salvar tambem leva o nome antigo: se ele quebrar, o rename do
@@ -535,7 +602,7 @@ const manutDe = (id, cliente, data) => ({
   });
   console.log('  onclick do salvar:', r7.onclickSalvar);
   console.log('  erros no clique:', r7.quebras.length ? r7.quebras : '(nenhum)');
-  assert(r7.abriuEdicao, 'o botao de editar abre a edicao para nome com apostrofo');
+  assert(r7.abriuEdicao, 'o ⋮ e o item Editar abrem a edicao para nome com apostrofo');
   assert(r7.nomeNoCampo === "Sant'Ana Comércio", 'o nome com apostrofo chega inteiro ao campo');
   assert(!r7.quebras.length, 'nenhum erro de JS no caminho do apostrofo');
   assert(r7.osNovo === 2, 'o rename do cliente com apostrofo arrasta as 2 OS');
@@ -1090,8 +1157,14 @@ const manutDe = (id, cliente, data) => ({
     const card = [...document.querySelectorAll('#app .os-card')]
       .find(c => ((c.querySelector('.os-client') || {}).textContent || '') === d.nome);
     if (!card) { window.removeEventListener('error', onerr); return { achouCartao: false }; }
-    const btn = [...card.querySelectorAll('button')].find(x => /editar/i.test(x.textContent || ''));
+    /* ⋮ -> "Editar" (13/10/2026). O ⋮ tambem leva o nome DENTRO de uma string JS no onclick,
+       entao as aspas duplas tem de sobreviver nos DOIS passos, nao so no modal. */
+    const btn = [...card.querySelectorAll('button')]
+      .find(x => /menuCliente/.test(x.getAttribute('onclick') || ''));
     if (btn) btn.click();
+    const editar = [...document.querySelectorAll('#curOverlay .modal-body button')]
+      .find(x => /^editar$/i.test(x.textContent.replace(/\s+/g, ' ').trim()));
+    if (editar) editar.click();
     const noCampo = (document.getElementById('cNome') || {}).value;
     const cc = document.getElementById('cContato');
     if (cc) cc.value = '222';                       // SO o contato muda
@@ -1766,6 +1839,1283 @@ const manutDe = (id, cliente, data) => ({
   assert(r31.cartoes.filter(n => n === DIGITADO).length === 1 && r31.cartoes.length === 1,
     'e por isso continua UM cartao so -- registro e historico na mesma grafia');
 
+  /* ╔══════════════════════════════════════════════════════════════════════════════════════╗
+     ║  CHECKS 33 a 51 (M e C): O MENU DE TRÊS PONTOS, FIXAR NO TOPO E EXCLUIR CLIENTE      ║
+     ║  Entrega de 13/10/2026.                                                              ║
+     ║  O QUE FOI MEDIDO CONTRA 42a291d, e só isto (corrigido em 13/10/2026 -- a frase       ║
+     ║  anterior dizia "contra 42a291d TODOS falham", e isso era DEDUÇÃO escrita como        ║
+     ║  medição: rodando lá a suíte MORRE no CHECK 1, no assert "o cartao tem o botao de     ║
+     ║  acoes (menuCliente)", e os CHECKs 33 em diante nunca chegam a executar):             ║
+     ║    - a suíte inteira contra 42a291d: exit 1, morre no CHECK 1 (medido);               ║
+     ║    - as cinco funções que esta família toda chama não existem lá: `menuCliente`,      ║
+     ║      `fixarCliente`, `excluirCliente`, `_clienteFixado` e `selecionarVariosClientes`  ║
+     ║      dão 0 ocorrências no index.html de 42a291d. Controle positivo da mesma busca,    ║
+     ║      no mesmo arquivo: `criarCliente` 3, `openModalCliente` 4,                        ║
+     ║      `_clienteNomeEmUsoAoCriar` 3 -- a busca ACHA o que existe.                       ║
+     ║  Os CHECKs 48 a 51 são da RODADA DE CORREÇÃO (C2, C4, C3) e foram medidos UM POR UM   ║
+     ║  contra a árvore imediatamente anterior a eles: 12 asserts vermelhos lá (4 no 48, 1   ║
+     ║  no 49, 3 no 50, 4 no 51), e nenhum deles é CONTROLE -- os controles ficaram verdes   ║
+     ║  nas duas árvores, que é o que distingue caso que reproduz de caso que só reclama.    ║
+     ║  Armadilhas de medição respeitadas (testes/README.md): o #modalRoot é LIMPO antes de ║
+     ║  cada medição (closeModal() só limpa 200 ms depois, e o texto do modal anterior fica ║
+     ║  no DOM); "aberto" é a classe `open` em #curOverlay, nunca o texto; e todo cenário é ║
+     ║  GRAVADO (saveClientes/saveOS/saveManut) porque startNotifChecker recarrega `osList` ║
+     ║  e `manutencoes` do localStorage a cada 5 s.                                         ║
+     ╚══════════════════════════════════════════════════════════════════════════════════════╝ */
+
+  /* ══════════ CHECK 33 (M1): o ⋮ e o cartão não disputam o toque ══════════ */
+  console.log('\n=== CHECK 33 (M1): toque FORA do ⋮ abre o historico; no ⋮ abre o menu ===');
+  const r33 = await pg.evaluate((d) => {
+    document.getElementById('modalRoot').innerHTML = '';
+    clientes = [{ nome: 'Oficina do Toque', endereco: 'Rua T, 1', contato: '111' }];
+    osList = JSON.parse(JSON.stringify(d.os)); manutencoes = [];
+    saveClientes(); saveOS(); saveManut();
+    nav('clientes');
+    const card = document.querySelector('#app .os-card');
+    /* 1) toque no CORPO do cartão (o nome) -- tem de abrir o histórico, como sempre */
+    card.querySelector('.os-client').click();
+    const ov1 = document.getElementById('curOverlay');
+    const corpo = { aberto: !!(ov1 && ov1.classList.contains('open')),
+                    historico: /Hist.rico de visitas/.test(ov1 ? ov1.textContent : '') };
+    closeModal(); document.getElementById('modalRoot').innerHTML = '';
+    /* 2) toque no ⋮ -- tem de abrir o MENU, e o histórico NÃO pode subir junto */
+    const bt = [...card.querySelectorAll('button')]
+      .find(x => /menuCliente/.test(x.getAttribute('onclick') || ''));
+    if (bt) bt.click();
+    const ov2 = document.getElementById('curOverlay');
+    const pontos = { achou: !!bt, aberto: !!(ov2 && ov2.classList.contains('open')),
+                     historico: /Hist.rico de visitas/.test(ov2 ? ov2.textContent : ''),
+                     temExcluir: /Excluir/.test(ov2 ? ov2.textContent : '') };
+    closeModal(); document.getElementById('modalRoot').innerHTML = '';
+    return { corpo: corpo, pontos: pontos };
+  }, { os: [osDe('tq1', 'Oficina do Toque', '2026-02-02')] });
+  console.log('  toque no corpo:', JSON.stringify(r33.corpo), '| toque no ⋮:', JSON.stringify(r33.pontos));
+  assert(r33.corpo.aberto && r33.corpo.historico,
+    'CONTROLE M1: o toque no cartao FORA do ⋮ continua abrindo o historico');
+  assert(r33.pontos.achou, 'o cartao tem o ⋮');
+  assert(r33.pontos.aberto && r33.pontos.temExcluir, 'o toque no ⋮ abre o menu de acoes');
+  assert(!r33.pontos.historico, 'o toque no ⋮ NAO abre o historico junto (stopPropagation)');
+
+  /* ══════════ CHECK 34 (M2): a ordem das ações, a linha e o vermelho ══════════ */
+  console.log('\n=== CHECK 34 (M2): ordem Editar/Fixar/Selecionar + LINHA + Excluir vermelho ===');
+  const r34 = await pg.evaluate(() => {
+    document.getElementById('modalRoot').innerHTML = '';
+    clientes = [{ nome: 'Cliente Menu', endereco: 'Rua M, 1', contato: '222' }];
+    osList = []; manutencoes = [];
+    saveClientes(); saveOS(); saveManut();
+    nav('clientes');
+    menuCliente('Cliente Menu');
+    const ov = document.getElementById('curOverlay');
+    const filhos = [...ov.querySelectorAll('.modal-body > *')].map(el => ({
+      tag: el.tagName.toLowerCase(), txt: el.textContent.replace(/\s+/g, ' ').trim(),
+      cor: getComputedStyle(el).color, alt: Math.round(el.getBoundingClientRect().height),
+      svg: el.querySelectorAll('svg').length
+    }));
+    const out = { aberto: ov.classList.contains('open'), filhos: filhos };
+    closeModal(); document.getElementById('modalRoot').innerHTML = '';
+    return out;
+  });
+  const rotulos34 = r34.filhos.filter(x => x.tag === 'button').map(x => x.txt);
+  console.log('  filhos do menu:', JSON.stringify(r34.filhos.map(x => x.tag + ':' + (x.txt || '(linha)'))));
+  assert(r34.aberto, 'CONTROLE M2: o menu do cliente esta aberto (classe open em #curOverlay)');
+  assert(JSON.stringify(rotulos34) === JSON.stringify(['Editar', 'Fixar no topo', 'Selecionar várias', 'Excluir']),
+    'a ordem das acoes e Editar / Fixar no topo / Selecionar varias / Excluir -- medido '
+    + JSON.stringify(rotulos34));
+  const iEx34 = r34.filhos.findIndex(x => x.txt === 'Excluir');
+  const linha34 = r34.filhos[iEx34 - 1];
+  console.log('  elemento imediatamente antes do Excluir:', JSON.stringify(linha34));
+  assert(!!linha34 && linha34.tag !== 'button' && linha34.alt === 1,
+    'ha uma LINHA (1 px, nao botao) imediatamente antes do Excluir');
+  console.log('  cor do Excluir:', r34.filhos[iEx34].cor, '| cor do Editar:', r34.filhos[0].cor);
+  /* 14/10/2026 (R4): este assert fixava `rgb(229, 62, 62)` -- o --red cru, que mede 4,13:1 de
+     contraste sobre branco e reprovava o minimo AA de 4,5:1. Fixar o valor exato amarrava a
+     suite ao tom errado: corrigir o contraste deixava o teste vermelho POR TER SIDO CORRIGIDO,
+     a mesma armadilha do antigo controle do CHECK 47. O que importa e afirmado agora em duas
+     partes, e nenhuma delas e um literal de tom: aqui, que o Excluir e VERMELHO (o canal R
+     domina com folga) e diferente dos outros itens; e no V9 do bloco V6, que a razao de
+     contraste medida contra o fundo da folha chega ao AA. */
+  const corEx34 = _rgbDe(r34.filhos[iEx34].cor);
+  assert(corEx34[0] >= 150 && corEx34[0] - corEx34[1] >= 80 && corEx34[0] - corEx34[2] >= 80,
+    'o Excluir e VERMELHO, que e a excecao de "cor com significado" -- medido '
+    + r34.filhos[iEx34].cor);
+  assert(_contraste(corEx34, [255, 255, 255]) >= 4.5,
+    'e o vermelho dele tem contraste AA sobre branco -- medido '
+    + _contraste(corEx34, [255, 255, 255]).toFixed(2) + ':1 (minimo 4.5:1)');
+  assert(r34.filhos[iEx34].cor !== r34.filhos[0].cor,
+    'CONTROLE M2: o Editar NAO e vermelho -- o vermelho e do Excluir, nao do menu todo');
+  assert(r34.filhos.filter(x => x.tag === 'button').every(x => x.svg === 1),
+    'cada acao do menu tem um icone do sistema (SVG), nenhum emoji');
+
+  /* ══════════ CHECK 35 (M3): excluir cliente SEM OS -- sai da lista ══════════ */
+  console.log('\n=== CHECK 35 (M3): excluir cliente sem historico -- sai da lista ===');
+  const r35 = await pg.evaluate(() => {
+    document.getElementById('modalRoot').innerHTML = '';
+    clientes = [{ nome: 'Vai Sair', endereco: 'Rua S, 1', contato: '1' },
+                { nome: 'Fica', endereco: 'Rua F, 2', contato: '2' }];
+    osList = []; manutencoes = [];
+    saveClientes(); saveOS(); saveManut();
+    nav('clientes');
+    const msgs = [];
+    window.confirm = (m) => { msgs.push(m); return true; };
+    const chaves = [];
+    const orig = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (k, v) { chaves.push(k); return orig.apply(this, arguments); };
+    menuCliente('Vai Sair');
+    const bt = [...document.querySelectorAll('#curOverlay .modal-body button')]
+      .find(x => /^excluir$/i.test(x.textContent.replace(/\s+/g, ' ').trim()));
+    if (bt) bt.click();
+    Storage.prototype.setItem = orig;
+    window.confirm = () => true;
+    const ov = document.getElementById('curOverlay');
+    const out = { achou: !!bt, msgs: msgs, chaves: chaves,
+      nomes: clientes.map(c => c.nome),
+      cartoes: [...document.querySelectorAll('#app .os-client')].map(x => x.textContent),
+      gravado: JSON.parse(localStorage.getItem('mappo_clientes') || '[]').map(c => c.nome),
+      fechou: !(ov && ov.classList.contains('open')) };
+    document.getElementById('modalRoot').innerHTML = '';
+    return out;
+  });
+  console.log('  pergunta:', JSON.stringify(r35.msgs[0] || '(nenhuma)'));
+  console.log('  clientes:', JSON.stringify(r35.nomes), '| cartoes:', JSON.stringify(r35.cartoes),
+    '| chaves gravadas:', JSON.stringify(r35.chaves));
+  assert(r35.achou, 'o menu tem o item "Excluir"');
+  assert(r35.msgs.length === 1, 'excluir PERGUNTA antes (uma confirmacao, nao zero nem duas)');
+  assert(JSON.stringify(r35.nomes) === JSON.stringify(['Fica']), 'o cliente excluido saiu de `clientes`');
+  assert(JSON.stringify(r35.gravado) === JSON.stringify(['Fica']), 'e saiu GRAVADO em mappo_clientes');
+  assert(r35.cartoes.indexOf('Vai Sair') < 0, 'o cartao dele saiu da tela sem precisar navegar');
+  assert(r35.cartoes.indexOf('Fica') >= 0, 'CONTROLE M3: o cartao do OUTRO cliente continua la');
+  /* `mappo_touch` entra na lista por desenho: é o relógio de sincronização que o interceptor
+     de setItem grava junto de qualquer chave publicável. O que este caso afirma é que as
+     chaves de HISTÓRICO ficam de fora, e que a de cadastro de fato entrou (controle). */
+  assert(r35.chaves.indexOf('mappo_os') < 0 && r35.chaves.indexOf('mappo_manut') < 0,
+    'excluir NAO escreve em mappo_os nem mappo_manut -- medido ' + JSON.stringify(r35.chaves));
+  assert(r35.chaves.indexOf('mappo_clientes') >= 0,
+    'CONTROLE M3: a sonda de gravacao MEDIU algo -- mappo_clientes foi gravado');
+  assert(r35.fechou, 'o menu fecha depois de excluir');
+
+  /* ══════════ CHECK 36 (M4): excluir cliente COM 3 OS -- o aviso diz 3, e as OS ficam ══════════ */
+  /* A linha vermelha do projeto: OS e manutenção são prova de serviço executado. Excluir o
+     CADASTRO não pode encostar nelas, e o gestor tem de saber ANTES quantas existem. */
+  console.log('\n=== CHECK 36 (M4): excluir cliente com 3 OS e 1 manutencao -- nada do historico e tocado ===');
+  const r36 = await pg.evaluate((d) => {
+    document.getElementById('modalRoot').innerHTML = '';
+    clientes = [{ nome: 'Com Historico', endereco: 'Rua H, 1', contato: '9' }];
+    osList = JSON.parse(JSON.stringify(d.os));
+    manutencoes = JSON.parse(JSON.stringify(d.mn));
+    saveClientes(); saveOS(); saveManut();
+    nav('clientes');
+    const antes = { os: JSON.stringify(osList), mn: JSON.stringify(manutencoes),
+                    dOs: localStorage.getItem('mappo_os'), dMn: localStorage.getItem('mappo_manut') };
+    const msgs = [];
+    window.confirm = (m) => { msgs.push(m); return true; };
+    const chaves = [];
+    const orig = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (k, v) { chaves.push(k); return orig.apply(this, arguments); };
+    excluirCliente('Com Historico');
+    Storage.prototype.setItem = orig;
+    window.confirm = () => true;
+    const out = { msgs: msgs, chaves: chaves,
+      osIgual: JSON.stringify(osList) === antes.os,
+      mnIgual: JSON.stringify(manutencoes) === antes.mn,
+      dOsIgual: localStorage.getItem('mappo_os') === antes.dOs,
+      dMnIgual: localStorage.getItem('mappo_manut') === antes.dMn,
+      registro: clientes.find(c => c.nome === 'Com Historico') || null,
+      cartoes: [...document.querySelectorAll('#app .os-client')].map(x => x.textContent),
+      visitas: [...document.querySelectorAll('#app .os-card .badge')].map(x => x.textContent.trim()) };
+    document.getElementById('modalRoot').innerHTML = '';
+    return out;
+  }, { os: [1, 2, 3].map(i => osDe('ch' + i, 'Com Historico', '2026-0' + i + '-05')),
+       mn: [manutDe('chm1', 'Com Historico', '2026-12-01')] });
+  console.log('  pergunta:', JSON.stringify(r36.msgs[0] || '(nenhuma)'));
+  console.log('  cartoes depois:', JSON.stringify(r36.cartoes), '| badge:', JSON.stringify(r36.visitas),
+    '| chaves gravadas:', JSON.stringify(r36.chaves));
+  assert(r36.msgs.length === 1, 'excluir cliente com historico tambem PERGUNTA antes');
+  assert(/\b3 OS\b/.test(r36.msgs[0]), 'o aviso diz QUANTAS OS existem -- o numero 3, medido no texto');
+  assert(/1 manutenç[ãa]o/.test(r36.msgs[0]), 'e quantas manutencoes -- 1, no singular');
+  assert(r36.osIgual && r36.mnIgual, 'as 3 OS e a manutencao ficaram byte a byte iguais em MEMORIA');
+  assert(r36.dOsIgual && r36.dMnIgual, 'e byte a byte iguais no DISCO (mappo_os e mappo_manut)');
+  assert(r36.chaves.indexOf('mappo_os') < 0 && r36.chaves.indexOf('mappo_manut') < 0,
+    'nenhuma escrita em mappo_os nem mappo_manut -- medido ' + JSON.stringify(r36.chaves));
+  assert(r36.chaves.indexOf('mappo_clientes') >= 0,
+    'CONTROLE M4: a sonda de gravacao MEDIU algo -- mappo_clientes foi gravado');
+  assert(!r36.registro, 'o CADASTRO foi apagado de `clientes`');
+  assert(r36.cartoes.indexOf('Com Historico') >= 0,
+    'e o cliente CONTINUA na lista, montado pelas OS -- excluir cadastro nao apaga historico');
+  assert(r36.visitas.some(x => /3 visita/.test(x)), 'o cartao dele continua dizendo 3 visitas');
+
+  /* ══════════ CHECK 37 (M5): excluir CANCELADO não muda nada, memória e disco ══════════ */
+  console.log('\n=== CHECK 37 (M5): cancelar a exclusao nao muda NADA (memoria e disco, byte a byte) ===');
+  const r37 = await pg.evaluate((d) => {
+    document.getElementById('modalRoot').innerHTML = '';
+    clientes = [{ nome: 'Nao Me Apague', endereco: 'Rua N, 1', contato: '7' },
+                { nome: 'Vizinho', endereco: 'Rua V, 2', contato: '8' }];
+    osList = JSON.parse(JSON.stringify(d.os));
+    manutencoes = JSON.parse(JSON.stringify(d.mn));
+    saveClientes(); saveOS(); saveManut();
+    nav('clientes');
+    const antes = { cl: JSON.stringify(clientes), os: JSON.stringify(osList), mn: JSON.stringify(manutencoes),
+                    dCl: localStorage.getItem('mappo_clientes'), dOs: localStorage.getItem('mappo_os'),
+                    dMn: localStorage.getItem('mappo_manut') };
+    const msgs = [];
+    window.confirm = (m) => { msgs.push(m); return false; };     // o gestor CANCELA
+    const chaves = [];
+    const orig = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (k, v) { chaves.push(k); return orig.apply(this, arguments); };
+    menuCliente('Nao Me Apague');
+    const bt = [...document.querySelectorAll('#curOverlay .modal-body button')]
+      .find(x => /^excluir$/i.test(x.textContent.replace(/\s+/g, ' ').trim()));
+    if (bt) bt.click();
+    Storage.prototype.setItem = orig;
+    window.confirm = () => true;
+    const ov = document.getElementById('curOverlay');
+    const out = { perguntou: msgs.length, chaves: chaves,
+      clIgual: JSON.stringify(clientes) === antes.cl,
+      osIgual: JSON.stringify(osList) === antes.os,
+      mnIgual: JSON.stringify(manutencoes) === antes.mn,
+      dClIgual: localStorage.getItem('mappo_clientes') === antes.dCl,
+      dOsIgual: localStorage.getItem('mappo_os') === antes.dOs,
+      dMnIgual: localStorage.getItem('mappo_manut') === antes.dMn,
+      menuAberto: !!(ov && ov.classList.contains('open')) };
+    closeModal(); document.getElementById('modalRoot').innerHTML = '';
+    return out;
+  }, { os: [1, 2].map(i => osDe('nm' + i, 'Nao Me Apague', '2026-0' + i + '-07')),
+       mn: [manutDe('nmm1', 'Nao Me Apague', '2026-09-09')] });
+  console.log('  perguntou:', r37.perguntou, '| chaves gravadas:', JSON.stringify(r37.chaves),
+    '| menu continua aberto:', r37.menuAberto);
+  assert(r37.perguntou === 1, 'CONTROLE M5: a pergunta de fato apareceu (senao o caso seria vazio)');
+  assert(r37.clIgual && r37.osIgual && r37.mnIgual,
+    'cancelando, `clientes`, `osList` e `manutencoes` ficam byte a byte iguais em MEMORIA');
+  assert(r37.dClIgual && r37.dOsIgual && r37.dMnIgual,
+    'e byte a byte iguais no DISCO (mappo_clientes, mappo_os, mappo_manut)');
+  assert(r37.chaves.length === 0, 'cancelando, NENHUMA chave foi gravada');
+  assert(r37.menuAberto, 'cancelando, o menu continua aberto -- nada aconteceu, nem na tela');
+
+  /* ══════════ CHECK 38 (M6): cliente que só existe nas OS não tem cadastro para apagar ══════════ */
+  console.log('\n=== CHECK 38 (M6): cliente so nas OS -- avisa que nao ha cadastro, e as OS ficam ===');
+  const r38 = await pg.evaluate((d) => {
+    document.getElementById('modalRoot').innerHTML = '';
+    clientes = []; osList = JSON.parse(JSON.stringify(d.os)); manutencoes = [];
+    saveClientes(); saveOS(); saveManut();
+    nav('clientes');
+    const antes = { os: JSON.stringify(osList), dOs: localStorage.getItem('mappo_os'),
+                    cl: JSON.stringify(clientes), dCl: localStorage.getItem('mappo_clientes') };
+    const msgs = [];
+    window.confirm = (m) => { msgs.push(m); return true; };
+    const chaves = [];
+    const orig = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (k, v) { chaves.push(k); return orig.apply(this, arguments); };
+    /* O MENU É ABERTO ANTES, e isso é o caso novo da rodada 2 (R9): até 14/10/2026 este check
+       chamava excluirCliente() com o #modalRoot vazio, então o `closeModal()` do caminho
+       "não tem cadastro" não era medido por ninguém. Uma mutação que o tirasse deixava o menu
+       ABERTO por cima do toast, com o gestor olhando um menu que já não faz nada. */
+    menuCliente('Somente nas OS');
+    const menuAbriu = !!(document.getElementById('curOverlay') || {}).classList
+      && document.getElementById('curOverlay').classList.contains('open');
+    excluirCliente('Somente nas OS');
+    Storage.prototype.setItem = orig;
+    window.confirm = () => true;
+    const t = document.getElementById('toast');
+    const ov = document.getElementById('curOverlay');
+    const out = { perguntou: msgs.length, chaves: chaves, menuAbriu: menuAbriu,
+      menuFechou: !(ov && ov.classList.contains('open')),
+      toast: t ? t.textContent : '', toastVisivel: !!(t && t.className.indexOf('show') >= 0),
+      osIgual: JSON.stringify(osList) === antes.os,
+      dOsIgual: localStorage.getItem('mappo_os') === antes.dOs,
+      clIgual: JSON.stringify(clientes) === antes.cl,
+      dClIgual: localStorage.getItem('mappo_clientes') === antes.dCl,
+      cartoes: [...document.querySelectorAll('#app .os-client')].map(x => x.textContent) };
+    document.getElementById('modalRoot').innerHTML = '';
+    return out;
+  }, { os: [1, 2].map(i => osDe('so' + i, 'Somente nas OS', '2026-0' + i + '-11')) });
+  console.log('  aviso:', JSON.stringify(r38.toast), '| chaves gravadas:', JSON.stringify(r38.chaves));
+  assert(r38.perguntou === 0, 'nao pergunta nada: nao ha cadastro para apagar');
+  assert(r38.toastVisivel && /n[aã]o tem cadastro/i.test(r38.toast),
+    'o app DIZ que nao ha cadastro para apagar -- nunca fica mudo');
+  assert(r38.osIgual && r38.dOsIgual, 'as 2 OS ficaram byte a byte iguais, em memoria e no disco');
+  assert(r38.clIgual && r38.dClIgual, 'e `clientes` nao ganhou nem perdeu nada');
+  assert(r38.chaves.length === 0, 'nenhuma chave foi gravada');
+  assert(r38.cartoes.indexOf('Somente nas OS') >= 0, 'o cliente continua na lista, pelas OS');
+  assert(r38.menuAbriu, 'CONTROLE M6: o menu ⋮ de fato ABRIU antes (senao o caso do fechamento seria vazio)');
+  assert(r38.menuFechou,
+    'e o menu FECHA tambem no caminho "nao tem cadastro" -- menu aberto por cima do toast se le como app travado');
+
+  /* ══════════ CHECK 39 (M7): fixar leva ao topo, com alfinete no cartão ══════════ */
+  console.log('\n=== CHECK 39 (M7): fixar pelo menu leva o cliente ao TOPO, com alfinete ===');
+  const r39 = await pg.evaluate(() => {
+    document.getElementById('modalRoot').innerHTML = '';
+    clientes = [{ nome: 'Alfa', endereco: 'Rua A, 1', contato: '1' },
+                { nome: 'Bravo', endereco: 'Rua B, 2', contato: '2' },
+                { nome: 'Charlie', endereco: 'Rua C, 3', contato: '3' }];
+    osList = []; manutencoes = [];
+    saveClientes(); saveOS(); saveManut();
+    nav('clientes');
+    const antes = [...document.querySelectorAll('#app .os-client')].map(x => x.textContent);
+    const chaves = [];
+    const orig = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (k, v) { chaves.push(k); return orig.apply(this, arguments); };
+    menuCliente('Charlie');
+    const rotuloNoMenu = [...document.querySelectorAll('#curOverlay .modal-body button')]
+      .map(x => x.textContent.replace(/\s+/g, ' ').trim()).find(x => /fixar/i.test(x));
+    const bt = [...document.querySelectorAll('#curOverlay .modal-body button')]
+      .find(x => /^fixar no topo$/i.test(x.textContent.replace(/\s+/g, ' ').trim()));
+    if (bt) bt.click();
+    Storage.prototype.setItem = orig;
+    const cards = [...document.querySelectorAll('#app .os-card')];
+    const ov = document.getElementById('curOverlay');
+    const out = { achou: !!bt, rotuloNoMenu: rotuloNoMenu, antes: antes, chaves: chaves,
+      depois: cards.map(c => (c.querySelector('.os-client') || {}).textContent),
+      comAlfinete: cards.filter(c => !!c.querySelector('.os-client svg'))
+        .map(c => (c.querySelector('.os-client') || {}).textContent),
+      registro: JSON.parse(localStorage.getItem('mappo_clientes') || '[]')
+        .find(c => c.nome === 'Charlie') || null,
+      fechou: !(ov && ov.classList.contains('open')) };
+    document.getElementById('modalRoot').innerHTML = '';
+    return out;
+  });
+  console.log('  ordem antes:', JSON.stringify(r39.antes), '| depois:', JSON.stringify(r39.depois));
+  console.log('  cartoes com alfinete:', JSON.stringify(r39.comAlfinete),
+    '| registro gravado:', JSON.stringify(r39.registro), '| chaves:', JSON.stringify(r39.chaves));
+  assert(r39.achou && /^Fixar no topo$/i.test(r39.rotuloNoMenu || ''),
+    'o menu de um cliente NAO fixado oferece "Fixar no topo"');
+  assert(JSON.stringify(r39.antes) === JSON.stringify(['Alfa', 'Bravo', 'Charlie']),
+    'CONTROLE M7: antes de fixar, a ordem era Alfa / Bravo / Charlie');
+  assert(JSON.stringify(r39.depois) === JSON.stringify(['Charlie', 'Alfa', 'Bravo']),
+    'depois de fixar, Charlie esta no TOPO e os outros mantem a ordem -- medido '
+    + JSON.stringify(r39.depois));
+  assert(JSON.stringify(r39.comAlfinete) === JSON.stringify(['Charlie']),
+    'SO o cartao fixado tem o alfinete (icone do sistema no .os-client) -- medido '
+    + JSON.stringify(r39.comAlfinete));
+  assert(!!r39.registro && r39.registro.fixado === true,
+    '`fixado` ficou gravado NO REGISTRO do cliente, em mappo_clientes');
+  assert(r39.chaves.indexOf('mappo_os') < 0 && r39.chaves.indexOf('mappo_manut') < 0,
+    'fixar nao escreve em mappo_os nem mappo_manut -- medido ' + JSON.stringify(r39.chaves));
+  assert(r39.chaves.indexOf('mappo_clientes') >= 0,
+    'CONTROLE M7: a sonda de gravacao MEDIU algo -- mappo_clientes foi gravado');
+  assert(r39.fechou, 'o menu fecha depois de fixar');
+
+  /* ══════════ CHECK 40 (M8): fixar cliente que só existe nas OS CRIA o registro ══════════ */
+  console.log('\n=== CHECK 40 (M8): fixar cliente sem registro cria o registro com `fixado` ===');
+  const r40 = await pg.evaluate((d) => {
+    document.getElementById('modalRoot').innerHTML = '';
+    clientes = [{ nome: 'Com Registro', endereco: 'Rua R, 1', contato: '1' }];
+    osList = JSON.parse(JSON.stringify(d.os)); manutencoes = [];
+    saveClientes(); saveOS(); saveManut();
+    nav('clientes');
+    const antesOs = JSON.stringify(osList);
+    fixarCliente('Sem Registro');
+    const cards = [...document.querySelectorAll('#app .os-card')];
+    const cartaoDele = cards.find(c => (c.querySelector('.os-client') || {}).textContent === 'Sem Registro');
+    const out = {
+      ordem: cards.map(c => (c.querySelector('.os-client') || {}).textContent),
+      registro: JSON.parse(localStorage.getItem('mappo_clientes') || '[]')
+        .find(c => c.nome === 'Sem Registro') || null,
+      quantos: clientes.length,
+      osIgual: JSON.stringify(osList) === antesOs,
+      enderecoNoCartao: cartaoDele ? (cartaoDele.querySelector('.os-addr') || {}).textContent : '' };
+    document.getElementById('modalRoot').innerHTML = '';
+    return out;
+  }, { os: [osDe('sr1', 'Sem Registro', '2026-06-06', { endereco: 'Avenida da OS, 777' })] });
+  console.log('  registro criado:', JSON.stringify(r40.registro), '| ordem:', JSON.stringify(r40.ordem));
+  console.log('  endereco no cartao:', JSON.stringify(r40.enderecoNoCartao));
+  assert(!!r40.registro && r40.registro.fixado === true,
+    'fixar um cliente que so existia nas OS CRIA o registro dele, com `fixado`');
+  assert(r40.quantos === 2, 'criou UM registro, nao dois');
+  assert(r40.ordem[0] === 'Sem Registro', 'e ele vai para o topo da lista');
+  assert(r40.osIgual, 'as OS dele ficaram byte a byte iguais');
+  assert(/Avenida da OS, 777/.test(r40.enderecoNoCartao || ''),
+    'o cartao continua mostrando o endereco DA OS -- o registro novo nao congelou uma copia velha');
+
+  /* ══════════ CHECK 41 (M9): desafixar volta à ordem normal e tira o alfinete ══════════ */
+  console.log('\n=== CHECK 41 (M9): desafixar -- volta a ordem de sempre e o alfinete some ===');
+  const r41 = await pg.evaluate(() => {
+    document.getElementById('modalRoot').innerHTML = '';
+    clientes = [{ nome: 'Um', endereco: 'Rua 1, 1', contato: '1' },
+                { nome: 'Dois', endereco: 'Rua 2, 2', contato: '2', fixado: true }];
+    osList = []; manutencoes = [];
+    saveClientes(); saveOS(); saveManut();
+    nav('clientes');
+    const antes = [...document.querySelectorAll('#app .os-client')].map(x => x.textContent);
+    const alfineteAntes = [...document.querySelectorAll('#app .os-card')]
+      .filter(c => !!c.querySelector('.os-client svg'))
+      .map(c => (c.querySelector('.os-client') || {}).textContent);
+    menuCliente('Dois');
+    const rotulo = [...document.querySelectorAll('#curOverlay .modal-body button')]
+      .map(x => x.textContent.replace(/\s+/g, ' ').trim()).find(x => /fixar/i.test(x));
+    const bt = [...document.querySelectorAll('#curOverlay .modal-body button')]
+      .find(x => /^desafixar do topo$/i.test(x.textContent.replace(/\s+/g, ' ').trim()));
+    if (bt) bt.click();
+    const cards = [...document.querySelectorAll('#app .os-card')];
+    const out = { achou: !!bt, rotulo: rotulo, antes: antes, alfineteAntes: alfineteAntes,
+      depois: cards.map(c => (c.querySelector('.os-client') || {}).textContent),
+      alfineteDepois: cards.filter(c => !!c.querySelector('.os-client svg'))
+        .map(c => (c.querySelector('.os-client') || {}).textContent),
+      gravado: JSON.parse(localStorage.getItem('mappo_clientes') || '[]')
+        .find(c => c.nome === 'Dois') || null };
+    document.getElementById('modalRoot').innerHTML = '';
+    return out;
+  });
+  console.log('  ordem antes:', JSON.stringify(r41.antes), '| depois:', JSON.stringify(r41.depois));
+  console.log('  alfinete antes:', JSON.stringify(r41.alfineteAntes),
+    '| depois:', JSON.stringify(r41.alfineteDepois), '| registro:', JSON.stringify(r41.gravado));
+  assert(JSON.stringify(r41.antes) === JSON.stringify(['Dois', 'Um']),
+    'CONTROLE M9: com `fixado` no registro, "Dois" ja comeca no topo');
+  assert(JSON.stringify(r41.alfineteAntes) === JSON.stringify(['Dois']),
+    'CONTROLE M9: e so ele tem o alfinete');
+  assert(r41.achou && /^Desafixar do topo$/i.test(r41.rotulo || ''),
+    'o menu de um cliente JA FIXADO oferece "Desafixar do topo", nao "Fixar"');
+  assert(JSON.stringify(r41.depois) === JSON.stringify(['Um', 'Dois']),
+    'desafixado, ele volta a ordem normal da lista');
+  assert(r41.alfineteDepois.length === 0, 'e o alfinete sai do cartao');
+  assert(!!r41.gravado && !('fixado' in r41.gravado),
+    'o campo `fixado` sai do registro gravado, nao fica como false');
+
+  /* ══════════ CHECK 42 (M10): vários fixados ficam todos no topo, na ordem de sempre ══════════ */
+  console.log('\n=== CHECK 42 (M10): 3 fixados de 5 -- todos no topo, ordem de sempre entre eles ===');
+  const r42 = await pg.evaluate(() => {
+    document.getElementById('modalRoot').innerHTML = '';
+    clientes = ['A', 'B', 'C', 'D', 'E'].map((n, i) => {
+      const c = { nome: n, endereco: 'Rua ' + n + ', ' + (i + 1), contato: String(i) };
+      if (n === 'B' || n === 'D' || n === 'E') c.fixado = true;
+      return c;
+    });
+    osList = []; manutencoes = [];
+    saveClientes(); saveOS(); saveManut();
+    nav('clientes');
+    const cards = [...document.querySelectorAll('#app .os-card')];
+    const out = { ordem: cards.map(c => (c.querySelector('.os-client') || {}).textContent),
+      comAlfinete: cards.filter(c => !!c.querySelector('.os-client svg'))
+        .map(c => (c.querySelector('.os-client') || {}).textContent) };
+    document.getElementById('modalRoot').innerHTML = '';
+    return out;
+  });
+  console.log('  ordem:', JSON.stringify(r42.ordem), '| com alfinete:', JSON.stringify(r42.comAlfinete));
+  assert(JSON.stringify(r42.ordem) === JSON.stringify(['B', 'D', 'E', 'A', 'C']),
+    'os 3 fixados ficam no topo preservando a ordem entre eles, e os outros atras -- medido '
+    + JSON.stringify(r42.ordem));
+  assert(JSON.stringify(r42.comAlfinete) === JSON.stringify(['B', 'D', 'E']),
+    'os tres, e so os tres, tem alfinete');
+
+  /* ══════════ CHECK 43 (M11): renomear um cliente fixado NÃO o desafixa ══════════ */
+  /* `fixado` vive no registro, e o rename muta o registro no lugar. Lista de nomes à parte
+     perderia o fixado aqui -- é o mesmo defeito de desligar o cliente do próprio dado. */
+  console.log('\n=== CHECK 43 (M11): renomear um cliente FIXADO -- continua fixado ===');
+  const r43 = await pg.evaluate((d) => {
+    document.getElementById('modalRoot').innerHTML = '';
+    clientes = [{ nome: 'Padaria Fixa', endereco: 'Rua PF, 1', contato: '5', fixado: true },
+                { nome: 'Outra Qualquer', endereco: 'Rua OQ, 2', contato: '6' }];
+    osList = JSON.parse(JSON.stringify(d.os)); manutencoes = [];
+    saveClientes(); saveOS(); saveManut();
+    nav('clientes');
+    openModalCliente('Padaria Fixa');
+    document.getElementById('cNome').value = 'Padaria Fixa Ltda';
+    criarCliente('Padaria Fixa');
+    const cards = [...document.querySelectorAll('#app .os-card')];
+    const out = {
+      ordem: cards.map(c => (c.querySelector('.os-client') || {}).textContent),
+      comAlfinete: cards.filter(c => !!c.querySelector('.os-client svg'))
+        .map(c => (c.querySelector('.os-client') || {}).textContent),
+      gravado: JSON.parse(localStorage.getItem('mappo_clientes') || '[]')
+        .find(c => c.nome === 'Padaria Fixa Ltda') || null,
+      osNoNomeNovo: osList.filter(o => o.cliente === 'Padaria Fixa Ltda').length };
+    document.getElementById('modalRoot').innerHTML = '';
+    return out;
+  }, { os: [1, 2].map(i => osDe('pf' + i, 'Padaria Fixa', '2026-0' + i + '-14')) });
+  console.log('  ordem:', JSON.stringify(r43.ordem), '| alfinete:', JSON.stringify(r43.comAlfinete));
+  console.log('  registro gravado:', JSON.stringify(r43.gravado), '| OS no nome novo:', r43.osNoNomeNovo);
+  assert(!!r43.gravado && r43.gravado.fixado === true,
+    'renomeado, o registro gravado CONTINUA com `fixado`');
+  assert(r43.ordem[0] === 'Padaria Fixa Ltda', 'e ele continua no topo da lista, com o nome novo');
+  assert(JSON.stringify(r43.comAlfinete) === JSON.stringify(['Padaria Fixa Ltda']),
+    'o alfinete continua nele, e so nele');
+  assert(r43.osNoNomeNovo === 2, 'CONTROLE M11: o rename arrastou as 2 OS, como ja fazia');
+
+  /* ══════════ CHECK 44 (M12): "Selecionar várias" avisa que vem em seguida ══════════ */
+  /* Exclusão em lote tem entrega própria. O que esta entrega garante é que a opção NÃO fica
+     muda -- botão que não responde se lê como app travado -- e que ela não mexe em dado. */
+  console.log('\n=== CHECK 44 (M12): "Selecionar varias" diz que vem em seguida, e nao mexe em nada ===');
+  const r44 = await pg.evaluate((d) => {
+    document.getElementById('modalRoot').innerHTML = '';
+    clientes = [{ nome: 'Lote Um', endereco: 'Rua L, 1', contato: '1' },
+                { nome: 'Lote Dois', endereco: 'Rua L, 2', contato: '2' }];
+    osList = JSON.parse(JSON.stringify(d.os)); manutencoes = [];
+    saveClientes(); saveOS(); saveManut();
+    nav('clientes');
+    const t0 = document.getElementById('toast');
+    t0.textContent = ''; t0.className = 'toast';
+    const antes = { cl: JSON.stringify(clientes), os: JSON.stringify(osList),
+                    mn: JSON.stringify(manutencoes) };
+    const chaves = [];
+    const orig = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (k, v) { chaves.push(k); return orig.apply(this, arguments); };
+    menuCliente('Lote Um');
+    const bt = [...document.querySelectorAll('#curOverlay .modal-body button')]
+      .find(x => /^selecionar v[áa]rias$/i.test(x.textContent.replace(/\s+/g, ' ').trim()));
+    if (bt) bt.click();
+    Storage.prototype.setItem = orig;
+    const t = document.getElementById('toast');
+    const ov = document.getElementById('curOverlay');
+    const out = { achou: !!bt, toast: t.textContent, visivel: t.className.indexOf('show') >= 0,
+      chaves: chaves, menuAberto: !!(ov && ov.classList.contains('open')),
+      clIgual: JSON.stringify(clientes) === antes.cl,
+      osIgual: JSON.stringify(osList) === antes.os,
+      mnIgual: JSON.stringify(manutencoes) === antes.mn };
+    closeModal(); document.getElementById('modalRoot').innerHTML = '';
+    return out;
+  }, { os: [osDe('lu1', 'Lote Um', '2026-07-07')] });
+  console.log('  aviso:', JSON.stringify(r44.toast), '| visivel:', r44.visivel,
+    '| chaves gravadas:', JSON.stringify(r44.chaves));
+  assert(r44.achou, 'o menu tem o item "Selecionar varias"');
+  assert(r44.visivel && r44.toast.length > 0, 'tocar nele NAO fica mudo: um aviso aparece');
+  assert(/pr[óo]xima atualiza|em seguida|vem a seguir/i.test(r44.toast),
+    'e o aviso diz que o recurso vem em seguida -- medido ' + JSON.stringify(r44.toast));
+  assert(r44.clIgual && r44.osIgual && r44.mnIgual,
+    'e NADA muda em memoria: clientes, osList e manutencoes byte a byte iguais');
+  assert(r44.chaves.length === 0, 'e nenhuma chave e gravada');
+
+  /* ══════════ CHECK 45 (M13): nome com apóstrofo e nome de protótipo no menu ══════════ */
+  /* O ⋮ leva o nome DENTRO de uma string JS no onclick, igual ao cartão; e `__proto__` é o
+     nome que já derrubou a tela inteira de Clientes uma vez (CHECK 0). Os dois tem de abrir
+     o menu, fixar e excluir. O terceiro nome é o CONTROLE POSITIVO. */
+  console.log('\n=== CHECK 45 (M13): "Sant\'Ana" e "__proto__" -- o ⋮ abre e as acoes funcionam ===');
+  for (const nome of ["Sant'Ana Refrigeração", '__proto__', 'Nome Comum']) {
+    const r45 = await pg.evaluate((n) => {
+      document.getElementById('modalRoot').innerHTML = '';
+      const quebras = [];
+      const onerr = (e) => quebras.push(String(e.message || e));
+      window.addEventListener('error', onerr);
+      clientes = [{ nome: n, endereco: 'Rua X, 1', contato: '1' },
+                  { nome: 'Vizinho Dele', endereco: 'Rua Y, 2', contato: '2' }];
+      osList = []; manutencoes = [];
+      saveClientes(); saveOS(); saveManut();
+      nav('clientes');
+      const card = [...document.querySelectorAll('#app .os-card')]
+        .find(c => ((c.querySelector('.os-client') || {}).textContent || '') === n);
+      if (!card) { window.removeEventListener('error', onerr); return { achouCartao: false, quebras: quebras }; }
+      const bt = [...card.querySelectorAll('button')]
+        .find(x => /menuCliente/.test(x.getAttribute('onclick') || ''));
+      if (bt) bt.click();
+      const ov = document.getElementById('curOverlay');
+      const abriu = !!(ov && ov.classList.contains('open') && /Excluir/.test(ov.textContent));
+      /* FIXAR pelo menu */
+      const fx = ov ? [...ov.querySelectorAll('.modal-body button')]
+        .find(x => /^fixar no topo$/i.test(x.textContent.replace(/\s+/g, ' ').trim())) : null;
+      if (fx) fx.click();
+      const ordem = [...document.querySelectorAll('#app .os-client')].map(x => x.textContent);
+      const fixou = !!(JSON.parse(localStorage.getItem('mappo_clientes') || '[]')
+        .find(c => c.nome === n) || {}).fixado;
+      /* EXCLUIR pelo menu */
+      document.getElementById('modalRoot').innerHTML = '';
+      const card2 = [...document.querySelectorAll('#app .os-card')]
+        .find(c => ((c.querySelector('.os-client') || {}).textContent || '') === n);
+      const bt2 = card2 ? [...card2.querySelectorAll('button')]
+        .find(x => /menuCliente/.test(x.getAttribute('onclick') || '')) : null;
+      if (bt2) bt2.click();
+      const ex = [...document.querySelectorAll('#curOverlay .modal-body button')]
+        .find(x => /^excluir$/i.test(x.textContent.replace(/\s+/g, ' ').trim()));
+      if (ex) ex.click();
+      window.removeEventListener('error', onerr);
+      const out = { achouCartao: true, achouBotao: !!bt, abriu: abriu, ordem: ordem, fixou: fixou,
+        aindaExiste: !!JSON.parse(localStorage.getItem('mappo_clientes') || '[]')
+          .find(c => c.nome === n),
+        cartoes: [...document.querySelectorAll('#app .os-client')].map(x => x.textContent),
+        quebras: quebras };
+      document.getElementById('modalRoot').innerHTML = '';
+      return out;
+    }, nome);
+    const ctrl = nome === 'Nome Comum';
+    console.log('  [' + nome + '] menu abriu:', r45.abriu, '| ordem apos fixar:',
+      JSON.stringify(r45.ordem), '| erros:', r45.quebras.length ? r45.quebras : '(nenhum)');
+    assert(r45.achouCartao && r45.achouBotao,
+      (ctrl ? 'CONTROLE M13: ' : '') + 'o cartao de ' + JSON.stringify(nome) + ' tem o ⋮');
+    assert(r45.abriu, (ctrl ? 'CONTROLE M13: ' : '') + 'o ⋮ de ' + JSON.stringify(nome) + ' abre o menu');
+    assert(r45.ordem[0] === nome,
+      (ctrl ? 'CONTROLE M13: ' : '') + 'fixar ' + JSON.stringify(nome) + ' leva ele ao topo');
+    assert(r45.fixou === true,
+      (ctrl ? 'CONTROLE M13: ' : '') + '`fixado` gravado no registro de ' + JSON.stringify(nome));
+    assert(!r45.aindaExiste,
+      (ctrl ? 'CONTROLE M13: ' : '') + 'excluir ' + JSON.stringify(nome) + ' apaga o cadastro dele');
+    assert(r45.cartoes.indexOf('Vizinho Dele') >= 0,
+      (ctrl ? 'CONTROLE M13: ' : '') + 'e o cliente do lado continua na lista');
+    assert(!r45.quebras.length,
+      (ctrl ? 'CONTROLE M13: ' : '') + 'nenhum erro de JS no caminho de ' + JSON.stringify(nome));
+  }
+
+  /* ══════════ CHECK 46 (M14): a FUSÃO não desfixa em silêncio ══════════ */
+  /* Ausência de um lado não apaga o que existe do outro -- a mesma regra que já vale para
+     endereço e contato na fusão. Sem isto, fundir a grafia fixada numa não fixada devolvia o
+     cliente para o meio da lista sem o gestor pedir. */
+  console.log('\n=== CHECK 46 (M14): fundir grafias -- o `fixado` da outra grafia sobrevive ===');
+  const r46 = await pg.evaluate((d) => {
+    document.getElementById('modalRoot').innerHTML = '';
+    clientes = [{ nome: 'acme ar', endereco: 'Rua AC, 1', contato: '1' },
+                { nome: 'ACME AR', endereco: '', contato: '', fixado: true }];
+    osList = JSON.parse(JSON.stringify(d.os)); manutencoes = [];
+    saveClientes(); saveOS(); saveManut();
+    nav('clientes');
+    openModalCliente('acme ar');
+    document.getElementById('cNome').value = 'ACME AR';
+    criarCliente('acme ar');          // o window.confirm global responde "sim" à fusão
+    const gravados = JSON.parse(localStorage.getItem('mappo_clientes') || '[]');
+    const out = { quantos: gravados.length, registro: gravados.find(c => c.nome === 'ACME AR') || null,
+      ordem: [...document.querySelectorAll('#app .os-client')].map(x => x.textContent),
+      osNoNome: osList.filter(o => o.cliente === 'ACME AR').length };
+    document.getElementById('modalRoot').innerHTML = '';
+    return out;
+  }, { os: [osDe('ac1', 'acme ar', '2026-08-01'), osDe('ac2', 'ACME AR', '2026-08-02'),
+            osDe('vz1', 'Vizinho Neutro', '2026-08-03')] });
+  console.log('  registros gravados:', r46.quantos, '| sobrevivente:', JSON.stringify(r46.registro),
+    '| ordem:', JSON.stringify(r46.ordem));
+  assert(r46.quantos === 1, 'CONTROLE M14: a fusao deixou UM registro, nao dois');
+  assert(r46.osNoNome === 2, 'CONTROLE M14: as 2 OS das duas grafias ficaram sob o nome unico');
+  assert(!!r46.registro && r46.registro.fixado === true,
+    'o `fixado` que so a outra grafia tinha SOBREVIVEU a fusao');
+  assert(r46.ordem[0] === 'ACME AR', 'e o cliente fundido continua no topo');
+
+  /* ══════════ CHECK 47 (M15): o cartão de cliente não tem mais emoji ══════════ */
+  /* Regra do CLAUDE.md de 12/10/2026: ícone é silhueta do ICONS, nunca emoji colorido. O que
+     esta entrega varre são os QUATRO emojis do cartão de cliente (endereço, telefone,
+     concluídas, em aberto); os outros do arquivo são entrega própria.
+     O CONTROLE POSITIVO é um LITERAL, e isso foi corrigido em 14/10/2026 (R10): até aqui ele
+     afirmava que o DETALHE do cliente ainda tem emoji, isto é, apoiava-se num débito do
+     produto. No dia em que o detalhe cumprisse a regra e trocasse o pino por svgIco, esta suíte
+     ficaria VERMELHA POR TER SIDO CORRIGIDA -- teste que petrifica débito é teste que pune o
+     acerto. O que o controle precisa provar é só que o detector enxerga emoji quando existe,
+     e um literal prova isso sem depender de nada do app.
+     O estado do detalhe continua MEDIDO e IMPRESSO no log, para ninguém perder o débito de
+     vista -- mas não é afirmado, porque não é garantia desta entrega. */
+  console.log('\n=== CHECK 47 (M15): o cartao de cliente usa icone do sistema, nao emoji ===');
+  const r47 = await pg.evaluate(() => {
+    document.getElementById('modalRoot').innerHTML = '';
+    clientes = [{ nome: 'Sem Emoji', endereco: 'Rua SE, 1', contato: '(49) 1234-5678' }];
+    osList = []; manutencoes = [];
+    saveClientes(); saveOS(); saveManut();
+    nav('clientes');
+    const card = document.querySelector('#app .os-card');
+    const out = { textoDoCartao: card.textContent, svgs: card.querySelectorAll('svg').length };
+    openHistoricoCliente('Sem Emoji');
+    const ov = document.getElementById('curOverlay');
+    out.textoDoDetalhe = ov ? ov.querySelector('.modal-body').textContent : '';
+    closeModal(); document.getElementById('modalRoot').innerHTML = '';
+    return out;
+  });
+  const temEmoji = (s) => /\p{Extended_Pictographic}/u.test(s);
+  console.log('  SVGs no cartao:', r47.svgs, '| emoji no cartao:', temEmoji(r47.textoDoCartao),
+    '| emoji no detalhe (so medido, nao afirmado):', temEmoji(r47.textoDoDetalhe));
+  assert(r47.svgs >= 5,
+    'o cartao tem os 4 icones do sistema (endereco, telefone, concluidas, em aberto) mais o ⋮');
+  assert(temEmoji('📍 x') && temEmoji('📞') && !temEmoji('Rua das Flores, 10 - Centro'),
+    'CONTROLE M15: o detector de emoji ACHA emoji num literal e NAO acha em texto comum -- '
+    + 'controle autossuficiente, que nao fica vermelho no dia em que o produto for corrigido');
+  assert(!temEmoji(r47.textoDoCartao), 'nenhum emoji sobrou no cartao de cliente');
+
+  /* ══════════ CHECK 48 (C2): excluir cliente que SÓ tem manutenção -- o aviso não mente ══════════ */
+  /* `renderClientes` monta a lista de `osList` + `clientes`, NUNCA de `manutencoes`. Então o
+     cliente com 1 manutenção e 0 OS DESAPARECE da lista quando o cadastro é excluído -- e a
+     mensagem de 13/10/2026 prometia o contrário ("continua aparecendo na lista por causa desse
+     histórico"). O gestor aceitava com base numa promessa falsa e perdia endereço, contato e o
+     caminho de volta ao cartão. A manutenção em si sempre ficou intacta, e continua.
+     CONTROLE POSITIVO embutido: o MESMO cliente, com 1 OS, recebe a mensagem que DIZ "continua
+     aparecendo" -- sem ele, "a mensagem não promete" e "a sonda não lê a mensagem" seriam
+     indistinguíveis de fora. A lista NÃO passou a agregar manutenções: isso faria aparecer
+     cliente que hoje não aparece, é decisão de produto do proprietário, e está registrada. */
+  console.log('\n=== CHECK 48 (C2): aviso de excluir com 1 manutencao e 0 OS -- diz que SAI da lista ===');
+  const r48 = await pg.evaluate((d) => {
+    document.getElementById('modalRoot').innerHTML = '';
+    const medir = (cen) => {
+      clientes = [{ nome: 'So Manutencao', endereco: 'Rua SM, 1', contato: '(49) 1111-2222' }];
+      osList = JSON.parse(JSON.stringify(cen.os)); manutencoes = JSON.parse(JSON.stringify(cen.mn));
+      saveClientes(); saveOS(); saveManut();
+      nav('clientes');
+      const antes = { mn: JSON.stringify(manutencoes), dMn: localStorage.getItem('mappo_manut'),
+                      os: JSON.stringify(osList), dOs: localStorage.getItem('mappo_os') };
+      const msgs = [], chaves = [];
+      window.confirm = (m) => { msgs.push(m); return true; };
+      const orig = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (k, v) { chaves.push(k); return orig.apply(this, arguments); };
+      excluirCliente('So Manutencao');
+      Storage.prototype.setItem = orig;
+      window.confirm = () => true;
+      const t = document.getElementById('toast');
+      return { msg: msgs[0] || '', chaves: chaves, toast: t ? t.textContent : '',
+        mnIgual: JSON.stringify(manutencoes) === antes.mn,
+        dMnIgual: localStorage.getItem('mappo_manut') === antes.dMn,
+        osIgual: JSON.stringify(osList) === antes.os,
+        dOsIgual: localStorage.getItem('mappo_os') === antes.dOs,
+        cartoes: [...document.querySelectorAll('#app .os-client')].map(x => x.textContent) };
+    };
+    const soManut = medir({ os: [], mn: d.mn });
+    const comOs = medir({ os: d.os, mn: d.mn });
+    document.getElementById('modalRoot').innerHTML = '';
+    return { soManut: soManut, comOs: comOs };
+  }, { mn: [manutDe('smm1', 'So Manutencao', '2026-12-10')],
+       os: [osDe('smo1', 'So Manutencao', '2026-03-03')] });
+  console.log('  so manutencao -- pergunta:', JSON.stringify(r48.soManut.msg));
+  console.log('  so manutencao -- cartoes depois:', JSON.stringify(r48.soManut.cartoes),
+    '| chaves gravadas:', JSON.stringify(r48.soManut.chaves), '| aviso:', JSON.stringify(r48.soManut.toast));
+  console.log('  CONTROLE com 1 OS -- pergunta:', JSON.stringify(r48.comOs.msg));
+  assert(r48.soManut.msg.length > 0, 'excluir cliente que so tem manutencao PERGUNTA antes');
+  assert(/1 manutenç[ãa]o/.test(r48.soManut.msg), 'o aviso diz que existe 1 manutencao');
+  assert(!/continua aparecendo na lista/i.test(r48.soManut.msg),
+    'e NAO promete que o cliente continua aparecendo na lista -- porque ele sai');
+  assert(/sai da lista/i.test(r48.soManut.msg),
+    'a mensagem diz que ele SAI DA LISTA -- medido ' + JSON.stringify(r48.soManut.msg));
+  assert(/continuam? agendada|aparecem? em Manuten/i.test(r48.soManut.msg),
+    'e diz que a manutencao agendada continua existindo');
+  assert(r48.soManut.cartoes.indexOf('So Manutencao') < 0,
+    'medido NA TELA: o cartao desaparece mesmo -- a mensagem descreve o que de fato acontece');
+  assert(r48.soManut.mnIgual && r48.soManut.dMnIgual,
+    'a manutencao ficou byte a byte igual em memoria E no disco');
+  assert(r48.soManut.chaves.indexOf('mappo_manut') < 0 && r48.soManut.chaves.indexOf('mappo_os') < 0,
+    'nenhuma escrita em mappo_manut nem mappo_os -- medido ' + JSON.stringify(r48.soManut.chaves));
+  assert(r48.soManut.chaves.indexOf('mappo_clientes') >= 0,
+    'CONTROLE C2: a sonda de gravacao MEDIU algo -- mappo_clientes foi gravado');
+  assert(!/o hist[óo]rico continua l[áa]/i.test(r48.soManut.toast),
+    'e o aviso final nao diz "o historico continua la" num cartao que acabou de sair da lista');
+  assert(/continua aparecendo na lista/i.test(r48.comOs.msg),
+    'CONTROLE C2: com 1 OS a mensagem DIZ que continua aparecendo -- a sonda le a frase quando ela existe');
+  assert(r48.comOs.cartoes.indexOf('So Manutencao') >= 0,
+    'CONTROLE C2: e com OS o cartao de fato continua na lista');
+
+  /* ══════════ CHECK 49 (C4): excluir cadastro de cliente FIXADO avisa que a fixação se perde ══════════ */
+  /* Medido em 13/10/2026: cliente `fixado:true` com OS -- depois de excluir, o cartão continua
+     (pelas OS) mas o alfinete some e ele sai do topo, e a mensagem enumerava só "endereço e
+     contato". Perda silenciosa de uma escolha do gestor.
+     CONTROLE NEGATIVO embutido: o mesmo cliente NÃO fixado não recebe a frase -- senão uma
+     mensagem que falasse de fixação sempre passaria por este check sem medir nada. */
+  console.log('\n=== CHECK 49 (C4): excluir cliente FIXADO -- o aviso diz que a fixacao se perde ===');
+  const r49 = await pg.evaluate((d) => {
+    document.getElementById('modalRoot').innerHTML = '';
+    const medir = (fix) => {
+      const reg = { nome: 'Fixado Com OS', endereco: 'Rua F, 1', contato: '(49) 3333-4444' };
+      if (fix) reg.fixado = true;
+      clientes = [reg, { nome: 'Outro Solto', endereco: 'Rua O, 2', contato: '5' }];
+      osList = JSON.parse(JSON.stringify(d.os)); manutencoes = [];
+      saveClientes(); saveOS(); saveManut();
+      nav('clientes');
+      const comAlfinete = () => [...document.querySelectorAll('#app .os-card')]
+        .filter(c => !!c.querySelector('.os-client svg'))
+        .map(c => (c.querySelector('.os-client') || {}).textContent);
+      const alfineteAntes = comAlfinete();
+      const ordemAntes = [...document.querySelectorAll('#app .os-client')].map(x => x.textContent);
+      const msgs = [];
+      window.confirm = (m) => { msgs.push(m); return true; };
+      excluirCliente('Fixado Com OS');
+      window.confirm = () => true;
+      return { msg: msgs[0] || '', alfineteAntes: alfineteAntes, ordemAntes: ordemAntes,
+        alfineteDepois: comAlfinete(),
+        cartoes: [...document.querySelectorAll('#app .os-client')].map(x => x.textContent) };
+    };
+    const fixado = medir(true), solto = medir(false);
+    document.getElementById('modalRoot').innerHTML = '';
+    return { fixado: fixado, solto: solto };
+  }, { os: [osDe('fo1', 'Fixado Com OS', '2026-06-06')] });
+  console.log('  FIXADO -- pergunta:', JSON.stringify(r49.fixado.msg));
+  console.log('  FIXADO -- alfinete antes:', JSON.stringify(r49.fixado.alfineteAntes),
+    '| depois:', JSON.stringify(r49.fixado.alfineteDepois),
+    '| cartoes depois:', JSON.stringify(r49.fixado.cartoes));
+  console.log('  CONTROLE nao fixado -- pergunta:', JSON.stringify(r49.solto.msg));
+  assert(r49.fixado.alfineteAntes.indexOf('Fixado Com OS') >= 0,
+    'CONTROLE C4: o cliente estava de fato FIXADO antes -- alfinete no cartao');
+  assert(r49.fixado.ordemAntes[0] === 'Fixado Com OS', 'CONTROLE C4: e estava no topo da lista');
+  assert(/fixa[çc][ãa]o/i.test(r49.fixado.msg),
+    'a mensagem avisa que a FIXACAO tambem se perde -- medido ' + JSON.stringify(r49.fixado.msg));
+  assert(!/fixa[çc][ãa]o/i.test(r49.solto.msg),
+    'CONTROLE C4: cliente NAO fixado -- a mensagem nao fala de fixacao');
+  assert(r49.fixado.alfineteDepois.indexOf('Fixado Com OS') < 0,
+    'medido: depois de excluir o alfinete some mesmo, e a mensagem avisou');
+  assert(r49.fixado.cartoes.indexOf('Fixado Com OS') >= 0,
+    'e o cartao continua na lista pelas OS -- excluir cadastro nao apaga historico');
+
+  /* ══════════ CHECK 50 (C3a): fixar NÃO cria cliente sem nome visível ══════════ */
+  /* `fixarCliente` era o ÚNICO caminho do app que criava registro de cliente sem passar por
+     nenhuma guarda do cadastro. Medido em 13/10/2026: fixar um nome feito só de caractere
+     invisível gravava {"nome":"<invisível>"} -- exatamente o que `criarCliente` recusa, porque
+     `trim()` não tira largura zero.
+     CONTROLE POSITIVO: o caminho legítimo continua -- fixar um cliente que existe só nas OS,
+     com nome visível, CRIA o registro (é o CHECK 40, repetido aqui de propósito: sem ele, uma
+     guarda que recusasse TUDO passaria por este check). */
+  console.log('\n=== CHECK 50 (C3a): fixar nome invisivel NAO cria registro; nome visivel cria ===');
+  const r50 = await pg.evaluate(() => {
+    document.getElementById('modalRoot').innerHTML = '';
+    const INVIS = '​';
+    const medir = (nome) => {
+      clientes = [];
+      osList = [{ id: 'iv1', cliente: nome, endereco: 'Rua I, 1', tipo: 'Instalacao',
+        tecnico: 'Paulo', data: '2026-04-04', hora: '08:00', status: 'concluida', qtdSplits: 1,
+        equipamentos: [{ marca: '', modelo: '', fotoEvap: null, fotoCond: null }], checklist: [] }];
+      manutencoes = [];
+      saveClientes(); saveOS(); saveManut();
+      nav('clientes');
+      const t0 = document.getElementById('toast'); t0.textContent = ''; t0.className = 'toast';
+      const chaves = [];
+      const orig = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (k, v) { chaves.push(k); return orig.apply(this, arguments); };
+      fixarCliente(nome);
+      Storage.prototype.setItem = orig;
+      const t = document.getElementById('toast');
+      return { quantos: clientes.length, nomes: clientes.map(c => c.nome), chaves: chaves,
+               toast: t.textContent, disco: localStorage.getItem('mappo_clientes') };
+    };
+    const invisivel = medir(INVIS), visivel = medir('Nome Visivel');
+    document.getElementById('modalRoot').innerHTML = '';
+    return { invisivel: invisivel, visivel: visivel };
+  });
+  console.log('  invisivel -- registros:', r50.invisivel.quantos, '| chaves:',
+    JSON.stringify(r50.invisivel.chaves), '| aviso:', JSON.stringify(r50.invisivel.toast));
+  console.log('  CONTROLE visivel -- registros:', r50.visivel.quantos, '| nomes:',
+    JSON.stringify(r50.visivel.nomes), '| chaves:', JSON.stringify(r50.visivel.chaves));
+  assert(r50.invisivel.quantos === 0,
+    'fixar um nome so de caractere invisivel NAO cria registro -- medido ' + JSON.stringify(r50.invisivel.nomes));
+  assert(r50.invisivel.chaves.indexOf('mappo_clientes') < 0,
+    'e nada e gravado no disco -- medido ' + JSON.stringify(r50.invisivel.chaves));
+  assert(r50.invisivel.toast.length > 0 && /nome/i.test(r50.invisivel.toast),
+    'o gestor e avisado do porque, nao fica no silencio -- medido ' + JSON.stringify(r50.invisivel.toast));
+  assert(r50.visivel.quantos === 1 && r50.visivel.nomes[0] === 'Nome Visivel',
+    'CONTROLE C3a: o caminho legitimo continua -- cliente so nas OS ganha registro ao ser fixado');
+  assert(r50.visivel.chaves.indexOf('mappo_clientes') >= 0,
+    'CONTROLE C3a: e esse caminho de fato grava -- a sonda de gravacao mede');
+
+  /* ══════════ CHECK 51 (C3b): fixar NÃO cria segundo registro que normaliza igual ══════════ */
+  /* Medido em 13/10/2026: com `clientes` = ["Acme"] e as OS em "ACME", fixar "ACME" deixava
+     ["Acme","ACME"] -- dois registros que normalizam igual, que o próprio código chama de dado
+     corrompido (ver _clienteNomeEmUsoAoCriar). Agora recusa, nomeia a grafia que já existe e
+     manda para "Editar", que é quem PERGUNTA antes de fundir histórico.
+     CONTROLE POSITIVO: fixar a grafia que TEM registro continua funcionando e gravando. */
+  console.log('\n=== CHECK 51 (C3b): fixar outra grafia NAO cria segundo registro ===');
+  const r51 = await pg.evaluate((d) => {
+    document.getElementById('modalRoot').innerHTML = '';
+    const medir = (nome) => {
+      clientes = [{ nome: 'Acme', endereco: 'Rua A, 1', contato: '(49) 5555-6666' }];
+      osList = JSON.parse(JSON.stringify(d.os)); manutencoes = [];
+      saveClientes(); saveOS(); saveManut();
+      nav('clientes');
+      const t0 = document.getElementById('toast'); t0.textContent = ''; t0.className = 'toast';
+      const chaves = [];
+      const orig = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (k, v) { chaves.push(k); return orig.apply(this, arguments); };
+      fixarCliente(nome);
+      Storage.prototype.setItem = orig;
+      const t = document.getElementById('toast');
+      return { quantos: clientes.length, nomes: clientes.map(c => c.nome), chaves: chaves,
+               toast: t.textContent, fixados: clientes.filter(c => c.fixado).map(c => c.nome),
+               discoNomes: JSON.parse(localStorage.getItem('mappo_clientes') || '[]').map(c => c.nome) };
+    };
+    const outraGrafia = medir('ACME'), grafiaDoRegistro = medir('Acme');
+    document.getElementById('modalRoot').innerHTML = '';
+    return { outraGrafia: outraGrafia, grafiaDoRegistro: grafiaDoRegistro };
+  }, { os: [osDe('ac9', 'ACME', '2026-05-05')] });
+  console.log('  fixar "ACME" com registro "Acme" -- registros:', JSON.stringify(r51.outraGrafia.nomes),
+    '| disco:', JSON.stringify(r51.outraGrafia.discoNomes), '| chaves:', JSON.stringify(r51.outraGrafia.chaves),
+    '| aviso:', JSON.stringify(r51.outraGrafia.toast));
+  console.log('  CONTROLE fixar "Acme" -- fixados:', JSON.stringify(r51.grafiaDoRegistro.fixados),
+    '| registros:', JSON.stringify(r51.grafiaDoRegistro.nomes));
+  assert(r51.outraGrafia.quantos === 1 && r51.outraGrafia.nomes[0] === 'Acme',
+    'fixar outra grafia NAO cria segundo registro -- medido ' + JSON.stringify(r51.outraGrafia.nomes));
+  assert(r51.outraGrafia.discoNomes.length === 1,
+    'e no disco tambem continua UM registro -- medido ' + JSON.stringify(r51.outraGrafia.discoNomes));
+  assert(r51.outraGrafia.chaves.indexOf('mappo_clientes') < 0,
+    'nada foi gravado -- medido ' + JSON.stringify(r51.outraGrafia.chaves));
+  assert(/Acme/.test(r51.outraGrafia.toast) && /Editar/i.test(r51.outraGrafia.toast),
+    'o aviso nomeia a grafia que ja existe e manda para "Editar" -- medido ' + JSON.stringify(r51.outraGrafia.toast));
+  assert(r51.grafiaDoRegistro.fixados.length === 1 && r51.grafiaDoRegistro.fixados[0] === 'Acme',
+    'CONTROLE C3b: fixar a grafia QUE TEM registro continua funcionando');
+  assert(r51.grafiaDoRegistro.chaves.indexOf('mappo_clientes') >= 0,
+    'CONTROLE C3b: e esse caminho grava -- a sonda de gravacao mede');
+
+  /* ╔══════════════════════════════════════════════════════════════════════════════════════╗
+     ║  CHECKS 52 a 57 (R): AS LACUNAS DE REDE DA RODADA 2 -- 14/10/2026                    ║
+     ║  Nenhuma delas é defeito vivo: o código está CERTO nas seis. O que faltava era o      ║
+     ║  caso que REPROVA se a garantia voltar atrás, e a camada de mutação provou a lacuna   ║
+     ║  desfazendo cada uma com a suíte inteira verde.                                      ║
+     ║  COMO ESTES SEIS FORAM PROVADOS, e por que NÃO é "falha na árvore anterior": na      ║
+     ║  árvore anterior o código já estava certo, então exigir vermelho lá seria exigir o    ║
+     ║  impossível -- e um caso que fica verde nas duas árvores por esse motivo não é caso   ║
+     ║  que só reclama, é caso de REGRESSÃO FUTURA. A prova é por MUTAÇÃO, medida em          ║
+     ║  14/10/2026 numa cópia da árvore (nunca no arquivo vivo) com as oito garantias         ║
+     ║  desfeitas de propósito, uma linha cada:                                             ║
+     ║    - a suíte ANTERIOR, contra essa cópia mutada: 1 assert vermelho -- e esse 1 era o  ║
+     ║      do contraste do Excluir (R4), não mutação nenhuma. Quer dizer: ela era CEGA às   ║
+     ║      oito;                                                                           ║
+     ║    - esta suíte, contra a mesma cópia: 30 asserts vermelhos, distribuídos assim --    ║
+     ║      CHECK 38 fechamento do menu 1; CHECK 52 (excluir) 8; CHECK 53 (fixar/desafixar/  ║
+     ║      criar registro) 12; CHECK 54 (XSS no h2) 3; CHECK 55 (plural) 2; CHECK 56        ║
+     ║      (ícone com cor) 1; CHECK 57 (nome acessível) 3.                                 ║
+     ║  Controle positivo da medição instrumentada: a MESMA cópia instrumentada contra a     ║
+     ║  árvore de agora devolve 0 vermelhos, e contra a árvore anterior devolve 41 (que são  ║
+     ║  os do R1 a R4). Sem esses dois números, "30 vermelhos" não diria nada.               ║
+     ╚══════════════════════════════════════════════════════════════════════════════════════╝ */
+
+  /* ══════════ CHECK 52 (R5a): o disco recusa ao EXCLUIR -- o cliente não some da tela ══════════ */
+  /* O `catch` de excluirCliente desfaz o splice e avisa. Sem rede, uma mutação que engolisse o
+     erro (ou que não devolvesse o registro à posição dele) deixava o cliente SUMIR DA TELA e
+     FICAR NO DISCO: o gestor via "excluído", nenhum aviso, e o cliente ressuscitava na próxima
+     recarga. É a família que o CLAUDE.md chama de "ausência não é instrução de apagar", do lado
+     oposto -- aqui a presença no disco é que não pode virar ausência na tela.
+     A POSIÇÃO importa: `clientes.splice(i,0,reg)` devolve o registro ao lugar, e a comparação é
+     da string JSON inteira, que mede ordem. */
+  console.log('\n=== CHECK 52 (R5a): o disco recusa ao excluir -- nada muda, e o gestor e AVISADO ===');
+  const r52 = await pg.evaluate(() => {
+    document.getElementById('modalRoot').innerHTML = '';
+    clientes = [{ nome: 'Primeiro', endereco: 'Rua P, 1', contato: '1' },
+                { nome: 'Some Da Tela', endereco: 'Rua S, 2', contato: '2' },
+                { nome: 'Terceiro', endereco: 'Rua T, 3', contato: '3' }];
+    osList = []; manutencoes = [];
+    saveClientes(); saveOS(); saveManut();
+    const antes = { cl: JSON.stringify(clientes), dCl: localStorage.getItem('mappo_clientes') };
+    nav('clientes');
+    const orig = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (k, v) {
+      if (k === 'mappo_clientes') { const e = new Error('cota estourada (teste)'); e.name = 'QuotaExceededError'; throw e; }
+      return orig.apply(this, arguments);
+    };
+    let lancou = '';
+    menuCliente('Some Da Tela');
+    try { excluirCliente('Some Da Tela'); } catch (e) { lancou = (e.name || 'Erro') + ': ' + e.message; }
+    Storage.prototype.setItem = orig;
+    const t = document.getElementById('toast');
+    const ov = document.getElementById('curOverlay');
+    const out = { lancou: lancou,
+      toast: t ? t.textContent : '', toastVisivel: !!(t && t.className.indexOf('show') >= 0),
+      memIgual: JSON.stringify(clientes) === antes.cl,
+      nomes: clientes.map(c => c.nome),
+      discoIgual: localStorage.getItem('mappo_clientes') === antes.dCl,
+      discoNomes: JSON.parse(localStorage.getItem('mappo_clientes') || '[]').map(c => c.nome),
+      cartoes: [...document.querySelectorAll('#app .os-client')].map(x => x.textContent),
+      menuAberto: !!(ov && ov.classList.contains('open')),
+      avisoMemoria: _avisoMemoriaAberto === true };
+    _fecharAvisoMemoria();
+    document.getElementById('modalRoot').innerHTML = '';
+    return out;
+  });
+  console.log('  memoria:', JSON.stringify(r52.nomes), '| disco:', JSON.stringify(r52.discoNomes));
+  console.log('  cartoes na tela:', JSON.stringify(r52.cartoes), '| aviso:', JSON.stringify(r52.toast),
+    '| modal de memoria:', r52.avisoMemoria, '| estourou para quem clicou:', r52.lancou || '(nao)');
+  assert(r52.memIgual,
+    'o disco recusando, `clientes` fica byte a byte igual em MEMORIA -- medido ' + JSON.stringify(r52.nomes));
+  assert(r52.discoIgual, 'e byte a byte igual no DISCO (mappo_clientes)');
+  assert(r52.nomes.length === 3 && r52.nomes[1] === 'Some Da Tela',
+    'o registro volta para a MESMA POSICAO do array, nao para o fim');
+  assert(r52.cartoes.indexOf('Some Da Tela') >= 0,
+    'o cartao dele CONTINUA na tela -- sumir da tela e ficar no disco e o defeito que este caso existe para pegar');
+  assert(r52.toastVisivel && /mem[óo]ria do aparelho cheia/i.test(r52.toast),
+    'o gestor E AVISADO, nunca fica mudo -- medido ' + JSON.stringify(r52.toast));
+  assert(/N[ÃA]O foi exclu[íi]do/i.test(r52.toast),
+    'e o aviso diz exatamente o que NAO aconteceu -- medido ' + JSON.stringify(r52.toast));
+  assert(r52.avisoMemoria, 'na cota, o modal bloqueante de memoria cheia tambem abre');
+  assert(r52.menuAberto, 'o menu NAO fecha quando a exclusao falha -- fechar se leria como "deu certo"');
+  assert(!r52.lancou, 'o erro nao sobe cru para quem clicou');
+
+  /* CONTROLE POSITIVO do 52: com o setItem funcionando, a MESMA exclusão grava. Sem ele, o caso
+     acima passaria por qualquer motivo que impedisse a exclusão -- inclusive um defeito novo. */
+  const r52b = await pg.evaluate(() => {
+    document.getElementById('modalRoot').innerHTML = '';
+    nav('clientes');
+    excluirCliente('Some Da Tela');
+    const out = { nomes: clientes.map(c => c.nome),
+      discoNomes: JSON.parse(localStorage.getItem('mappo_clientes') || '[]').map(c => c.nome),
+      toast: (document.getElementById('toast') || {}).textContent || '' };
+    document.getElementById('modalRoot').innerHTML = '';
+    return out;
+  });
+  console.log('  [controle] setItem normal -> memoria:', JSON.stringify(r52b.nomes),
+    '| disco:', JSON.stringify(r52b.discoNomes), '| aviso:', JSON.stringify(r52b.toast));
+  assert(r52b.nomes.indexOf('Some Da Tela') < 0 && r52b.discoNomes.indexOf('Some Da Tela') < 0,
+    'CONTROLE R5a: com o setItem funcionando, a mesma exclusao de fato grava (memoria e disco)');
+
+  /* ══════════ CHECK 53 (R5b): o disco recusa ao FIXAR, DESAFIXAR e ao CRIAR registro ══════════ */
+  /* Três caminhos, e o terceiro é o que mais importa: fixar cliente que só existe nas OS CRIA
+     registro, e uma falha ali sem desfazer deixava um registro FANTASMA em memória -- presente
+     na tela com alfinete, ausente do disco, e some na recarga. Erro genérico (TypeError) de
+     propósito: a cota já é medida no 52, e o ramo não-cota do _avisarFalhaCliente é outro. */
+  console.log('\n=== CHECK 53 (R5b): o disco recusa ao fixar/desafixar/criar registro -- nada muda, e avisa ===');
+  const r53 = await pg.evaluate((d) => {
+    const cenario = (nome, cls, os, prepara) => {
+      document.getElementById('modalRoot').innerHTML = '';
+      clientes = JSON.parse(JSON.stringify(cls));
+      osList = JSON.parse(JSON.stringify(os)); manutencoes = [];
+      saveClientes(); saveOS(); saveManut();
+      const antes = { cl: JSON.stringify(clientes), dCl: localStorage.getItem('mappo_clientes') };
+      nav('clientes');
+      if (prepara) prepara();
+      const orig = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (k, v) {
+        if (k === 'mappo_clientes') throw new TypeError('o disco recusou (teste)');
+        return orig.apply(this, arguments);
+      };
+      let lancou = '';
+      menuCliente(nome);
+      try { fixarCliente(nome); } catch (e) { lancou = (e.name || 'Erro') + ': ' + e.message; }
+      Storage.prototype.setItem = orig;
+      const t = document.getElementById('toast');
+      const ov = document.getElementById('curOverlay');
+      const out = { lancou: lancou, toast: t ? t.textContent : '',
+        toastVisivel: !!(t && t.className.indexOf('show') >= 0),
+        memIgual: JSON.stringify(clientes) === antes.cl,
+        discoIgual: localStorage.getItem('mappo_clientes') === antes.dCl,
+        quantos: clientes.length, fixados: clientes.filter(c => c.fixado).map(c => c.nome),
+        temChaveFixado: clientes.some(c => Object.prototype.hasOwnProperty.call(c, 'fixado')),
+        menuAberto: !!(ov && ov.classList.contains('open')),
+        avisoMemoria: _avisoMemoriaAberto === true };
+      _fecharAvisoMemoria();
+      document.getElementById('modalRoot').innerHTML = '';
+      return out;
+    };
+    const fixar = cenario('Vai Fixar', [{ nome: 'Vai Fixar', endereco: 'Rua F, 1', contato: '1' }], []);
+    const desafixar = cenario('Ja Fixado', [{ nome: 'Ja Fixado', endereco: 'Rua J, 1', contato: '2', fixado: true }], []);
+    const criaRegistro = cenario('Somente nas OS', [], d.os);
+    return { fixar: fixar, desafixar: desafixar, criaRegistro: criaRegistro };
+  }, { os: [osDe('fx1', 'Somente nas OS', '2026-03-03')] });
+  for (const [rot, r] of [['fixar', r53.fixar], ['desafixar', r53.desafixar], ['cria registro', r53.criaRegistro]]) {
+    console.log('  [' + rot + '] memoria igual:', r.memIgual, '| disco igual:', r.discoIgual,
+      '| registros:', r.quantos, '| fixados:', JSON.stringify(r.fixados),
+      '| aviso:', JSON.stringify(r.toast), '| menu aberto:', r.menuAberto);
+    assert(r.memIgual, '[' + rot + '] o disco recusando, `clientes` fica byte a byte igual em MEMORIA');
+    assert(r.discoIgual, '[' + rot + '] e byte a byte igual no DISCO');
+    assert(r.toastVisivel, '[' + rot + '] o gestor E AVISADO -- o `catch` nunca volta mudo');
+    assert(/N[ÃA]O foi (fixado|desafixado)/i.test(r.toast),
+      '[' + rot + '] e o aviso diz o que NAO aconteceu -- medido ' + JSON.stringify(r.toast));
+    assert(!/mem[óo]ria do aparelho cheia/i.test(r.toast) && !r.avisoMemoria,
+      '[' + rot + '] falha que NAO e de cota nao fala de memoria cheia nem abre o modal bloqueante');
+    assert(r.menuAberto, '[' + rot + '] o menu NAO fecha quando a gravacao falha');
+    assert(!r.lancou, '[' + rot + '] o erro nao sobe cru para quem clicou');
+  }
+  assert(!r53.fixar.temChaveFixado,
+    'fixar e falhar NAO deixa a chave `fixado` no registro -- medido ' + JSON.stringify(r53.fixar.fixados));
+  assert(r53.desafixar.fixados.length === 1 && r53.desafixar.fixados[0] === 'Ja Fixado',
+    'desafixar e falhar deixa o cliente AINDA FIXADO -- o alfinete nao mente sobre o disco');
+  assert(r53.criaRegistro.quantos === 0,
+    'fixar cliente que so existe nas OS e falhar NAO deixa registro FANTASMA em memoria -- medido '
+    + r53.criaRegistro.quantos + ' registro(s)');
+
+  /* CONTROLE POSITIVO do 53: com o setItem funcionando, os três caminhos de fato gravam. */
+  const r53b = await pg.evaluate((d) => {
+    const cenario = (nome, cls, os) => {
+      document.getElementById('modalRoot').innerHTML = '';
+      clientes = JSON.parse(JSON.stringify(cls));
+      osList = JSON.parse(JSON.stringify(os)); manutencoes = [];
+      saveClientes(); saveOS(); saveManut();
+      nav('clientes');
+      fixarCliente(nome);
+      const disco = JSON.parse(localStorage.getItem('mappo_clientes') || '[]');
+      const out = { fixados: clientes.filter(c => c.fixado).map(c => c.nome),
+        discoFixados: disco.filter(c => c.fixado).map(c => c.nome), quantos: clientes.length };
+      document.getElementById('modalRoot').innerHTML = '';
+      return out;
+    };
+    return { fixar: cenario('Vai Fixar', [{ nome: 'Vai Fixar', endereco: 'Rua F, 1', contato: '1' }], []),
+      desafixar: cenario('Ja Fixado', [{ nome: 'Ja Fixado', endereco: 'Rua J, 1', contato: '2', fixado: true }], []),
+      criaRegistro: cenario('Somente nas OS', [], d.os) };
+  }, { os: [osDe('fx2', 'Somente nas OS', '2026-03-04')] });
+  console.log('  [controle] setItem normal -> fixar:', JSON.stringify(r53b.fixar.discoFixados),
+    '| desafixar:', JSON.stringify(r53b.desafixar.discoFixados),
+    '| cria registro:', r53b.criaRegistro.quantos, JSON.stringify(r53b.criaRegistro.discoFixados));
+  assert(r53b.fixar.discoFixados.length === 1 && r53b.desafixar.discoFixados.length === 0
+    && r53b.criaRegistro.quantos === 1 && r53b.criaRegistro.discoFixados.length === 1,
+    'CONTROLE R5b: com o setItem funcionando, fixar, desafixar e criar registro de fato gravam no disco');
+
+  /* ══════════ CHECK 54 (R6): nome com HTML no menu ⋮ aparece LITERAL ══════════ */
+  /* O `<h2>` do menuCliente é sumidouro NOVO: a suíte varre o nome no cartão (CHECK 18) e o
+     contato (CHECK 17), e nenhum dos dois passa por aqui. Com escapeHtml trocado por
+     interpolação crua, o nome do cliente -- dado que o gestor digita -- nasce como MARCAÇÃO
+     dentro de um modal, e o `onerror` de um `<img>` roda. */
+  console.log('\n=== CHECK 54 (R6): nome com HTML no menu de tres pontos aparece literal ===');
+  const XSS = '<img src=x onerror="window.__xssMenu=1">Loja &amp; Cia <b>teste</b>';
+  const r54 = await pg.evaluate((nome) => {
+    document.getElementById('modalRoot').innerHTML = '';
+    delete window.__xssMenu; delete window.__xssCtrl;
+    clientes = [{ nome: nome, endereco: 'Rua XS, 1', contato: '(49) 1111-2222' }];
+    osList = []; manutencoes = [];
+    saveClientes(); saveOS(); saveManut();
+    nav('clientes');
+    menuCliente(nome);
+    const ov = document.getElementById('curOverlay');
+    const h2 = ov.querySelector('.modal-head h2');
+    /* CONTROLE POSITIVO da sonda: a MESMA string, posta como innerHTML, CRIA elementos.
+       Sem isto, "0 elementos" e "a sonda nao conta elementos" seriam indistinguiveis. */
+    const ctrl = document.createElement('div');
+    ctrl.innerHTML = nome.replace('__xssMenu', '__xssCtrl');
+    return { aberto: ov.classList.contains('open'),
+      filhos: h2.querySelectorAll('*').length, texto: h2.textContent,
+      imgs: h2.querySelectorAll('img').length,
+      ctrlFilhos: ctrl.querySelectorAll('*').length, ctrlImgs: ctrl.querySelectorAll('img').length };
+  }, XSS);
+  await pg.waitForTimeout(400);     // o onerror de um <img src=x> é assíncrono
+  const r54b = await pg.evaluate(() => {
+    const out = { disparou: window.__xssMenu === 1, ctrlDisparou: window.__xssCtrl === 1 };
+    closeModal(); document.getElementById('modalRoot').innerHTML = '';
+    return out;
+  });
+  console.log('  h2 -> filhos:', r54.filhos, '| <img>:', r54.imgs, '| onerror disparou:', r54b.disparou);
+  console.log('  [controle] a mesma string como innerHTML -> filhos:', r54.ctrlFilhos,
+    '| <img>:', r54.ctrlImgs, '| onerror do controle disparou:', r54b.ctrlDisparou);
+  assert(r54.aberto, 'CONTROLE R6: o menu de tres pontos esta aberto (classe open em #curOverlay)');
+  assert(r54.ctrlFilhos >= 2 && r54.ctrlImgs === 1,
+    'CONTROLE R6: a MESMA string posta como innerHTML cria elementos -- a sonda enxerga marcacao quando existe');
+  assert(r54.filhos === 0 && r54.imgs === 0,
+    'nenhum elemento nasceu dentro do h2 do menu -- medido ' + r54.filhos + ' filho(s)');
+  assert(r54.texto === XSS, 'o nome aparece LITERAL, caractere por caractere -- medido ' + JSON.stringify(r54.texto));
+  assert(!r54b.disparou, 'e nenhum onerror do nome rodou');
+
+  /* ══════════ CHECK 55 (R7): o TOAST de excluir, nos três casos, e o plural ══════════ */
+  /* Antes desta rodada o toast final de excluirCliente só era afirmado por NEGAÇÃO num caso
+     (CHECK 48: "nao diz que o historico continua la"). Os três textos positivos e os ramos
+     PLURAIS -- de pergunta e de toast -- não tinham cenário nenhum: uma mutação que trocasse
+     "as manutenções continuam agendadas" por "a manutenção continua agendada" ficava verde. */
+  console.log('\n=== CHECK 55 (R7): o toast de excluir nos tres casos, e o plural de manutencoes ===');
+  const r55 = await pg.evaluate((d) => {
+    const cenario = (nome, os, mn) => {
+      document.getElementById('modalRoot').innerHTML = '';
+      clientes = [{ nome: nome, endereco: 'Rua E, 1', contato: '0' }];
+      osList = JSON.parse(JSON.stringify(os)); manutencoes = JSON.parse(JSON.stringify(mn));
+      saveClientes(); saveOS(); saveManut();
+      nav('clientes');
+      const msgs = [];
+      window.confirm = (m) => { msgs.push(m); return true; };
+      excluirCliente(nome);
+      window.confirm = () => true;
+      const t = document.getElementById('toast');
+      const out = { msg: msgs[0] || '', toast: t ? t.textContent : '',
+        toastVisivel: !!(t && t.className.indexOf('show') >= 0) };
+      document.getElementById('modalRoot').innerHTML = '';
+      return out;
+    };
+    return {
+      comOs: cenario('Com Tres OS', d.os3, []),
+      soManut1: cenario('So Uma Manut', [], d.mn1),
+      soManut2: cenario('So Duas Manut', [], d.mn2),
+      semNada: cenario('Sem Nada', [], []),
+      doisEDois: cenario('Dois E Dois', d.os2, d.mn2d)
+    };
+  }, {
+    os3: [1, 2, 3].map(i => osDe('t3' + i, 'Com Tres OS', '2026-0' + i + '-15')),
+    os2: [1, 2].map(i => osDe('t2' + i, 'Dois E Dois', '2026-0' + i + '-16')),
+    mn1: [manutDe('tm1', 'So Uma Manut', '2026-11-01')],
+    mn2: [manutDe('tm2', 'So Duas Manut', '2026-11-02'), manutDe('tm3', 'So Duas Manut', '2026-12-02')],
+    mn2d: [manutDe('td1', 'Dois E Dois', '2026-11-03'), manutDe('td2', 'Dois E Dois', '2026-12-03')]
+  });
+  for (const [rot, r] of [['com OS', r55.comOs], ['1 manut', r55.soManut1], ['2 manut', r55.soManut2],
+                          ['sem nada', r55.semNada], ['2 OS + 2 manut', r55.doisEDois]]) {
+    console.log('  [' + rot + '] pergunta:', JSON.stringify(r.msg.slice(0, 120)));
+    console.log('  [' + rot + '] toast:', JSON.stringify(r.toast));
+    assert(r.toastVisivel, '[' + rot + '] o toast final de fato APARECEU na tela');
+  }
+  assert(/hist[óo]rico continua l[áa]/i.test(r55.comOs.toast),
+    'com OS, o toast diz que o historico continua la -- medido ' + JSON.stringify(r55.comOs.toast));
+  assert(/saiu da lista/i.test(r55.soManut1.toast) && /a manuten[çc][ãa]o continua agendada/i.test(r55.soManut1.toast),
+    'com 1 manutencao e 0 OS, o toast diz que saiu da lista e usa o SINGULAR -- medido '
+    + JSON.stringify(r55.soManut1.toast));
+  assert(/saiu da lista/i.test(r55.soManut2.toast) && /as manuten[çc][õo]es continuam agendadas/i.test(r55.soManut2.toast),
+    'com 2 manutencoes e 0 OS, o toast usa o PLURAL -- medido ' + JSON.stringify(r55.soManut2.toast));
+  assert(/As manuten[çc][õo]es continuam agendadas e aparecem/i.test(r55.soManut2.msg),
+    'e a PERGUNTA tambem usa o plural -- medido ' + JSON.stringify(r55.soManut2.msg));
+  assert(/A manuten[çc][ãa]o continua agendada e aparece/i.test(r55.soManut1.msg),
+    'CONTROLE R7: com 1 manutencao a pergunta usa o SINGULAR -- o par que prova que o ramo e escolhido, nao fixo');
+  assert(/^Cliente exclu[íi]do$/i.test(r55.semNada.toast.trim()),
+    'sem OS e sem manutencao, o toast e so "Cliente excluido" -- medido ' + JSON.stringify(r55.semNada.toast));
+  assert(/\b2 OS\b/.test(r55.doisEDois.msg) && /2 manuten[çc][õo]es/.test(r55.doisEDois.msg),
+    'com 2 OS e 2 manutencoes a pergunta diz "2 OS e 2 manutencoes", no plural -- medido '
+    + JSON.stringify(r55.doisEDois.msg));
+  assert(/hist[óo]rico continua l[áa]/i.test(r55.doisEDois.toast),
+    'e o toast desse caso e o de quem TEM OS -- medido ' + JSON.stringify(r55.doisEDois.toast));
+
+  /* ══════════ CHECK 56 (R8): a regra dos ícones ganha MECANISMO ══════════ */
+  /* O CLAUDE.md diz "ícone é silhueta, nunca cor própria", e o próprio CLAUDE.md diz que regra
+     sem mecanismo é decoração. Medido pela camada de mutação: trocar um ícone do ICONS para
+     ter `fill="#ff0000"` deixava a suíte INTEIRA verde. Este check é o mecanismo.
+     Varre o ICONS do app rodando -- não o texto do arquivo -- então comentário não entra na
+     conta, e um ícone novo é varrido no dia em que nascer, sem ninguém se lembrar. */
+  console.log('\n=== CHECK 56 (R8): nenhum icone do ICONS tem cor propria ===');
+  const r56 = await pg.evaluate(() => {
+    const COR = /\bfill\s*=|\bstroke\s*=|\bcolor\s*=|\bstyle\s*=|#[0-9a-fA-F]{3,8}|rgba?\(|hsla?\(/;
+    const nomes = Object.keys(ICONS);
+    const comCor = nomes.filter(n => COR.test(ICONS[n]));
+    const vazios = nomes.filter(n => !ICONS[n] || !String(ICONS[n]).trim());
+    /* CONTROLE POSITIVO da busca: um icone FORJADO com fill tem de ser pego. Resultado negativo
+       exige controle positivo -- uma expressao que nao casa com nada devolve a mesma lista vazia
+       que uma expressao certa num conjunto limpo. */
+    const forjados = ['<path fill="#ff0000" d="M0 0"/>', '<circle stroke="red" cx="1" cy="1" r="1"/>',
+                      '<path style="fill:#0f0" d="M0 0"/>', '<rect fill="rgb(255,0,0)" x="0" y="0"/>'];
+    const pegou = forjados.filter(s => COR.test(s)).length;
+    /* os tres pontos sao LINHAS DEGENERADAS, nao circulos: x1===x2 e o comprimento e ~zero, e o
+       stroke-linecap:round do .ico transforma cada uma num ponto redondo. O app usa 0.01 de
+       diferenca (igual ao icone `mobile`), nao zero exato -- linha de comprimento zero exato
+       nao e desenhada por parte dos motores. */
+    const at = (s, a) => { const m = s.match(new RegExp('\\b' + a + '="([^"]*)"')); return m ? parseFloat(m[1]) : NaN; };
+    const linhas = (String(ICONS['tres-pontos']).match(/<line[^>]*>/g) || []);
+    const degeneradas = linhas.filter(l => at(l, 'x1') === at(l, 'x2')
+      && Math.abs(at(l, 'y2') - at(l, 'y1')) > 0 && Math.abs(at(l, 'y2') - at(l, 'y1')) <= 0.05);
+    /* o SVG montado tambem nao pode ganhar cor pelo caminho do svgIco */
+    const montado = svgIco('tres-pontos', 'ico-sm');
+    const sonda = document.createElement('div');
+    sonda.innerHTML = montado;
+    document.body.appendChild(sonda);
+    const est = getComputedStyle(sonda.querySelector('svg'));
+    const out = { quantos: nomes.length, comCor: comCor, vazios: vazios, pegou: pegou,
+      linhas: linhas.length, degeneradas: degeneradas.length,
+      alfineteIgualPin: ICONS.alfinete === ICONS.pin,
+      montadoComCor: COR.test(montado.replace(/class="[^"]*"/, '')),
+      fill: est.fill, stroke: est.stroke };
+    sonda.remove();
+    return out;
+  });
+  console.log('  icones varridos:', r56.quantos, '| com cor propria:', JSON.stringify(r56.comCor),
+    '| vazios:', JSON.stringify(r56.vazios));
+  console.log('  [controle] icones FORJADOS com cor que a busca pegou:', r56.pegou, '/4');
+  console.log('  tres-pontos:', r56.linhas, 'linhas,', r56.degeneradas, 'degeneradas | alfinete === pin:',
+    r56.alfineteIgualPin, '| .ico computado: fill', r56.fill, 'stroke', r56.stroke);
+  assert(r56.quantos >= 35, 'CONTROLE R8: a varredura MEDIU o ICONS inteiro -- ' + r56.quantos + ' icones');
+  assert(r56.pegou === 4,
+    'CONTROLE R8: a busca pega os 4 icones FORJADOS com cor -- medido ' + r56.pegou
+    + '/4 (sem este controle, "nenhum com cor" e "a busca nao acha cor" seriam a mesma coisa)');
+  assert(r56.comCor.length === 0,
+    'nenhum icone do ICONS tem fill, stroke, style nem cor literal -- medido ' + JSON.stringify(r56.comCor));
+  assert(r56.vazios.length === 0, 'e nenhum icone esta vazio -- medido ' + JSON.stringify(r56.vazios));
+  assert(!r56.montadoComCor, 'o svgIco tambem nao acrescenta cor ao montar o SVG');
+  assert(r56.fill === 'none' && /currentcolor|rgb/i.test(r56.stroke),
+    'o .ico herda a cor do contexto: fill none e stroke do texto -- medido fill ' + r56.fill
+    + ', stroke ' + r56.stroke);
+  assert(r56.linhas === 3 && r56.degeneradas === 3,
+    'o ⋮ sao TRES linhas degeneradas (x1===x2, comprimento quase zero), nao circulos -- medido '
+    + r56.linhas + ' linhas, ' + r56.degeneradas + ' degeneradas');
+  assert(!r56.alfineteIgualPin,
+    'o alfinete de "fixado" e DESENHO DIFERENTE do pin de endereco -- o mesmo desenho com dois '
+    + 'significados no mesmo cartao seria ambiguidade desenhada');
+
+  /* ══════════ CHECK 57 (R9): o ⋮ tem nome acessível ══════════ */
+  /* O ⋮ é SVG puro: textContent vazio. Sem `aria-label`/`title` ele fica SEM NOME -- leitor de
+     tela anuncia "botão", e o único caminho para Editar, Fixar e Excluir não tem nome. Medido
+     pela camada de mutação: tirar os dois atributos deixava a suíte verde. */
+  console.log('\n=== CHECK 57 (R9): o ⋮ do cartao tem nome acessivel ===');
+  const r57 = await pg.evaluate(() => {
+    document.getElementById('modalRoot').innerHTML = '';
+    clientes = [{ nome: 'Cliente Nomeado', endereco: 'Rua NA, 1', contato: '5' }];
+    osList = []; manutencoes = [];
+    saveClientes(); saveOS(); saveManut();
+    nav('clientes');
+    const bt = document.querySelector('#app .os-card button');
+    const itens = (() => { menuCliente('Cliente Nomeado');
+      const r = [...document.querySelectorAll('#curOverlay .modal-body button')]
+        .map(x => x.textContent.replace(/\s+/g, ' ').trim());
+      closeModal(); return r; })();
+    return { achou: !!bt, texto: (bt.textContent || '').trim(),
+      aria: bt.getAttribute('aria-label') || '', title: bt.getAttribute('title') || '',
+      svgs: bt.querySelectorAll('svg').length, itens: itens };
+  });
+  await pg.waitForTimeout(320);
+  console.log('  ⋮ -> texto proprio:', JSON.stringify(r57.texto), '| aria-label:', JSON.stringify(r57.aria),
+    '| title:', JSON.stringify(r57.title), '| SVGs dentro:', r57.svgs);
+  console.log('  itens do menu (que tem texto proprio):', JSON.stringify(r57.itens));
+  assert(r57.achou, 'CONTROLE R9: o cartao tem o botao ⋮');
+  assert(r57.svgs === 1 && r57.texto === '',
+    'CONTROLE R9: o ⋮ e SVG puro, sem texto proprio -- e por isso que o nome acessivel precisa vir de atributo');
+  assert(r57.aria.length > 0, 'o ⋮ tem aria-label -- medido ' + JSON.stringify(r57.aria));
+  assert(r57.title.length > 0, 'e title, para o toque longo no celular -- medido ' + JSON.stringify(r57.title));
+  assert(/a[çc][õo]es/i.test(r57.aria) && /cliente/i.test(r57.aria),
+    'e o nome diz do que se trata ("acoes do cliente") -- medido ' + JSON.stringify(r57.aria));
+  assert(r57.itens.length === 4 && r57.itens.every(t => t.length > 0),
+    'CONTROLE R9: os quatro itens do menu tem texto proprio, e nao dependem de atributo -- medido '
+    + JSON.stringify(r57.itens));
+
   /* ══════════ CHECK 32 (V6): GEOMETRIA EM TELA DE CELULAR -- V1 a V5 ══════════ */
   /* Até 12/10/2026 esta suíte só rodava no viewport padrão do Playwright (1280x720, desktop):
      zero viewport, zero devices[...], zero getBoundingClientRect em 1.770 linhas. Nenhum dos cinco
@@ -1773,7 +3123,7 @@ const manutDe = (id, cliente, data) => ({
      deixou o botão de mapa nascer atrás do rodapé grudado na entrega anterior. O bloco abaixo abre
      o PRÓPRIO contexto, de celular, e não troca o viewport dos checks acima, que estão provados em
      desktop.
-     As quatro armadilhas de medição desta tela, todas pagas em medição real:
+     As cinco armadilhas de medição desta tela, todas pagas em medição real:
        1. #loginScreen tem transition:visibility .5s -- getComputedStyle já diz "hidden" no começo
           da transição e o elemento continua capturando elementFromPoint. Espera-se o que importa
           (o ponto medido chegar DENTRO do #app), com controle positivo: antes de entrarApp o mesmo
@@ -1784,6 +3134,21 @@ const manutDe = (id, cliente, data) => ({
        4. startNotifChecker recarrega osList e manutencoes do localStorage a cada 5 s, e a varredura
           de rolagem demora mais que um piscar -- o cenário é GRAVADO, não só posto em memória,
           senão a recarga apaga os 10 clientes no meio da medição.
+       5. A FAIXA #syncAlerta nasce no meio da varredura e desce a lista inteira 122 px.
+          `entrarApp()` agenda `setTimeout(_vigiarConexao; _atualizarAlertaSync, 4000)` -- e a
+          varredura de rolagem começa por volta de 1,5 s e dura uns 2 a 4 s, então o relógio de
+          4 s cai DENTRO dela, num passo que depende da velocidade da máquina. Medido em
+          13/10/2026, 6 rodadas de 6 a 360x640: `document.documentElement.scrollHeight` salta de
+          2252 para 2374 e o `top` de todo cartão ganha +122 px no meio do caminho.
+          Consequência: os pontos medidos deixam de atravessar a faixa de altura do FAB e o
+          controle `naFaixaDoFab` reprovava sem haver defeito nenhum -- 2 vermelhos em 8 rodadas.
+          NÃO era rolagem não assentada: nas 63 leituras da sonda, `window.scrollY`,
+          `document.scrollingElement.scrollTop` e `visualViewport.pageTop` bateram EXATAMENTE
+          com o valor pedido, e a leitura imediata só diferia da leitura depois de dois quadros
+          de animação no passo em que a faixa aparecia.
+          O que resolve é medir com LAYOUT ASSENTADO: forçar a faixa ao estado final antes de
+          varrer, e, se a altura do documento mudar no meio, declarar a medição INVÁLIDA e
+          varrer de novo -- nunca contar o número torto como se fosse medida.
      O que este bloco NÃO afirma, de propósito: o estouro horizontal do CARTÃO com texto sem
      espaços (medido idêntico em e910054, é anterior e vive em .os-addr, classe global) e o botão de
      cartão que cai na faixa da barra inferior no meio da rolagem (comportamento normal de barra
@@ -1794,235 +3159,447 @@ const manutDe = (id, cliente, data) => ({
   const TELAS = [[390, 844], [375, 667], [360, 640], [320, 568]];
   const LONGO = 'A'.repeat(200);
   const errosM = [];
+  /* Os QUATRO tamanhos são medidos sempre, e a reprovação vem no fim nomeando quais falharam.
+     Até 13/10/2026 o primeiro assert vermelho (sempre 360x640) abortava a suíte e 320x568
+     nunca chegava a ser medido -- cobertura afirmada e não medida. */
+  const falhasPorTela = [];
   for (const [W, H] of TELAS) {
     const T = W + 'x' + H;
     const ctxM = await b.newContext({ viewport: { width: W, height: H }, isMobile: true,
                                       hasTouch: true, deviceScaleFactor: 2 });
     const pgM = await ctxM.newPage();
     pgM.on('pageerror', e => errosM.push(T + ': ' + e.message));
-    await pgM.goto(BASE_URL, { waitUntil: 'load' });
-    await pgM.waitForTimeout(400);
-    console.log('\n  ----- ' + T + ' -----');
+    try {
+      await pgM.goto(BASE_URL, { waitUntil: 'load' });
+      await pgM.waitForTimeout(400);
+      console.log('\n  ----- ' + T + ' -----');
 
-    /* armadilha 1 -- CONTROLE POSITIVO antes de qualquer hit-test */
-    const antes = await pgM.evaluate(() => {
-      const el = document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2);
-      const sp = document.getElementById('splashScreen'), ap = document.getElementById('app');
-      return { noSplash: !!(el && sp && sp.contains(el)), noApp: !!(el && ap && ap.contains(el)) };
-    });
-    assert(antes.noSplash && !antes.noApp,
-      'CONTROLE V6 ' + T + ': antes de entrarApp o meio da tela cai no #splashScreen, nao no #app');
-    await pgM.evaluate(() => {
-      session = { perfil: 'gestor', nome: 'Paulo', uid: 'u1', role: 'Gestor', workspaceId: 'ws' };
-      _gravarTourVisto(); entrarApp(); fbReady = true; WORKSPACE = 'ws';
-      _avisouSessaoExpirada = true;
-      const s = document.getElementById('splashScreen'); if (s) s.remove();
-      const t = document.getElementById('tourRoot'); if (t) t.innerHTML = '';   // armadilha 2
-    });
-    await pgM.waitForFunction(() => {
-      const el = document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2);
-      const lg = document.getElementById('loginScreen'), ap = document.getElementById('app');
-      return !!el && !!ap && ap.contains(el) && !(lg && lg.contains(el));
-    }, null, { timeout: 5000 });
-    console.log('  ok - o app esta de fato na frente em ' + T);
+      /* armadilha 1 -- CONTROLE POSITIVO antes de qualquer hit-test */
+      const antes = await pgM.evaluate(() => {
+        const el = document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2);
+        const sp = document.getElementById('splashScreen'), ap = document.getElementById('app');
+        return { noSplash: !!(el && sp && sp.contains(el)), noApp: !!(el && ap && ap.contains(el)) };
+      });
+      assert(antes.noSplash && !antes.noApp,
+        'CONTROLE V6 ' + T + ': antes de entrarApp o meio da tela cai no #splashScreen, nao no #app');
+      await pgM.evaluate(() => {
+        session = { perfil: 'gestor', nome: 'Paulo', uid: 'u1', role: 'Gestor', workspaceId: 'ws' };
+        _gravarTourVisto(); entrarApp(); fbReady = true; WORKSPACE = 'ws';
+        _avisouSessaoExpirada = true;
+        const s = document.getElementById('splashScreen'); if (s) s.remove();
+        const t = document.getElementById('tourRoot'); if (t) t.innerHTML = '';   // armadilha 2
+      });
+      await pgM.waitForFunction(() => {
+        const el = document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2);
+        const lg = document.getElementById('loginScreen'), ap = document.getElementById('app');
+        return !!el && !!ap && ap.contains(el) && !(lg && lg.contains(el));
+      }, null, { timeout: 5000 });
+      console.log('  ok - o app esta de fato na frente em ' + T);
 
-    /* ---- V1 + V2: o botao "Editar cliente" do cartao, com 10 clientes e rolagem ---- */
-    await pgM.evaluate(() => {
-      clientes = []; osList = []; manutencoes = [];
-      for (let i = 1; i <= 10; i++) {
-        clientes.push({ nome: 'Cliente Numero ' + i, contato: '(49) 9000-000' + i,
-                        endereco: 'Rua das Flores, ' + (i * 10) + ' - Centro' });
-        osList.push({ id: 'vg' + i, cliente: 'Cliente Numero ' + i, tipo: 'Instalacao',
-          endereco: 'Rua das Flores, ' + (i * 10), tecnico: 'Paulo', data: '2026-05-0' + (i % 9 + 1),
-          hora: '08:00', status: 'concluida', qtdSplits: 1, checklist: [],
-          equipamentos: [{ marca: '', modelo: '', fotoEvap: null, fotoCond: null }] });
-      }
-      localStorage.setItem('mappo_clientes', JSON.stringify(clientes));   // armadilha 4
-      localStorage.setItem('mappo_os', JSON.stringify(osList));
-      localStorage.setItem('mappo_manut', '[]');
-      nav('clientes');
-      const t = document.getElementById('tourRoot'); if (t) t.innerHTML = '';
-    });
-    await pgM.waitForTimeout(260);
-    const g1 = await pgM.evaluate(() => {
-      const fab = document.getElementById('fabNovo');
-      const rf = fab.getBoundingClientRect();
-      const noFab = document.elementFromPoint(Math.round(rf.left + rf.width / 2),
-                                              Math.round(rf.top + rf.height / 2));
-      const bts = [...document.querySelectorAll('#app .os-card button')];
-      return {
-        n: bts.length, fabDisplay: getComputedStyle(fab).display, fabLeft: Math.round(rf.left),
-        instrumento: !!(noFab && fab.contains(noFab)),
-        alturas: [...new Set(bts.map(x => Math.round(x.getBoundingClientRect().height)))],
-        maiorRight: Math.max(...bts.map(x => Math.round(x.getBoundingClientRect().right))),
-        textoCortado: bts.filter(x => x.scrollWidth > x.clientWidth).length
-      };
-    });
-    console.log('  V1/V2 ' + T + ': ' + g1.n + ' botoes, alturas ' + JSON.stringify(g1.alturas)
-      + ' | borda direita max ' + g1.maiorRight + ' | FAB em x=' + g1.fabLeft + ' (' + g1.fabDisplay + ')');
-    assert(g1.n === 10, 'V6 ' + T + ': os 10 cartoes de cliente tem botao de editar');
-    assert(g1.fabDisplay === 'flex',
-      'CONTROLE V6 ' + T + ': o FAB "Nova OS" esta de fato na tela (no desktop e display:none, e o caso seria vazio)');
-    assert(g1.instrumento,
-      'CONTROLE V6 ' + T + ': mirar no meio do FAB devolve o proprio FAB -- o hit-test mede quem esta na frente');
-    assert(g1.maiorRight <= g1.fabLeft,
-      'V1 ' + T + ': nenhum botao de editar alcanca a coluna do FAB (borda direita ' + g1.maiorRight
-      + ' <= ' + g1.fabLeft + ')');
-    assert(g1.alturas.every(a => a >= 44),
-      'V2 ' + T + ': todo botao de editar tem no minimo 44 px de altura (medido ' + JSON.stringify(g1.alturas) + ')');
-    assert(g1.textoCortado === 0,
-      'V2 ' + T + ': e o rotulo "Editar cliente" continua cabendo inteiro no botao mais estreito');
+      /* ---- V1 + V2: o ⋮ do cartao, com 10 clientes e rolagem ----
+         13/10/2026: o alvo medido aqui era o botao largo "Editar cliente" do rodape do cartao,
+         que SAIU. Quem ocupa o lugar dele e o ⋮ do canto superior direito, e ele herda o MESMO
+         risco medido: a coluna do FAB "Nova OS" (fixo, right 16px, 52px) come os 28 px da ponta
+         direita do cartao em 390/375/360/320. Por isso o ⋮ tem margin-right de 28px -- e e esta
+         varredura que prova que nenhum ponto dele e roubado em nenhuma posicao de rolagem. */
+      await pgM.evaluate(() => {
+        clientes = []; osList = []; manutencoes = [];
+        for (let i = 1; i <= 10; i++) {
+          clientes.push({ nome: 'Cliente Numero ' + i, contato: '(49) 9000-000' + i,
+                          endereco: 'Rua das Flores, ' + (i * 10) + ' - Centro' });
+          osList.push({ id: 'vg' + i, cliente: 'Cliente Numero ' + i, tipo: 'Instalacao',
+            endereco: 'Rua das Flores, ' + (i * 10), tecnico: 'Paulo', data: '2026-05-0' + (i % 9 + 1),
+            hora: '08:00', status: 'concluida', qtdSplits: 1, checklist: [],
+            equipamentos: [{ marca: '', modelo: '', fotoEvap: null, fotoCond: null }] });
+        }
+        localStorage.setItem('mappo_clientes', JSON.stringify(clientes));   // armadilha 4
+        localStorage.setItem('mappo_os', JSON.stringify(osList));
+        localStorage.setItem('mappo_manut', '[]');
+        nav('clientes');
+        const t = document.getElementById('tourRoot'); if (t) t.innerHTML = '';
+      });
+      await pgM.waitForTimeout(260);
+      const g1 = await pgM.evaluate(() => {
+        const fab = document.getElementById('fabNovo');
+        const rf = fab.getBoundingClientRect();
+        const noFab = document.elementFromPoint(Math.round(rf.left + rf.width / 2),
+                                                Math.round(rf.top + rf.height / 2));
+        const bts = [...document.querySelectorAll('#app .os-card button')];
+        return {
+          n: bts.length, fabDisplay: getComputedStyle(fab).display, fabLeft: Math.round(rf.left),
+          instrumento: !!(noFab && fab.contains(noFab)),
+          alturas: [...new Set(bts.map(x => Math.round(x.getBoundingClientRect().height)))],
+          larguras: [...new Set(bts.map(x => Math.round(x.getBoundingClientRect().width)))],
+          maiorRight: Math.max(...bts.map(x => Math.round(x.getBoundingClientRect().right))),
+          textoCortado: bts.filter(x => x.scrollWidth > x.clientWidth).length
+        };
+      });
+      console.log('  V1/V2 ' + T + ': ' + g1.n + ' botoes, alturas ' + JSON.stringify(g1.alturas)
+        + ' | borda direita max ' + g1.maiorRight + ' | FAB em x=' + g1.fabLeft + ' (' + g1.fabDisplay + ')');
+      assert(g1.n === 10, 'V6 ' + T + ': os 10 cartoes de cliente tem o botao de acoes (⋮)');
+      assert(g1.fabDisplay === 'flex',
+        'CONTROLE V6 ' + T + ': o FAB "Nova OS" esta de fato na tela (no desktop e display:none, e o caso seria vazio)');
+      assert(g1.instrumento,
+        'CONTROLE V6 ' + T + ': mirar no meio do FAB devolve o proprio FAB -- o hit-test mede quem esta na frente');
+      assert(g1.maiorRight <= g1.fabLeft,
+        'V1 ' + T + ': nenhum ⋮ alcanca a coluna do FAB (borda direita ' + g1.maiorRight
+        + ' <= ' + g1.fabLeft + ')');
+      assert(g1.alturas.every(a => a >= 44),
+        'V2 ' + T + ': todo ⋮ tem no minimo 44 px de altura (medido ' + JSON.stringify(g1.alturas) + ')');
+      assert(g1.larguras.every(a => a >= 44),
+        'V2 ' + T + ': e no minimo 44 px de largura (medido ' + JSON.stringify(g1.larguras) + ')');
+      assert(g1.textoCortado === 0,
+        'V2 ' + T + ': e o conteudo do ⋮ continua cabendo inteiro no botao');
 
-    /* Varredura de rolagem de 0 a 200 em passos de 10: a faixa do FAB tem 52 px de altura, então
-       um passo de 10 px garante que o ponto medido de algum botão CAIA dentro dela -- e é isso que
-       o controle `naFaixaDoFab` afirma. Sem esse controle, um filtro que excluísse justamente a
-       linha perigosa deixaria o caso passar calado contando pontos inofensivos. */
-    let medidos = 0, naFaixaDoFab = 0; const roubados = [];
-    for (let sy = 0; sy <= 200; sy += 10) {
-      const r = await pgM.evaluate((alvo) => {
-        window.scrollTo(0, alvo);
-        const barra = document.querySelector('.navbar');
-        const limite = barra ? barra.getBoundingClientRect().top : window.innerHeight;
-        const rfab = document.getElementById('fabNovo').getBoundingClientRect();
-        const marca = (el) => el ? el.tagName.toLowerCase()
-          + (typeof el.className === 'string' && el.className ? '.' + el.className.split(' ')[0] : '') : 'null';
-        const out = [];
-        [...document.querySelectorAll('#app .os-card button')].forEach((bt, i) => {
-          const rc = bt.getBoundingClientRect();
-          /* só pontos inteiramente visiveis E acima da barra inferior -- ver o cabecalho */
-          if (rc.top < 0 || rc.bottom > limite) return;
-          const y = Math.round(rc.top + rc.height / 2);
-          const centro = document.elementFromPoint(Math.round(rc.left + rc.width / 2), y);
-          const direita = document.elementFromPoint(Math.round(rc.right - 2), y);
-          out.push({ i: i, naFaixa: y >= rfab.top && y <= rfab.bottom,
-                     ok: !!(centro && bt.contains(centro)) && !!(direita && bt.contains(direita)),
-                     centro: marca(centro), direita: marca(direita) });
+      /* Varredura de rolagem em passos de 10: a faixa do FAB tem 52 px de altura, então um passo
+         de 10 px garante que o ponto medido de algum botão CAIA dentro dela -- e é isso que
+         o controle `naFaixaDoFab` afirma. Sem esse controle, um filtro que excluísse justamente a
+         linha perigosa deixaria o caso passar calado contando pontos inofensivos.
+         Três coisas aqui são sobre MEDIR, e nenhuma afrouxa o que é exigido (armadilha 5 do
+         cabeçalho deste bloco, medida em 13/10/2026):
+           a. O ALCANCE sai da geometria medida, não de um 0..200 fixo. Com o alcance fixo, bastou
+              a lista descer 122 px (a faixa #syncAlerta nascendo) para a varredura inteira passar
+              POR FORA da linha perigosa e o controle reprovar sem defeito nenhum. Varrer um passo
+              de cartão (`passo`) a mais garante que algum centro atravesse a faixa do FAB em
+              qualquer altura de lista.
+           b. A faixa #syncAlerta é levada ao ESTADO FINAL antes de varrer, com controle positivo
+              de que a chamada de fato aconteceu.
+           c. A altura do documento é lida em TODO passo. Se mudar no meio, a medição está
+              INVÁLIDA e a varredura é refeita; se não assentar em 3 tentativas, o check REPROVA
+              dizendo isso. Número medido com o chão se movendo não é medida -- é sorteio, e
+              sorteio verde vale tanto quanto sorteio vermelho: nada. */
+      const assentou = await pgM.evaluate(() => {
+        try { _vigiarConexao(); _atualizarAlertaSync(); return { ok: true, erro: '' }; }
+        catch (e) { return { ok: false, erro: (e.code || '') + ' ' + e.message }; }
+      });
+      assert(assentou.ok, 'CONTROLE V6 ' + T + ': a faixa #syncAlerta foi levada ao estado final ANTES '
+        + 'de medir -- senao ela nasce no meio da varredura e desce a lista 122 px' + (assentou.erro ? ' -- ' + assentou.erro : ''));
+      let medidos = 0, naFaixaDoFab = 0, roubados = [], alturas = [], alcance = 0;
+      let base = null, valida = false, tentativas = 0;
+      while (tentativas < 3 && !valida) {
+        tentativas++;
+        base = await pgM.evaluate(async () => {
+          window.scrollTo(0, 0);
+          await new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
+          const ys = [...document.querySelectorAll('#app .os-card button')]
+            .map(x => { const r = x.getBoundingClientRect(); return r.top + r.height / 2; });
+          return { docH: document.documentElement.scrollHeight,
+                   passo: ys.length > 1 ? Math.round(ys[1] - ys[0]) : 200,
+                   maxScroll: document.documentElement.scrollHeight - window.innerHeight };
         });
-        return { sy: window.scrollY, out: out };
-      }, sy);
-      medidos += r.out.length;
-      naFaixaDoFab += r.out.filter(x => x.naFaixa).length;
-      r.out.filter(x => !x.ok).forEach(x => roubados.push('scrollY=' + r.sy + ' botao#' + x.i
-        + ' centro->' + x.centro + ' direita->' + x.direita));
-    }
-    console.log('  V1 ' + T + ': ' + medidos + ' pontos medidos na varredura de rolagem ('
-      + naFaixaDoFab + ' na faixa de altura do FAB), ' + roubados.length + ' roubados'
-      + (roubados.length ? '\n     ' + roubados.slice(0, 6).join('\n     ') : ''));
-    assert(medidos > 0,
-      'CONTROLE V6 ' + T + ': a varredura mediu algum ponto (filtro que excluisse tudo passaria calado)');
-    assert(naFaixaDoFab >= 1,
-      'CONTROLE V6 ' + T + ': ao menos um ponto medido caiu na FAIXA DE ALTURA do FAB -- a varredura '
-      + 'passou pela linha perigosa, nao so por linhas inofensivas');
-    assert(roubados.length === 0,
-      'V1 ' + T + ': em toda a rolagem, o centro E a borda direita do botao de editar recebem o proprio toque');
-    await pgM.evaluate(() => window.scrollTo(0, 0));
+        alcance = Math.min(base.maxScroll, Math.max(200, base.passo + 20));
+        medidos = 0; naFaixaDoFab = 0; roubados = []; alturas = [];
+        for (let sy = 0; sy <= alcance; sy += 10) {
+          const r = await pgM.evaluate(async (alvo) => {
+            window.scrollTo(0, alvo);
+            /* a rolagem E o layout assentam antes da leitura -- dois quadros de animação */
+            await new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
+            const barra = document.querySelector('.navbar');
+            const limite = barra ? barra.getBoundingClientRect().top : window.innerHeight;
+            const rfab = document.getElementById('fabNovo').getBoundingClientRect();
+            const marca = (el) => el ? el.tagName.toLowerCase()
+              + (typeof el.className === 'string' && el.className ? '.' + el.className.split(' ')[0] : '') : 'null';
+            const out = [];
+            [...document.querySelectorAll('#app .os-card button')].forEach((bt, i) => {
+              const rc = bt.getBoundingClientRect();
+              /* só pontos inteiramente visiveis E acima da barra inferior -- ver o cabecalho */
+              if (rc.top < 0 || rc.bottom > limite) return;
+              const y = Math.round(rc.top + rc.height / 2);
+              const centro = document.elementFromPoint(Math.round(rc.left + rc.width / 2), y);
+              const direita = document.elementFromPoint(Math.round(rc.right - 2), y);
+              out.push({ i: i, naFaixa: y >= rfab.top && y <= rfab.bottom,
+                         ok: !!(centro && bt.contains(centro)) && !!(direita && bt.contains(direita)),
+                         centro: marca(centro), direita: marca(direita) });
+            });
+            return { sy: window.scrollY, docH: document.documentElement.scrollHeight, out: out };
+          }, sy);
+          alturas.push(r.docH);
+          medidos += r.out.length;
+          naFaixaDoFab += r.out.filter(x => x.naFaixa).length;
+          r.out.filter(x => !x.ok).forEach(x => roubados.push('scrollY=' + r.sy + ' botao#' + x.i
+            + ' centro->' + x.centro + ' direita->' + x.direita));
+        }
+        const mexeu = [...new Set(alturas.filter(h => h !== base.docH))];
+        valida = mexeu.length === 0;
+        if (!valida) console.log('  V1 ' + T + ': MEDICAO INVALIDA na tentativa ' + tentativas
+          + ' -- a altura do documento mudou no meio da varredura (' + base.docH + ' -> '
+          + mexeu.join(',') + '), varrendo de novo');
+      }
+      console.log('  V1 ' + T + ': ' + medidos + ' pontos medidos na varredura de rolagem 0..'
+        + alcance + ' (' + naFaixaDoFab + ' na faixa de altura do FAB), ' + roubados.length
+        + ' roubados | tentativa ' + tentativas + ', altura do documento ' + base.docH
+        + ', estavel: ' + valida
+        + (roubados.length ? '\n     ' + roubados.slice(0, 6).join('\n     ') : ''));
+      assert(valida, 'CONTROLE V6 ' + T + ': a varredura mediu com a ALTURA DO DOCUMENTO estavel -- '
+        + 'medicao com o chao se movendo nao e medida, e foi isso que deixou este controle '
+        + 'reprovar 2 vezes em 8 sem defeito nenhum (3 tentativas invalidadas)');
+      assert(medidos > 0,
+        'CONTROLE V6 ' + T + ': a varredura mediu algum ponto (filtro que excluisse tudo passaria calado)');
+      assert(naFaixaDoFab >= 1,
+        'CONTROLE V6 ' + T + ': ao menos um ponto medido caiu na FAIXA DE ALTURA do FAB -- a varredura '
+        + 'passou pela linha perigosa, nao so por linhas inofensivas');
+      assert(roubados.length === 0,
+        'V1 ' + T + ': em toda a rolagem, o centro E a borda direita do ⋮ recebem o proprio toque');
+      await pgM.evaluate(() => window.scrollTo(0, 0));
 
-    /* ---- V3: detalhe com endereco e contato de 200 caracteres sem espacos ---- */
-    await pgM.evaluate((L) => {
-      const r = document.getElementById('modalRoot'); if (r) r.innerHTML = '';
-      clientes = [{ nome: 'Cliente Longo', endereco: L, contato: L }];
-      osList = []; manutencoes = [];
-      localStorage.setItem('mappo_clientes', JSON.stringify(clientes));
-      localStorage.setItem('mappo_os', '[]'); localStorage.setItem('mappo_manut', '[]');
-      nav('clientes'); openHistoricoCliente('Cliente Longo');
-    }, LONGO);
-    await pgM.waitForTimeout(280);
-    const g3 = await pgM.evaluate(() => {
-      const ov = document.getElementById('curOverlay');
-      const body = ov.querySelector('.modal-body');
-      const fechar = [...ov.querySelectorAll('.modal-foot button')].find(x => /Fechar/.test(x.textContent));
-      const rf = fechar.getBoundingClientRect();
-      const el = document.elementFromPoint(Math.round(rf.left + rf.width / 2),
-                                           Math.round(rf.top + rf.height / 2));
-      const out = { aberto: ov.classList.contains('open'), sw: body.scrollWidth, cw: body.clientWidth,
-        fora: [...ov.querySelectorAll('.modal-body .os-meta-i')]
-          .map(x => Math.round(x.getBoundingClientRect().right)).filter(x => x > window.innerWidth),
-        fecharRecebe: !!(el && fechar.contains(el)) };
-      closeModal();
-      return out;
-    });
-    await pgM.waitForTimeout(320);
-    console.log('  V3 ' + T + ': modal-body scrollWidth ' + g3.sw + ' / clientWidth ' + g3.cw
-      + ' | campos fora da tela: ' + g3.fora.length);
-    assert(g3.aberto, 'CONTROLE V6 ' + T + ': o detalhe do cliente esta aberto (classe open em #curOverlay)');
-    assert(g3.sw === g3.cw,
-      'V3 ' + T + ': com endereco e contato de 200 caracteres sem espacos o detalhe NAO rola na horizontal ('
-      + g3.sw + ' === ' + g3.cw + ')');
-    assert(g3.fora.length === 0, 'V3 ' + T + ': nenhum dos dois campos passa da borda da tela');
-    assert(g3.fecharRecebe, 'V3 ' + T + ': e o botao Fechar continua recebendo o proprio toque');
-
-    /* ---- V4: cartao e detalhe dizem a MESMA coisa sobre endereco ausente ---- */
-    await pgM.evaluate(() => {
-      const r = document.getElementById('modalRoot'); if (r) r.innerHTML = '';
-      clientes = [{ nome: 'So Contato', endereco: '', contato: '(49) 8888-1111' },
-                  { nome: 'Nem Endereco Nem Contato', endereco: '', contato: '' }];
-      osList = []; manutencoes = [];
-      localStorage.setItem('mappo_clientes', JSON.stringify(clientes));
-      localStorage.setItem('mappo_os', '[]'); localStorage.setItem('mappo_manut', '[]');
-      nav('clientes');
-    });
-    await pgM.waitForTimeout(260);
-    for (const nome of ['So Contato', 'Nem Endereco Nem Contato']) {
-      const g4 = await pgM.evaluate((n) => {
-        const card = [...document.querySelectorAll('#app .os-card')]
-          .find(c => (c.querySelector('.os-client') || {}).textContent === n);
-        const noCartao = [...card.querySelectorAll('.os-addr')].map(x => x.textContent.trim());
-        openHistoricoCliente(n);
-        const ov = document.getElementById('curOverlay');
-        const out = { noCartao: noCartao, aberto: ov.classList.contains('open'),
-          noDetalhe: [...ov.querySelectorAll('.modal-body .os-meta-i')].map(x => x.textContent.trim()) };
-        closeModal();
-        return out;
-      }, nome);
-      await pgM.waitForTimeout(320);
-      console.log('  V4 ' + T + ' [' + nome + ']: cartao ' + JSON.stringify(g4.noCartao)
-        + ' | detalhe ' + JSON.stringify(g4.noDetalhe));
-      assert(g4.aberto, 'CONTROLE V6 ' + T + ': o detalhe de "' + nome + '" abriu');
-      assert(g4.noCartao.some(x => /Sem endere/.test(x)),
-        'CONTROLE V4 ' + T + ': o cartao de "' + nome + '" diz "Sem endereco"');
-      assert(JSON.stringify(g4.noDetalhe) === JSON.stringify(g4.noCartao),
-        'V4 ' + T + ': cartao e detalhe de "' + nome + '" dizem a MESMA coisa -- '
-        + JSON.stringify(g4.noCartao));
-    }
-
-    /* ---- V5: o rodape do modal de cliente, com atencao ao modo EDICAO ---- */
-    for (const modo of ['cadastro', 'edicao']) {
-      const g5 = await pgM.evaluate((m) => {
+      /* ---- V3: detalhe com endereco e contato de 200 caracteres sem espacos ---- */
+      await pgM.evaluate((L) => {
         const r = document.getElementById('modalRoot'); if (r) r.innerHTML = '';
-        clientes = [{ nome: 'Cliente Rodape', endereco: 'Rua R, 1', contato: '(49) 7777-2222' }];
+        clientes = [{ nome: 'Cliente Longo', endereco: L, contato: L }];
         osList = []; manutencoes = [];
         localStorage.setItem('mappo_clientes', JSON.stringify(clientes));
         localStorage.setItem('mappo_os', '[]'); localStorage.setItem('mappo_manut', '[]');
-        if (m === 'cadastro') openModalCliente(); else openModalCliente('Cliente Rodape');
+        nav('clientes'); openHistoricoCliente('Cliente Longo');
+      }, LONGO);
+      await pgM.waitForTimeout(280);
+      const g3 = await pgM.evaluate(() => {
         const ov = document.getElementById('curOverlay');
-        const foot = ov.querySelector('.modal-foot');
-        const bts = [...foot.querySelectorAll('button')].map(bt => {
-          const rc = bt.getBoundingClientRect();
-          return { t: bt.textContent.trim(), top: Math.round(rc.top), w: Math.round(rc.width) };
-        });
-        const prim = bts.find(x => /salvar/i.test(x.t)), sec = bts.find(x => /cancelar/i.test(x.t));
-        const out = { aberto: ov.classList.contains('open'), bts: bts,
-          footH: Math.round(foot.getBoundingClientRect().height),
-          linhas: [...new Set(bts.map(x => x.top))].length,
-          temOsDois: !!prim && !!sec,
-          primAcimaOuJunto: !!(prim && sec && prim.top <= sec.top) };
+        const body = ov.querySelector('.modal-body');
+        const fechar = [...ov.querySelectorAll('.modal-foot button')].find(x => /Fechar/.test(x.textContent));
+        const rf = fechar.getBoundingClientRect();
+        const el = document.elementFromPoint(Math.round(rf.left + rf.width / 2),
+                                             Math.round(rf.top + rf.height / 2));
+        const out = { aberto: ov.classList.contains('open'), sw: body.scrollWidth, cw: body.clientWidth,
+          fora: [...ov.querySelectorAll('.modal-body .os-meta-i')]
+            .map(x => Math.round(x.getBoundingClientRect().right)).filter(x => x > window.innerWidth),
+          fecharRecebe: !!(el && fechar.contains(el)) };
         closeModal();
         return out;
-      }, modo);
+      });
       await pgM.waitForTimeout(320);
-      console.log('  V5 ' + T + ' [' + modo + ']: rodape ' + g5.footH + 'px em ' + g5.linhas
-        + ' linha(s) ' + JSON.stringify(g5.bts));
-      assert(g5.aberto, 'CONTROLE V6 ' + T + ': o modal de cliente (' + modo + ') esta aberto');
-      assert(g5.temOsDois, 'CONTROLE V6 ' + T + ': o rodape (' + modo + ') tem o Cancelar e o Salvar');
-      assert(g5.linhas === 1,
-        'V5 ' + T + ': o rodape do modal de cliente (' + modo + ') cabe em UMA linha');
-      assert(g5.primAcimaOuJunto,
-        'V5 ' + T + ': a acao primaria (Salvar) nunca fica ABAIXO do Cancelar (' + modo + ')');
+      console.log('  V3 ' + T + ': modal-body scrollWidth ' + g3.sw + ' / clientWidth ' + g3.cw
+        + ' | campos fora da tela: ' + g3.fora.length);
+      assert(g3.aberto, 'CONTROLE V6 ' + T + ': o detalhe do cliente esta aberto (classe open em #curOverlay)');
+      assert(g3.sw === g3.cw,
+        'V3 ' + T + ': com endereco e contato de 200 caracteres sem espacos o detalhe NAO rola na horizontal ('
+        + g3.sw + ' === ' + g3.cw + ')');
+      assert(g3.fora.length === 0, 'V3 ' + T + ': nenhum dos dois campos passa da borda da tela');
+      assert(g3.fecharRecebe, 'V3 ' + T + ': e o botao Fechar continua recebendo o proprio toque');
+
+      /* ---- V4: cartao e detalhe dizem a MESMA coisa sobre endereco ausente ---- */
+      await pgM.evaluate(() => {
+        const r = document.getElementById('modalRoot'); if (r) r.innerHTML = '';
+        clientes = [{ nome: 'So Contato', endereco: '', contato: '(49) 8888-1111' },
+                    { nome: 'Nem Endereco Nem Contato', endereco: '', contato: '' }];
+        osList = []; manutencoes = [];
+        localStorage.setItem('mappo_clientes', JSON.stringify(clientes));
+        localStorage.setItem('mappo_os', '[]'); localStorage.setItem('mappo_manut', '[]');
+        nav('clientes');
+      });
+      await pgM.waitForTimeout(260);
+      for (const nome of ['So Contato', 'Nem Endereco Nem Contato']) {
+        const g4 = await pgM.evaluate((n) => {
+          const card = [...document.querySelectorAll('#app .os-card')]
+            .find(c => (c.querySelector('.os-client') || {}).textContent === n);
+          const noCartao = [...card.querySelectorAll('.os-addr')].map(x => x.textContent.trim());
+          openHistoricoCliente(n);
+          const ov = document.getElementById('curOverlay');
+          const out = { noCartao: noCartao, aberto: ov.classList.contains('open'),
+            noDetalhe: [...ov.querySelectorAll('.modal-body .os-meta-i')].map(x => x.textContent.trim()) };
+          closeModal();
+          return out;
+        }, nome);
+        await pgM.waitForTimeout(320);
+        /* O que V4 afirma é o TEXTO, não a decoração: desde 13/10/2026 o cartão de cliente usa
+           ícone do sistema (SVG, que não entra no textContent) e o detalhe ainda usa o emoji
+           de endereço e telefone -- a varredura dos emojis restantes é entrega própria,
+           registrada no CLAUDE.md.
+           Comparar os textos crus faria este caso reprovar por causa da decoração, que é
+           justamente o que ele NÃO mede. O corte tira só o prefixo não-textual do começo. */
+        const soTexto = (s) => s.replace(/^[^\p{L}\p{N}(]+/u, '').trim();
+        console.log('  V4 ' + T + ' [' + nome + ']: cartao ' + JSON.stringify(g4.noCartao)
+          + ' | detalhe ' + JSON.stringify(g4.noDetalhe));
+        assert(g4.aberto, 'CONTROLE V6 ' + T + ': o detalhe de "' + nome + '" abriu');
+        assert(g4.noCartao.some(x => /Sem endere/.test(x)),
+          'CONTROLE V4 ' + T + ': o cartao de "' + nome + '" diz "Sem endereco"');
+        assert(JSON.stringify(g4.noDetalhe.map(soTexto)) === JSON.stringify(g4.noCartao.map(soTexto)),
+          'V4 ' + T + ': cartao e detalhe de "' + nome + '" dizem a MESMA coisa -- '
+          + JSON.stringify(g4.noCartao.map(soTexto)));
+      }
+
+      /* ---- V5: o rodape do modal de cliente, com atencao ao modo EDICAO ---- */
+      for (const modo of ['cadastro', 'edicao']) {
+        const g5 = await pgM.evaluate((m) => {
+          const r = document.getElementById('modalRoot'); if (r) r.innerHTML = '';
+          clientes = [{ nome: 'Cliente Rodape', endereco: 'Rua R, 1', contato: '(49) 7777-2222' }];
+          osList = []; manutencoes = [];
+          localStorage.setItem('mappo_clientes', JSON.stringify(clientes));
+          localStorage.setItem('mappo_os', '[]'); localStorage.setItem('mappo_manut', '[]');
+          if (m === 'cadastro') openModalCliente(); else openModalCliente('Cliente Rodape');
+          const ov = document.getElementById('curOverlay');
+          const foot = ov.querySelector('.modal-foot');
+          const bts = [...foot.querySelectorAll('button')].map(bt => {
+            const rc = bt.getBoundingClientRect();
+            return { t: bt.textContent.trim(), top: Math.round(rc.top), w: Math.round(rc.width) };
+          });
+          const prim = bts.find(x => /salvar/i.test(x.t)), sec = bts.find(x => /cancelar/i.test(x.t));
+          const out = { aberto: ov.classList.contains('open'), bts: bts,
+            footH: Math.round(foot.getBoundingClientRect().height),
+            linhas: [...new Set(bts.map(x => x.top))].length,
+            temOsDois: !!prim && !!sec,
+            primAcimaOuJunto: !!(prim && sec && prim.top <= sec.top) };
+          closeModal();
+          return out;
+        }, modo);
+        await pgM.waitForTimeout(320);
+        console.log('  V5 ' + T + ' [' + modo + ']: rodape ' + g5.footH + 'px em ' + g5.linhas
+          + ' linha(s) ' + JSON.stringify(g5.bts));
+        assert(g5.aberto, 'CONTROLE V6 ' + T + ': o modal de cliente (' + modo + ') esta aberto');
+        assert(g5.temOsDois, 'CONTROLE V6 ' + T + ': o rodape (' + modo + ') tem o Cancelar e o Salvar');
+        assert(g5.linhas === 1,
+          'V5 ' + T + ': o rodape do modal de cliente (' + modo + ') cabe em UMA linha');
+        assert(g5.primAcimaOuJunto,
+          'V5 ' + T + ': a acao primaria (Salvar) nunca fica ABAIXO do Cancelar (' + modo + ')');
+      }
+
+      /* ---- V7 (R1): O ⋮ NÃO SAI DA TELA, e é regressão medida contra o publicado ----
+         Com nome de 120 caracteres sem espaço (ou endereço de 200 sem espaço), a coluna de texto
+         do .os-card-top esticava pelo min-content e levava o ⋮ para x=1742 numa tela de 320 a
+         390: FORA da tela, com elementFromPoint no centro dele devolvendo `null`. Aquele cliente
+         ficava SEM PORTA NENHUMA para Editar, Fixar ou Excluir sem arrastar a página na
+         horizontal -- e o botão largo que o ⋮ substituiu ficava em x=44 e recebia o toque na
+         base-42a291d, nos mesmos cenários. O estouro horizontal do cartão é anterior a esta
+         família; levar o CONTROLE embora não era.
+         Medido na árvore anterior (visual-M), 14/10/2026: x=1742 e alvo `null` com o nome de
+         120, x=1611 e `null` com o endereço de 200, nos QUATRO tamanhos. */
+      const SEM_ESPACO_120 = 'N'.repeat(120);
+      const SEM_ESPACO_200 = 'E'.repeat(200);
+      for (const cen of ['nome de 120 sem espaco', 'endereco de 200 sem espaco', 'CONTROLE: nome curto']) {
+        const g7 = await pgM.evaluate((d) => {
+          const r = document.getElementById('modalRoot'); if (r) r.innerHTML = '';
+          const nome = d.cen === 'nome de 120 sem espaco' ? d.n120 : 'Cliente Curto';
+          const end = d.cen === 'endereco de 200 sem espaco' ? d.e200 : 'Rua das Flores, 10 - Centro';
+          clientes = [{ nome: nome, endereco: end, contato: '(49) 9000-0001' }];
+          osList = []; manutencoes = [];
+          localStorage.setItem('mappo_clientes', JSON.stringify(clientes));   // armadilha 4
+          localStorage.setItem('mappo_os', '[]'); localStorage.setItem('mappo_manut', '[]');
+          nav('clientes');
+          const t = document.getElementById('tourRoot'); if (t) t.innerHTML = '';   // armadilha 2
+          const bt = document.querySelector('#app .os-card button');
+          if (!bt) return { achou: false };
+          const rc = bt.getBoundingClientRect();
+          const cx = Math.round(rc.left + rc.width / 2), cy = Math.round(rc.top + rc.height / 2);
+          const el = document.elementFromPoint(cx, cy);
+          const marca = (e) => e ? e.tagName.toLowerCase()
+            + (typeof e.className === 'string' && e.className ? '.' + e.className.split(' ')[0] : '') : 'null';
+          /* CONTROLE da sonda, no mesmo estado de tela: mirar no meio do FAB devolve o FAB.
+             Sem ele, "o ⋮ nao recebe o toque" e "elementFromPoint nao esta medindo" seriam
+             indistinguiveis -- e os dois devolvem a mesma coisa. */
+          const fab = document.getElementById('fabNovo');
+          const rf = fab.getBoundingClientRect();
+          const noFab = document.elementFromPoint(Math.round(rf.left + rf.width / 2),
+                                                  Math.round(rf.top + rf.height / 2));
+          return { achou: true, x: Math.round(rc.left), right: Math.round(rc.right),
+            dentro: rc.left >= 0 && rc.right <= window.innerWidth,
+            recebe: !!(el && bt.contains(el)), alvo: marca(el),
+            instrumento: !!(noFab && fab.contains(noFab)),
+            docSW: document.documentElement.scrollWidth, iw: window.innerWidth };
+        }, { cen: cen, n120: SEM_ESPACO_120, e200: SEM_ESPACO_200 });
+        console.log('  V7 ' + T + ' [' + cen + ']: ⋮ em x=' + g7.x + '..' + g7.right
+          + ' dentro da tela=' + g7.dentro + ' recebe o toque=' + g7.recebe + ' (' + g7.alvo + ')'
+          + ' | document.scrollWidth ' + g7.docSW + ' vs innerWidth ' + g7.iw);
+        assert(g7.achou, 'CONTROLE V7 ' + T + ' [' + cen + ']: o cartao tem o botao ⋮');
+        assert(g7.instrumento, 'CONTROLE V7 ' + T + ' [' + cen + ']: mirar no meio do FAB devolve o '
+          + 'proprio FAB -- o hit-test esta medindo quem esta na frente');
+        assert(g7.dentro, 'V7 ' + T + ' [' + cen + ']: o ⋮ fica DENTRO da tela (medido x=' + g7.x
+          + '..' + g7.right + ', largura ' + g7.iw + ')');
+        assert(g7.recebe, 'V7 ' + T + ' [' + cen + ']: e RECEBE o proprio toque -- sem isso o cliente '
+          + 'fica sem porta para Editar, Fixar e Excluir (medido alvo ' + g7.alvo + ')');
+        assert(g7.docSW === g7.iw, 'V7 ' + T + ' [' + cen + ']: e a pagina nao rola na horizontal ('
+          + g7.docSW + ' === ' + g7.iw + ')');
+      }
+
+      /* ---- V8 (R2 + R3) + V9 (R4): a folha do ⋮ com nome comprido ----
+         Duas formas de nome comprido, e cada uma quebrava de um jeito diferente:
+           R2, nome de 120 COM espaços: o h2 de 24 px quebrava em 9 linhas (261 px de cabeçalho)
+           e a 320x568 "Selecionar várias" e "Excluir" deixavam de receber o próprio toque --
+           elementFromPoint devolvia div.modal-foot e div.overlay, e o toque perdido no rodapé
+           grudado não dispara NADA. O que ficava escondido era a ação destrutiva.
+           R3, nome de 120 SEM espaços: .modal-head h2 é display:flex e item flex não quebra
+           palavra sozinho -- a folha rolava na horizontal (scrollWidth 2155 contra clientWidth
+           350/335/320/280, idêntico nos quatro tamanhos).
+         Medido na árvore anterior (visual-M), 14/10/2026: COM espaços, 3 de 5 opções recebiam o
+         toque a 320x568 e a folha ROLAVA na vertical a 375, 360 e 320; SEM espaços, scrollWidth
+         2155 nos quatro tamanhos. As cinco opções são as quatro do corpo mais o Fechar do rodapé.
+         V9: o item Excluir media 4,13:1 de contraste sobre branco (rgb(229,62,62) em 14 px peso
+         600), abaixo do mínimo AA de 4,5:1, enquanto os outros três medem 8,61:1 -- o único
+         sinal de "isto é destrutivo" era o de pior leitura da folha. */
+      const COM_ESPACO_120 = (() => { let s = ''; while (s.length < 120) s += 'Nome Comprido '; return s.slice(0, 120).trim(); })();
+      for (const [rot, nome] of [['120 COM espacos', COM_ESPACO_120], ['120 SEM espacos', SEM_ESPACO_120]]) {
+        const g8 = await pgM.evaluate((d) => {
+          const r = document.getElementById('modalRoot'); if (r) r.innerHTML = '';
+          clientes = [{ nome: d.nome, endereco: 'Rua V8, 1', contato: '(49) 5555-0000' }];
+          osList = []; manutencoes = [];
+          localStorage.setItem('mappo_clientes', JSON.stringify(clientes));
+          localStorage.setItem('mappo_os', '[]'); localStorage.setItem('mappo_manut', '[]');
+          nav('clientes');
+          const t = document.getElementById('tourRoot'); if (t) t.innerHTML = '';
+          menuCliente(d.nome);
+          const t2 = document.getElementById('tourRoot'); if (t2) t2.innerHTML = '';
+          const ov = document.getElementById('curOverlay');
+          const modal = ov.querySelector('.modal');
+          const h2 = ov.querySelector('.modal-head h2');
+          const marca = (e) => e ? e.tagName.toLowerCase()
+            + (typeof e.className === 'string' && e.className ? '.' + e.className.split(' ')[0] : '') : 'null';
+          const medir = (bt) => {
+            const rc = bt.getBoundingClientRect();
+            const el = document.elementFromPoint(Math.round(rc.left + rc.width / 2),
+                                                 Math.round(rc.top + rc.height / 2));
+            return { t: bt.textContent.replace(/\s+/g, ' ').trim(),
+              y: Math.round(rc.top) + '-' + Math.round(rc.bottom),
+              recebe: !!(el && bt.contains(el)), alvo: marca(el), cor: getComputedStyle(bt).color };
+          };
+          const itens = [...ov.querySelectorAll('.modal-body button'),
+                         ...ov.querySelectorAll('.modal-foot button')].map(medir);
+          const out = { aberto: ov.classList.contains('open'),
+            msw: modal.scrollWidth, mcw: modal.clientWidth,
+            rolaVertical: modal.scrollHeight - modal.clientHeight > 1,
+            h2h: Math.round(h2.getBoundingClientRect().height),
+            h2sw: h2.scrollWidth, h2cw: h2.clientWidth,
+            itens: itens, fundo: getComputedStyle(modal).backgroundColor };
+          closeModal();
+          return out;
+        }, { nome: nome });
+        await pgM.waitForTimeout(320);
+        const recebem = g8.itens.filter(x => x.recebe).length;
+        const excluir = g8.itens.find(x => /^excluir$/i.test(x.t));
+        const razao = excluir ? _contraste(_rgbDe(excluir.cor), _rgbDe(g8.fundo)) : 0;
+        console.log('  V8 ' + T + ' [' + rot + ']: modal scrollWidth ' + g8.msw + ' / clientWidth '
+          + g8.mcw + ' | rola na vertical: ' + g8.rolaVertical + ' | h2 ' + g8.h2h + 'px | '
+          + recebem + ' de ' + g8.itens.length + ' opcoes recebem o proprio toque');
+        g8.itens.filter(x => !x.recebe).forEach(x => console.log('     ROUBADO: "' + x.t + '" y '
+          + x.y + ' -> ' + x.alvo));
+        console.log('  V9 ' + T + ' [' + rot + ']: Excluir em ' + (excluir ? excluir.cor : '(nao achou)')
+          + ' sobre ' + g8.fundo + ' -> contraste ' + razao.toFixed(2) + ':1');
+        assert(g8.aberto, 'CONTROLE V8 ' + T + ' [' + rot + ']: a folha do ⋮ esta aberta (classe open)');
+        assert(g8.itens.length === 5, 'CONTROLE V8 ' + T + ' [' + rot + ']: as CINCO opcoes foram '
+          + 'medidas (4 do corpo + Fechar) -- medido ' + g8.itens.length);
+        assert(!!excluir, 'CONTROLE V9 ' + T + ' [' + rot + ']: o item Excluir foi encontrado na medicao');
+        assert(recebem === 5, 'V8 ' + T + ' [' + rot + ']: as cinco opcoes recebem o PROPRIO toque, '
+          + 'sem rolar -- medido ' + recebem + '/5'
+          + (recebem < 5 ? ' (' + g8.itens.filter(x => !x.recebe).map(x => x.t + '->' + x.alvo).join(', ') + ')' : ''));
+        assert(!g8.rolaVertical, 'V8 ' + T + ' [' + rot + ']: e a folha nao precisa ROLAR para chegar nelas');
+        assert(g8.msw === g8.mcw, 'V8/R3 ' + T + ' [' + rot + ']: a folha NAO rola na horizontal ('
+          + g8.msw + ' === ' + g8.mcw + ')');
+        assert(razao >= 4.5, 'V9 ' + T + ' [' + rot + ']: o item Excluir tem contraste AA sobre o fundo '
+          + 'da folha -- medido ' + razao.toFixed(2) + ':1 (minimo 4.5:1), cor ' + excluir.cor);
+      }
+    } catch (e) {
+      /* Cada tamanho é medido ATÉ O FIM: antes, o primeiro assert vermelho em 360x640 abortava a
+         suíte e 320x568 NUNCA era medido -- enquanto o comentário do index.html afirmava
+         cobertura "nos quatro tamanhos". A falha é colhida e nomeada, e a reprovação vem no fim. */
+      falhasPorTela.push(T + ' -> ' + (e && e.message ? e.message : String(e)));
+      console.log('  !! ' + T + ' FALHOU: ' + (e && e.message ? e.message : e));
+    } finally {
+      await ctxM.close();
     }
-    await ctxM.close();
   }
   assert(errosM.length === 0, 'V6: nenhum erro de pagina nas quatro telas de celular'
     + (errosM.length ? ' -- ' + errosM.join(' | ') : ''));
+  console.log('\n  V6: tamanhos medidos ' + TELAS.map(t => t[0] + 'x' + t[1]).join(', ')
+    + ' | falharam: ' + (falhasPorTela.length ? falhasPorTela.length : 'nenhum'));
+  assert(falhasPorTela.length === 0, 'V6: os QUATRO tamanhos de celular passaram'
+    + (falhasPorTela.length ? ' -- FALHARAM: ' + falhasPorTela.join('  ||  ') : ''));
 
   console.log('\n=== erros de pagina ===');
   console.log(erros.length ? erros : '(nenhum)');
