@@ -8,7 +8,7 @@
 > `MAPPO-O-QUE-TEM.md` (seção do recurso + linha no histórico). Um item só existe em um
 > dos dois arquivos, nunca nos dois.
 
-**Atualizado em:** 12/10/2026 · publicado até `62f7086`
+**Atualizado em:** 15/10/2026 · publicado até `5a38dc7`
 
 **Próximo combinado:** os três pontos de 25/09/2026, na ordem acordada em 10/10/2026 —
 **link do mapa na OS**, **editar cliente** e, por último, **o histórico do mapa por**
@@ -182,6 +182,27 @@ Dois caminhos, ambos já provados neste app:
 **Recomendação: o caminho 1.** Resolve os dois problemas (a lista gigante e o crescimento sem
 fim) com um mecanismo que já existe e já tem teste.
 
+## O que o proprietário pediu em 12/10/2026 e ainda não saiu 🟠
+
+Ele olhou a tela de Clientes no celular e pediu três coisas. **Saiu uma** — o menu ⋮ com fixar
+e excluir (ver `MAPPO-O-QUE-TEM.md`). Faltam duas, mais o que o menu deixou prometido:
+
+### Campos novos do cliente, e o contato clicável
+CPF, nome completo, rua e contato — e o **contato virando link que abre o WhatsApp**, como o
+botão de salvar contato do celular. Isso **muda a forma do dado** (`clientes` ganha campos),
+então tem implicação de sincronização e merece entrega própria, não um apêndice.
+
+### Varredura dos emojis: faltam 139
+A regra está no `CLAUDE.md` desde 12/10/2026 e **tem mecanismo** desde 15/10 — mas ela vale para
+o que for escrito de novo. Os **139 emojis** que já estavam no `index.html` continuam lá; o
+cartão de cliente trocou 4. Medido em 12/10: 45 distintos, e naquele momento 58 ocorrências
+tinham substituto direto no sistema de ícones.
+
+### "Selecionar várias" está prometida na tela
+A opção aparece no menu ⋮ e diz que vem na próxima atualização. **Exclusão e fixação em lote**
+é a coisa de maior risco de dado deste conjunto — merece rodada de revisão só dela, e é por
+isso que ficou de fora. Mas agora está prometida ao usuário, então tem prazo moral.
+
 ## A porta pequena: nome de cliente nasce sem guarda nenhuma 🟠
 
 **Achado em 12/10/2026 pela revisão de "editar cliente", e é a causa do que ela consertou.**
@@ -207,6 +228,19 @@ sistemática pedida pelo proprietário em 12/10/2026.
 
 Registrado em 12/10/2026 para não virar silêncio que parece cobertura:
 
+- **A máquina do proprietário estrangula o `npm test` de forma intermitente, e isso derruba o
+  portão de publicação.** Medido três vezes em dias diferentes, sempre em suítes distintas que
+  a entrega em curso não tocava: `teste-fototarefa` **8277 s** (16 s sozinha), `teste-duasfotos`
+  **5774 s** (18 s), `teste-semnuvem` **1942 s** (36 s) — até 320× mais lento. Nas três vezes a
+  rodada completa passou de 8–12 minutos para 140–150. **Cinco hipóteses foram refutadas por
+  medição** (partida fria, I/O do servidor de teste, rolagem não assentada, saturação de
+  porta, tamanho do arquivo). A causa é desconhecida, e enquanto for, "não publicar com
+  `npm test` vermelho" depende de distinguir vermelho de produto de vermelho de máquina —
+  o que hoje se faz à mão, rodando a suíte isolada.
+- **`page.goto` estourava em ~14% das rodadas da suíte de cliente** (medido: 2 em 14). Depois da
+  correção do controle de hit-test deu **0 em 16**. Não se sabe se foi resolvido de lado ou se
+  está dormindo.
+
 - **`ITEM_LISTS['mappo_clientes']='nome'`** (`index.html`, perto da linha 1740): o merge da
   nuvem identifica o cliente **pelo nome**, então renomear muda a identidade do registro. A
   revisão leu `_anotarPendentes` e concluiu que o merge respeita o rename (marca `{'*':1}` nos
@@ -218,6 +252,21 @@ Registrado em 12/10/2026 para não virar silêncio que parece cobertura:
 - **Cartão estoura com texto sem espaços** (`scrollWidth` 1803 contra 320–390 de tela): medido
   **idêntico na versão publicada**, é anterior. A correção vive em `.os-addr`, classe global
   usada pelo app inteiro, então é entrega própria com medição em outras telas.
+
+## Decisão aberta: cliente que só tem manutenção 🟡
+
+**Pergunta feita ao proprietário em 13/10/2026, ainda sem resposta.**
+
+`renderClientes` monta a lista de `mappo_os` + `mappo_clientes`, e **nunca** de
+`mappo_manut`. Então um cliente que tem só manutenção agendada, sem nenhuma OS, **só aparece**
+na tela de Clientes se tiver cadastro próprio — e some de lá se o cadastro for excluído,
+mesmo com a manutenção continuando agendada.
+
+A entrega do menu ⋮ corrigiu a **mensagem** (ela agora diz a verdade: "o cartão sai da
+lista"), e deliberadamente **não** mexeu na lista — incluir manutenções faz aparecer cliente
+que hoje não aparece, e isso é decisão de produto, não correção de defeito.
+
+**A pergunta:** cliente com manutenção agendada e nenhuma OS deve aparecer na tela de Clientes?
 
 ## Decisões abertas pelo botão "Abrir no mapa" (11/10/2026) 🟡
 
